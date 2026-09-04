@@ -1,8 +1,9 @@
 # Smart Grow Empowerment — Microfinance Platform
 
-Authoritative execution plan. Backend: Supabase `xwxqunklduknceoryrha` (connected).
-One institution, employee-operated, ASA-style group lending plus individual
-payments. No multi-tenancy, no client portal, no payroll.
+Authoritative execution plan. Backend: Supabase `xwxqunklduknceoryrha` (already
+connected; nothing to reconnect). One institution, employee-operated, ASA-style
+group lending with individual client payments. No multi-tenancy, no client
+portal, no payroll.
 
 ## Locked decisions (do not re-litigate)
 
@@ -10,7 +11,7 @@ Reused as platform foundation, retargeted to lending: document generation engine
 auth / PIN / invitation engine · navigation, app shell, UI system · report engine ·
 company/institution settings · audit logging · storage · finance core (Chart of
 Accounts, journals, GL, fiscal periods, fixed assets, banking + reconciliation) ·
-payment settlement engine — reused for money in/out, spoken as loan repayments,
+payment settlement engine — used for money in/out spoken as loan repayments,
 disbursements and institutional expenses, never as customer invoices or vendor bills.
 
 Permanently out: sales, purchases, POS, inventory/warehouse, CRM, projects,
@@ -22,8 +23,7 @@ Invariants:
 - Every state change is a business event; never `UPDATE loans SET …`.
 - Account mapping stays configurable; no account UUIDs in React.
 - One migration = one object group, FK-ordered, verified before the next.
-- No second implementation where a mature engine exists.
-- Reuse-before-delete: a solid engine gets retargeted, not rebuilt.
+- No second implementation where a mature engine exists; retarget, don't rebuild.
 
 ## Verified state (2026-09-04, read from the codebase)
 
@@ -31,84 +31,89 @@ Invariants:
   sales/purchases/POS/inventory/HR pages under `src/pages` or `src/apps`.
 - Lending domain live end-to-end: clients, groups, versioned products,
   applications, assessment/approval, loans, disbursement, schedule engine,
-  repayments (group collection sheet + single-client payment via the single
+  repayments (group collection sheet + single-client payment through the single
   `mf_record_repayment` RPC, reversal via `mf_reverse_repayment`), collections,
   arrears/PAR, top-up / restructure / write-off / closure as distinct events,
   penalty allocation by policy order, officer data scope, duplicate guards.
 - Report registry: 23 entries, categories `lending, statutory, cash_bank, audit,
-  management, fixed_assets` only. No FX, no aged AR/AP, no inventory category.
-  Every `/finance/reports/*` route maps to a registry entry.
-- Statements/receipts are microfinance: lending Client Statement report; receipts
-  project loan + installment allocations server-side.
-- DB slimming already executed: consolidation, HR extras, retail/POS, warehouse,
+  management, fixed_assets` only. Every `/finance/reports/*` route maps to an entry.
+- Statements/receipts are microfinance: lending Client Statement; receipts project
+  loan + installment allocations server-side.
+- Dashboard/KPI surfaces read lending sources; ERP dashboard hooks deleted (M3).
+- DB slimming executed: consolidation, HR extras, retail/POS, warehouse,
   scanner/workstation, sales pricing engine.
 
-Known residue (scoped into milestones below, not open questions):
-- FX hooks/tests still in the tree: `src/hooks/finance/useFxRevaluation.ts`,
-  `useFxExposure.ts`, references in `ClosePeriodSheet.tsx`,
-  `FinanceAccountingControls.tsx`, `src/test/architecture/fx-tenant-isolation.test.ts`,
-  `src/lib/reports/branchScopability.ts`.
-- Sales/purchasing code still live: `useInvoices`, `useBills`,
-  `fetchARSummary`/`fetchAPSummary`, `confirmInvoiceGL`, `confirmBillGL`,
-  `RecordCustomerPaymentDialog`, consumers in `OnboardingChecklist`,
-  `ReconcileTransactionSheet`, dashboard/executive stats, `pages/Reports.tsx`.
-- Inert-by-decision (identifiers welded into shared document/outbox/audit/studio
+Confirmed remaining ERP residue (scoped below, not open questions):
+- `useJournalBooks` still exposes `sale`/`purchase` journal types; default seeding
+  creates Sales (SAL) and Purchases (PUR) books that no entry uses.
+- `useDefaultAccounts` / `DefaultAccountsConfig` still surface inventory, COGS,
+  inventory adjustment, POS cash over/short, card clearing, customer deposits and
+  FX gain/loss roles, while the lending roles that exist in the DB (loan
+  receivable, interest income, disbursement clearing, write-off expense) are not shown.
+- Sales/purchase code still live: `fetchARSummary`/`fetchAPSummary`,
+  `confirmInvoiceGL`, `confirmBillGL`, `RecordCustomerPaymentDialog`,
+  `ContactPreviewDrawer`, consumers in `OnboardingChecklist`, `pages/Reports.tsx`.
+- FX hooks/tests still in the tree: `useFxRevaluation`, `useFxExposure`, call sites
+  in `ClosePeriodSheet.tsx`, `FinanceAccountingControls.tsx`,
+  `fx-tenant-isolation.test.ts`, `src/lib/reports/branchScopability.ts`.
+- Inert by decision (identifiers welded into shared document/outbox/audit/studio
   metadata; removal costs more than it returns): delivery notes, sales orders,
   sales returns, recurring invoices, eTIMS.
 
 ## Milestones — one at a time, verified before the next
 
-### M1 — Owner verification pass (next)
+### M1 — Owner verification pass (open, runs in parallel)
 The sandbox cannot mint a session against the external Supabase project, so the
 owner confirms in the preview: `/lending` and children open; dashboard KPIs and PAR
 render; one lending report, one client statement, one repayment receipt and one
-disbursement confirmation render through the shared document engine. Anything
-broken here is fixed before M2.
+disbursement confirmation render through the shared document engine.
 
-### M2 — FX surface purge (code only, ~1 pass)
-Delete the FX hooks, their remaining call sites and the FX-only architecture test;
-keep `exchange_rates` and currency plumbing (documents + GL depend on it). Period
-close and accounting controls keep their non-FX behaviour. Confirm no registry
-entry, nav item or search result mentions FX. Typecheck.
+### M2 — Report catalogue retargeting — DONE
+### M3 — Money-in/money-out retargeting — DONE (2026-09-04)
 
-### M3 — Money-in/money-out retargeting (reuse, don't delete)
-Repoint the reused settlement/open-items engine at microfinance parties before any
-table drops:
-- Replace `useInvoices`/`useBills`/`fetchARSummary`/`fetchAPSummary` consumers with
-  lending-native sources: receivables = loan outstanding + arrears views;
-  payables = institutional expenses.
-- `OnboardingChecklist`, dashboard/executive stats and `pages/Reports.tsx` read
-  those lending sources.
-- `ReconcileTransactionSheet` matches bank lines to repayments, disbursements and
-  expenses — not invoices/bills.
-- `RecordCustomerPaymentDialog` is replaced by the existing lending repayment path;
-  no second payment writer.
-- Keep the settlement/allocation engine itself; only its party and document
-  vocabulary changes.
+### M4 — Finance configuration retargeting (NEXT, code-only, no migration)
+Finishes the pass the previous engineer left open.
+1. `useJournalBooks`: `JournalType` reduced to `bank | cash | general`; default
+   seeding creates microfinance books — Disbursements, Collections, Bank, Cash,
+   Miscellaneous; existing SAL/PUR books deactivated rather than deleted (13
+   existing entries all sit in Miscellaneous, so nothing is orphaned).
+2. `FinanceAccountingControls` journal type picker follows the reduced set.
+3. `useDefaultAccounts` + `DefaultAccountsConfig`: role list rebuilt around
+   lending — loan receivable, interest income/receivable, fee income, penalty
+   income, disbursement clearing, write-off expense, cash, bank, mobile money,
+   plus retained generic roles (retained earnings, suspense, fixed-asset and
+   depreciation roles). Drop inventory, COGS, inventory adjustment, POS
+   over/short, card clearing, customer deposits, FX gain/loss. Update
+   `default-account-role-coverage` / `-protected` architecture tests to the new set.
+Gate: typecheck clean, build OK, `/finance` configuration screens render.
 
-### M4 — Dead ERP table groups (DB slimming)
-Only after M3 removes the last live consumers. One migration per group, FK-ordered,
-code references deleted in the same step: sales chain (invoices, credit notes,
-estimates, proforma, customer credits/statements, dunning, AR disputes) →
-purchasing chain (bills, bill payments/matching, vendor credits/refunds/statements)
-→ CRM `contacts` → projects → cost layers → backorders/carriers. Groups welded into
-retained metadata stay inert; record the decision and move on. Verify object counts
-after each migration.
+### M5 — Dead ERP table groups (DB slimming)
+One migration per group, FK-ordered, code references deleted in the same step:
+sales chain (invoices, credit notes, estimates, proforma, customer
+credits/statements, dunning, AR disputes) → purchasing chain (bills, bill
+payments/matching, vendor credits/refunds/statements) → CRM `contacts` (with
+`ContactPreviewDrawer` and the AR/AP open-items helpers/tests) → projects → cost
+layers → backorders/carriers. Inert welded groups stay. Verify object counts after
+each migration.
 
-### M5 — Orphan function purge
+### M6 — FX surface purge (code only)
+Delete `useFxRevaluation`/`useFxExposure`, their call sites in `ClosePeriodSheet`
+and `FinanceAccountingControls`, and `fx-tenant-isolation.test.ts`. Keep
+`exchange_rates` and currency plumbing — documents and GL depend on it.
+
+### M7 — Orphan function purge
 Drop PL/pgSQL functions whose referenced relations no longer exist, in
 dependency-checked batches per group. Never touch `mf_*`. Confirm no trigger on a
 live table depends on a function before dropping it.
 
-### M6 — Linter posture on retained schema only
-SECURITY DEFINER views, function `search_path`, anon EXECUTE revokes, leaked-password
-protection. Findings on tables scheduled for M4 are ignored, not fixed.
+### M8 — Linter posture on retained schema only
+SECURITY DEFINER views, function `search_path`, anon EXECUTE revokes,
+leaked-password protection. Findings on tables dropped in M5 are ignored, not fixed.
 
-### M7 — Microfinance report completion
-Fill gaps the SRD requires and the registry lacks (officer/branch collection
-performance, disbursement register, product performance, aging/DPD bands) using the
-existing report engine, server-side data, company-info injection and the shared PDF
-path. No new engine.
+### M9 — Microfinance report completion
+Fill SRD gaps on the existing report engine (officer/branch collection
+performance, disbursement register, product performance, aging/DPD bands),
+server-side data, company-info injection, shared PDF path. No new engine.
 
 ## Working rules
 - Do not audit, document or polish anything outside microfinance scope.
@@ -117,19 +122,15 @@ path. No new engine.
 - Update this file after each milestone; keep it short and factual.
 
 ## Progress log (latest first)
-
-### 2026-09-04 — plan reworked
-Re-verified apps, report registry (23 microfinance-only entries), lending domain and
-the single repayment RPC directly from the codebase. Found the FX and sales/purchasing
-residue listed above. Reordered the remaining work so retargeting (M3) precedes table
-drops (M4) — dropping first would strand live consumers. Added M7 for the missing
-microfinance reports.
-
-### 2026-09-04 — M3 (old numbering) closed: statements & settlement
-Statements are the lending Client Statement report; receipts project loan, schedule
-and `mf_repayment_allocations` server-side; all repayments go through
-`mf_record_repayment`. Residual ERP route comments removed. Typecheck clean.
-
-### 2026-09-04 — M2 (old numbering) closed: orphaned report/finance surfaces
-FX and stock report route stubs removed from `src/apps/finance/routes.tsx`; POS
-enrichment stripped from `AccountingEventsWorkspace.tsx`; nav stays registry-driven.
+### 2026-09-04 — plan reworked for the new owner: milestones renumbered, the
+unfinished journal-books / default-account-mapping retargeting promoted to M4 as
+the single next action; ERP residue re-verified from the codebase.
+### 2026-09-04 — fiscal-period close tooling retargeted to lending
+(`useFiscalPeriodDetail` counts `mf_loan_disbursements` / `mf_repayments`;
+Subledgers tab replaced by a Portfolio tab reading `mf_loan_balances`).
+### 2026-09-04 — M3 closed: ERP dashboard/invoice/bill hooks deleted, launcher and
+dashboard read lending sources, setup guide points at `/lending/clients`.
+### 2026-09-04 — statements & settlement: lending Client Statement report; receipts
+project loan/schedule/`mf_repayment_allocations` server-side; single
+`mf_record_repayment` writer.
+### 2026-09-04 — sales pricing engine removed; report catalogue microfinance-only.
