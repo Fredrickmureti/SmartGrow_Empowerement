@@ -132,24 +132,7 @@ export function ClosePeriodSheet({ open, onOpenChange, period }: Props) {
                 {readiness.unpostedCount}
               </span>
             </div>
-            <div className="flex items-center justify-between p-2 rounded bg-muted/50">
-              <span className="text-sm">Draft invoices</span>
-              <span
-                className={`text-sm font-medium flex items-center gap-1 ${
-                  readiness.draftInvoices > 0
-                    ? "text-destructive"
-                    : "text-primary"
-                }`}
-              >
-                {readiness.draftInvoices > 0 ? (
-                  <XCircle className="h-3.5 w-3.5" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                )}
-                {readiness.draftInvoices}
-              </span>
-            </div>
-            {(readiness.unpostedCount > 0 || readiness.draftInvoices > 0) && (
+            {readiness.unpostedCount > 0 && (
               <Alert variant="destructive" className="mt-2">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Items require attention</AlertTitle>
