@@ -658,7 +658,6 @@ export function ReconcileTransactionSheet({
           </TabsContent>
 
 
-          </TabsContent>
 
           <TabsContent value="expenses" className="mt-4">
             <RadioGroup
