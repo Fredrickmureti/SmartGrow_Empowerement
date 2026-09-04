@@ -31,29 +31,17 @@ describe("parseQuery", () => {
     expect(p.text).toBe("1042");
   });
 
-  it("hints invoices for `inv 1042`", () => {
-    const p = parseQuery("inv 1042");
+  it("hints clients for `client acme`", () => {
+    const p = parseQuery("client acme");
     expect(p.kindScope).toBe("record");
-    expect(p.providerScope).toBe("records:invoices");
-    expect(p.text).toBe("1042");
-  });
-
-  it("hints bills for `bill 12`", () => {
-    const p = parseQuery("bill 12");
-    expect(p.providerScope).toBe("records:bills");
-    expect(p.text).toBe("12");
-  });
-
-  it("hints customers for `customer acme`", () => {
-    const p = parseQuery("customer acme");
     expect(p.providerScope).toBe("records:customers");
     expect(p.text).toBe("acme");
   });
 
-  it("hints products for `sku ABC-001`", () => {
-    const p = parseQuery("sku ABC-001");
-    expect(p.providerScope).toBe("records:products");
-    expect(p.text).toBe("ABC-001");
+  it("hints clients for `borrower jane`", () => {
+    const p = parseQuery("borrower jane");
+    expect(p.providerScope).toBe("records:customers");
+    expect(p.text).toBe("jane");
   });
 
   it("hints journal entries for `je 2025-001`", () => {

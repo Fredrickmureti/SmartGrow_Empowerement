@@ -8,10 +8,8 @@
  *   ">foo"          → action scope, query "foo"
  *   "#1042"         → record scope, query "1042"
  *   "?"             → help mode (currently a no-op flag)
- *   "inv 1042"      → record scope hinted to invoices, query "1042"
- *   "bill 12"       → record scope hinted to bills, query "12"
  *   "je 2025-001"   → record scope hinted to journal-entries
- *   "po acme"       → record scope hinted to bills (purchase order alias)
+ *   "client acme"   → record scope hinted to clients
  *   anything else   → no scope, raw query passed through
  *
  * The numeric/alias hints are deliberately conservative — only fire
@@ -36,20 +34,11 @@ export interface ParsedQuery {
 
 /** Token aliases → provider id. Keep narrow & unambiguous. */
 const ALIAS_TO_PROVIDER: Record<string, string> = {
-  inv: "records:invoices",
-  invoice: "records:invoices",
-  invoices: "records:invoices",
-  bill: "records:bills",
-  bills: "records:bills",
-  vendor: "records:bills",
-  po: "records:bills",
-  cust: "records:customers",
-  customer: "records:customers",
-  customers: "records:customers",
-  contact: "records:customers",
-  product: "records:products",
-  products: "records:products",
-  sku: "records:products",
+  client: "records:customers",
+  clients: "records:customers",
+  member: "records:customers",
+  members: "records:customers",
+  borrower: "records:customers",
   je: "records:journal-entries",
   journal: "records:journal-entries",
 };
