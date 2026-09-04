@@ -23,7 +23,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { MfLoan, MfLoanLineageKind } from "@/hooks/useMfLoans";
 
-export type LoanLifecycleAction = "write_off" | "close" | "top_up" | "restructure";
+export type LoanLifecycleAction =
+  | "write_off"
+  | "close"
+  | "top_up"
+  | "restructure"
+  | "reverse_disbursement";
 
 interface Props {
   open: boolean;
@@ -42,6 +47,7 @@ interface Props {
     firstInstallmentDate: string | null;
     reason: string;
   }) => Promise<void>;
+  onReverseDisbursement: (input: { loanId: string; reason: string }) => Promise<void>;
 }
 
 const TITLES: Record<LoanLifecycleAction, string> = {
@@ -49,6 +55,7 @@ const TITLES: Record<LoanLifecycleAction, string> = {
   close: "Close loan",
   top_up: "Top up loan",
   restructure: "Restructure loan",
+  reverse_disbursement: "Reverse disbursement",
 };
 
 const DESCRIPTIONS: Record<LoanLifecycleAction, string> = {
@@ -60,6 +67,8 @@ const DESCRIPTIONS: Record<LoanLifecycleAction, string> = {
     "A successor loan is created carrying forward this loan's outstanding principal plus the additional amount. Nothing is edited on this loan — it is settled when the successor is disbursed.",
   restructure:
     "A successor loan is created on revised terms carrying forward this loan's outstanding principal. No additional principal may be added, and this loan's history is preserved.",
+  reverse_disbursement:
+    "Use this only when the disbursement itself was made in error. The server reverses the original ledger entry, returns the loan to pending disbursement and restores the contractual schedule. It is refused once any receipt has been recorded.",
 };
 
 export function LoanLifecycleDialog({
@@ -70,6 +79,7 @@ export function LoanLifecycleDialog({
   onWriteOff,
   onClose,
   onReissue,
+  onReverseDisbursement,
 }: Props) {
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
@@ -92,16 +102,22 @@ export function LoanLifecycleDialog({
   const isWriteOff = action === "write_off";
   const isClose = action === "close";
   const isReissue = action === "top_up" || action === "restructure";
+  const isReversal = action === "reverse_disbursement";
   const reasonRequired = !isClose;
 
   const canSubmit =
-    !!loan && !!date && (!reasonRequired || reason.trim().length > 0) && (!isReissue || !!term);
+    !!loan &&
+    (isReversal || !!date) &&
+    (!reasonRequired || reason.trim().length > 0) &&
+    (!isReissue || !!term);
 
   const submit = async () => {
     if (!loan || !canSubmit) return;
     setSaving(true);
     try {
-      if (isWriteOff) {
+      if (isReversal) {
+        await onReverseDisbursement({ loanId: loan.id, reason: reason.trim() });
+      } else if (isWriteOff) {
         await onWriteOff({ loanId: loan.id, writtenOffOn: date, reason: reason.trim() });
       } else if (isClose) {
         await onClose({ loanId: loan.id, closedOn: date, notes: reason.trim() || null });
@@ -134,6 +150,7 @@ export function LoanLifecycleDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          {!isReversal && (
           <div className="space-y-1.5">
             <Label htmlFor="lifecycle-date">
               {isWriteOff
@@ -149,6 +166,7 @@ export function LoanLifecycleDialog({
               onChange={(e) => setDate(e.target.value)}
             />
           </div>
+          )}
 
           {isReissue && (
             <>
@@ -217,7 +235,9 @@ export function LoanLifecycleDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder={
-                isWriteOff
+                isReversal
+                  ? "Why is this disbursement being reversed?"
+                  : isWriteOff
                   ? "Why is this loan being written off?"
                   : isClose
                     ? "Anything worth recording about this closure"
@@ -234,7 +254,7 @@ export function LoanLifecycleDialog({
             Cancel
           </Button>
           <Button
-            variant={isWriteOff ? "destructive" : "default"}
+            variant={isWriteOff || isReversal ? "destructive" : "default"}
             onClick={submit}
             disabled={!canSubmit || saving}
           >

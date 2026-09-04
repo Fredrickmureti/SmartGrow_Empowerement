@@ -99,6 +99,7 @@ export function LoansPage() {
     error,
     createFromApplication,
     disburse,
+    reverseDisbursement,
     writeOff,
     closeLoan,
     reissueLoan,
@@ -308,6 +309,14 @@ export function LoansPage() {
                           </Button>
                           <Button
                             size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "reverse_disbursement")}
+                          >
+                            <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                            Reverse disbursement
+                          </Button>
+                          <Button
+                            size="sm"
                             variant="destructive"
                             onClick={() => openLifecycle(loan, "write_off")}
                           >
@@ -366,6 +375,9 @@ export function LoansPage() {
         }}
         onReissue={async (input) => {
           await reissueLoan.mutateAsync(input);
+        }}
+        onReverseDisbursement={async (input) => {
+          await reverseDisbursement.mutateAsync(input);
         }}
       />
 
