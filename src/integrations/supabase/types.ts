@@ -9266,7 +9266,6 @@ export type Database = {
           paid_by: string
           payment_account_id: string | null
           payment_method: string
-          project_id: string | null
           receipt_url: string | null
           reference: string | null
           reimburse_via_payroll: boolean
@@ -9316,7 +9315,6 @@ export type Database = {
           paid_by?: string
           payment_account_id?: string | null
           payment_method?: string
-          project_id?: string | null
           receipt_url?: string | null
           reference?: string | null
           reimburse_via_payroll?: boolean
@@ -9366,7 +9364,6 @@ export type Database = {
           paid_by?: string
           payment_account_id?: string | null
           payment_method?: string
-          project_id?: string | null
           receipt_url?: string | null
           reference?: string | null
           reimburse_via_payroll?: boolean
@@ -9541,13 +9538,6 @@ export type Database = {
             columns: ["payment_account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "expenses_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -11580,7 +11570,6 @@ export type Database = {
           original_credit: number | null
           original_currency: string | null
           original_debit: number | null
-          project_id: string | null
           sort_order: number
           tax_rate_id: string | null
           tax_tag: string | null
@@ -11603,7 +11592,6 @@ export type Database = {
           original_credit?: number | null
           original_currency?: string | null
           original_debit?: number | null
-          project_id?: string | null
           sort_order?: number
           tax_rate_id?: string | null
           tax_tag?: string | null
@@ -11626,7 +11614,6 @@ export type Database = {
           original_credit?: number | null
           original_currency?: string | null
           original_debit?: number | null
-          project_id?: string | null
           sort_order?: number
           tax_rate_id?: string | null
           tax_tag?: string | null
@@ -11693,13 +11680,6 @@ export type Database = {
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "journal_entry_lines_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -17557,211 +17537,6 @@ export type Database = {
           },
         ]
       }
-      projects: {
-        Row: {
-          actual_end_date: string | null
-          actual_start_date: string | null
-          allocated_hours: number | null
-          allow_timesheets: boolean | null
-          allows_cross_branch_work: boolean
-          analytic_account_id: string | null
-          branch_id: string | null
-          budget: number | null
-          budget_type: string | null
-          business_id: string | null
-          color: string | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          customer_id: string | null
-          default_billable_rate: number | null
-          description: string | null
-          end_date: string | null
-          hourly_rate: number | null
-          id: string
-          is_active: boolean | null
-          is_billable: boolean | null
-          is_template: boolean
-          last_update_at: string | null
-          last_update_status: string | null
-          manager_id: string | null
-          margin_alert_threshold: number | null
-          name: string
-          organization_id: string
-          pricing_type: string
-          priority: number | null
-          privacy: string | null
-          project_number: string
-          project_type: string | null
-          source_lead_id: string | null
-          source_sales_order_id: string | null
-          spent_hours: number | null
-          start_date: string | null
-          status: string | null
-          tags: string[] | null
-          template_id: string | null
-          time_entry_open_to_org: boolean
-          updated_at: string
-          version: number
-        }
-        Insert: {
-          actual_end_date?: string | null
-          actual_start_date?: string | null
-          allocated_hours?: number | null
-          allow_timesheets?: boolean | null
-          allows_cross_branch_work?: boolean
-          analytic_account_id?: string | null
-          branch_id?: string | null
-          budget?: number | null
-          budget_type?: string | null
-          business_id?: string | null
-          color?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          customer_id?: string | null
-          default_billable_rate?: number | null
-          description?: string | null
-          end_date?: string | null
-          hourly_rate?: number | null
-          id?: string
-          is_active?: boolean | null
-          is_billable?: boolean | null
-          is_template?: boolean
-          last_update_at?: string | null
-          last_update_status?: string | null
-          manager_id?: string | null
-          margin_alert_threshold?: number | null
-          name: string
-          organization_id: string
-          pricing_type?: string
-          priority?: number | null
-          privacy?: string | null
-          project_number: string
-          project_type?: string | null
-          source_lead_id?: string | null
-          source_sales_order_id?: string | null
-          spent_hours?: number | null
-          start_date?: string | null
-          status?: string | null
-          tags?: string[] | null
-          template_id?: string | null
-          time_entry_open_to_org?: boolean
-          updated_at?: string
-          version?: number
-        }
-        Update: {
-          actual_end_date?: string | null
-          actual_start_date?: string | null
-          allocated_hours?: number | null
-          allow_timesheets?: boolean | null
-          allows_cross_branch_work?: boolean
-          analytic_account_id?: string | null
-          branch_id?: string | null
-          budget?: number | null
-          budget_type?: string | null
-          business_id?: string | null
-          color?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          customer_id?: string | null
-          default_billable_rate?: number | null
-          description?: string | null
-          end_date?: string | null
-          hourly_rate?: number | null
-          id?: string
-          is_active?: boolean | null
-          is_billable?: boolean | null
-          is_template?: boolean
-          last_update_at?: string | null
-          last_update_status?: string | null
-          manager_id?: string | null
-          margin_alert_threshold?: number | null
-          name?: string
-          organization_id?: string
-          pricing_type?: string
-          priority?: number | null
-          privacy?: string | null
-          project_number?: string
-          project_type?: string | null
-          source_lead_id?: string | null
-          source_sales_order_id?: string | null
-          spent_hours?: number | null
-          start_date?: string | null
-          status?: string | null
-          tags?: string[] | null
-          template_id?: string | null
-          time_entry_open_to_org?: boolean
-          updated_at?: string
-          version?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "projects_analytic_account_id_fkey"
-            columns: ["analytic_account_id"]
-            isOneToOne: false
-            referencedRelation: "analytic_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "projects_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "projects_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_source_sales_order_id_fkey"
-            columns: ["source_sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       recurring_invoice_definition_versions: {
         Row: {
           business_id: string | null
@@ -18825,7 +18600,6 @@ export type Database = {
           packaging_id: string | null
           price_source: string | null
           product_id: string | null
-          project_id: string | null
           quantity: number
           quantity_backordered: number | null
           quantity_cancelled: number
@@ -18858,7 +18632,6 @@ export type Database = {
           packaging_id?: string | null
           price_source?: string | null
           product_id?: string | null
-          project_id?: string | null
           quantity?: number
           quantity_backordered?: number | null
           quantity_cancelled?: number
@@ -18891,7 +18664,6 @@ export type Database = {
           packaging_id?: string | null
           price_source?: string | null
           product_id?: string | null
-          project_id?: string | null
           quantity?: number
           quantity_backordered?: number | null
           quantity_cancelled?: number
@@ -18916,13 +18688,6 @@ export type Database = {
             columns: ["display_uom_id"]
             isOneToOne: false
             referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -18960,7 +18725,6 @@ export type Database = {
           order_date: string
           organization_id: string
           payment_term_id: string | null
-          project_id: string | null
           salesperson_id: string | null
           ship_to_contact_id: string | null
           shipping_address: string | null
@@ -18992,7 +18756,6 @@ export type Database = {
           order_date?: string
           organization_id: string
           payment_term_id?: string | null
-          project_id?: string | null
           salesperson_id?: string | null
           ship_to_contact_id?: string | null
           shipping_address?: string | null
@@ -19024,7 +18787,6 @@ export type Database = {
           order_date?: string
           organization_id?: string
           payment_term_id?: string | null
-          project_id?: string | null
           salesperson_id?: string | null
           ship_to_contact_id?: string | null
           shipping_address?: string | null
@@ -19086,13 +18848,6 @@ export type Database = {
             columns: ["payment_term_id"]
             isOneToOne: false
             referencedRelation: "payment_terms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -24252,7 +24007,6 @@ export type Database = {
           paid_by: string
           payment_account_id: string | null
           payment_method: string
-          project_id: string | null
           receipt_url: string | null
           reference: string | null
           reimburse_via_payroll: boolean
@@ -24315,7 +24069,6 @@ export type Database = {
           paid_by: string
           payment_account_id: string | null
           payment_method: string
-          project_id: string | null
           receipt_url: string | null
           reference: string | null
           reimburse_via_payroll: boolean
@@ -24974,7 +24727,6 @@ export type Database = {
           paid_by: string
           payment_account_id: string | null
           payment_method: string
-          project_id: string | null
           receipt_url: string | null
           reference: string | null
           reimburse_via_payroll: boolean
@@ -29721,66 +29473,6 @@ export type Database = {
       project_can_write: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
-      }
-      project_change_status: {
-        Args: {
-          _expected_version?: number
-          _project_id: string
-          _reason?: string
-          _status: string
-        }
-        Returns: {
-          actual_end_date: string | null
-          actual_start_date: string | null
-          allocated_hours: number | null
-          allow_timesheets: boolean | null
-          allows_cross_branch_work: boolean
-          analytic_account_id: string | null
-          branch_id: string | null
-          budget: number | null
-          budget_type: string | null
-          business_id: string | null
-          color: string | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          customer_id: string | null
-          default_billable_rate: number | null
-          description: string | null
-          end_date: string | null
-          hourly_rate: number | null
-          id: string
-          is_active: boolean | null
-          is_billable: boolean | null
-          is_template: boolean
-          last_update_at: string | null
-          last_update_status: string | null
-          manager_id: string | null
-          margin_alert_threshold: number | null
-          name: string
-          organization_id: string
-          pricing_type: string
-          priority: number | null
-          privacy: string | null
-          project_number: string
-          project_type: string | null
-          source_lead_id: string | null
-          source_sales_order_id: string | null
-          spent_hours: number | null
-          start_date: string | null
-          status: string | null
-          tags: string[] | null
-          template_id: string | null
-          time_entry_open_to_org: boolean
-          updated_at: string
-          version: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "projects"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       project_employee_cost_rate: {
         Args: { _employee_id: string; _project_id: string }

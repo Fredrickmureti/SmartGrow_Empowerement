@@ -1,0 +1,11 @@
+DROP TRIGGER IF EXISTS trg_je_line_project_ledger ON public.journal_entry_lines;
+DROP TRIGGER IF EXISTS trg_expenses_default_analytic ON public.expenses;
+DROP TRIGGER IF EXISTS trg_expenses_cost ON public.expenses;
+DROP FUNCTION IF EXISTS public.trg_je_line_to_project_ledger() CASCADE;
+DROP FUNCTION IF EXISTS public._default_analytic_from_project() CASCADE;
+DROP FUNCTION IF EXISTS public.trg_expense_to_cost() CASCADE;
+ALTER TABLE public.journal_entry_lines DROP COLUMN IF EXISTS project_id;
+ALTER TABLE public.expenses DROP COLUMN IF EXISTS project_id;
+ALTER TABLE IF EXISTS public.sales_orders DROP COLUMN IF EXISTS project_id;
+ALTER TABLE IF EXISTS public.sales_order_items DROP COLUMN IF EXISTS project_id;
+DROP TABLE IF EXISTS public.projects CASCADE;
