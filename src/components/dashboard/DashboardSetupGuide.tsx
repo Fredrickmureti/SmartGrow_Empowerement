@@ -7,7 +7,7 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building2, FileText, ArrowRight, Sparkles, Package, BookOpen, UserSquare2 } from "lucide-react";
+import { Building2, FileText, ArrowRight, Sparkles, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { DashboardComposition } from "@/hooks/useDashboardComposition";
 
