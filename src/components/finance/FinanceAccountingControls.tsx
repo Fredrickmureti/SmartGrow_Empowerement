@@ -40,7 +40,7 @@ interface FinanceAccountingControlsProps {
   accounts: AccountOption[];
 }
 
-const JOURNAL_TYPES: JournalType[] = ["sale", "purchase", "bank", "cash", "general", "situation"];
+const JOURNAL_TYPES: JournalType[] = ["bank", "cash", "general"];
 
 export function FinanceAccountingControls({ accounts }: FinanceAccountingControlsProps) {
   const { currentOrg } = useOrganization();
