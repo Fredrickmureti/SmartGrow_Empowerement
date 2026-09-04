@@ -133,3 +133,85 @@ project loan/schedule/`mf_repayment_allocations` server-side; single
 `mf_record_repayment` writer.
 ### 2026-09-04 — sales pricing engine removed (line-pricing triggers, price lists,
 customer groups); orphaned FX/stock report route stubs removed.
+
+
+
+==========THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
+
+
+Stopped here — no further tool calls.
+
+Done this pass (M4 code prep, part 1): deleted the remaining sales/purchase hooks and services with no live render path — `useCreditNotes`, `useCustomerCredit`, `useCustomerCredits`, `useDashboardActionItems`, `usePayments`, `useInvoiceValidation`, `services/finance/invoicePayability.ts`, and the bills command provider (unregistered from `providers/registry.ts`). Removed the invoice data-integrity banner and its hook from `FinancialReports.tsx`. Typecheck is clean.
+
+Remaining before any table drops (in order):
+1. `ClosePeriodSheet.tsx` — drop the "Draft invoices" readiness leg (keep unposted journal entries); the readiness query and the second stat block are the only edits.
+2. `useFiscalPeriodDetail.ts` — remove the invoices/bills counts and AR/AP legs, keeping JE/GL sections.
+3. `TransactionPreviewDrawer.tsx` — remove the `invoice`, `payment`, `bill`, bill-payment and `credit_note` branches plus their `/sales/*` and `/purchases/*` deep links; keep journal/bank branches.
+4. `useGovernedEntityOptions.ts` — drop the `bills` entity option.
+5. `lib/command/parseQuery.ts` — remove the `bill/bills/vendor/po → records:bills` aliases.
+6. `services/finance/openItems.ts` + `ContactPreviewDrawer` + the AR/AP architecture tests (`reporting-isolation-matrix`, `ap-credit-position-provenance`, `ap-aging-scenario-fixtures`, `branch-id-stamping`, `reports-data-source-contract`) — these are what still bind the sales/purchase chain.
+
+Only after that does the first M4 migration (sales chain drop, FK-ordered, one group per migration) become safe. The plan file already records M4 as next; I did not update it with this partial progress.
+
+
+
+=============
+And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
+
+The objective is to **strip away everything the microfinance system does not need** and immediately create a clean foundation for its business logic. Do not preserve unnecessary ERP complexity simply because it already exists.
+
+What we want to **reuse** from the existing system is specifically:
+
+* **Document generation engine**
+* **Authentication/auth engine**
+* **Navigation and UI foundation**
+* *Banking and reconciliation , payables receivables but now tailored for microfinance**
+TO BE PRECISE, WHAT IS REUSABLE, KINDLY REUSE IT INCLUDING PAYMENT SETTLEMENT ENGINE FOR PAYABELES/RECEIVABLES, basically accross the Finance what is reusable use it as long as its microfuiannce tailored because we are building mciro fianance  if its statements instead of customer staments lest it be  talowred towards microfinance not the current sales oriented that was used by the old erp so dont just delete what is reusable and has solid engine that will be painful to rebuild from scratch, reason like a mircofiannce system developer not like a blind bot,  and  if its payment being receuived,  and on the payment reception we need to reason critically here because this sytem is almost operating almost like ASA international kenya which uses the typical old microfinance tradition because this is an upcoming microfiannce startapp  where we have something loan officer overseeign a group but still that does not mean tje system should not allow single customer payment so this means I need you to help me reason here, dont ask me question, just know you are dealign with a microfiannce system  and such not the old erp which dealth with the typical procurement and sales kind of flow no room for an error, be anaytical and critical executioner, like basically for fiannce what can be reusable let it be reused and now be tailpored to the microfiannce from  fixed assets, to generaal settings to fiscal periods and such (its up to you to analyze what and what nots that needs  to be retained because you are the engineer)
+
+Everything else should be evaluated critically. If a component, module, workflow, table, dependency, or business rule is not required by the microfinance system, **remove it, disable it, or leave it out of the new scaffold** rather than carrying unnecessary complexity forward.
+
+The client does **not** need another complicated ERP. We are building a focused microfinance platform, so the architecture should be lean, intentional, and optimized around the actual business requirements.
+
+**Do not waste credits exploring or rebuilding things we already know we will not use.** Make the necessary architectural decisions quickly, clear the unnecessary ERP scaffolding, preserve only the reusable foundation, and open the way for us to start implementing the **actual microfinance business logic immediately.**
+
+**Optimize for speed, relevance, and credit efficiency. No unnecessary work.**
+
+## Status update (M3, pricing group)
+
+Done: removed the sales pricing engine — line-pricing triggers on invoice /
+estimate / credit-note / proforma / sales-order items, `_pricing_normalize_line`,
+`resolve_line_unit_price`, `pos_resolve_line`, the `contacts.customer_group_id`
+and `contacts.price_list_id` columns, and the `customer_groups`, `price_lists`,
+`price_list_items` tables. Code side (`fetchContactDefaults`, `useContacts`)
+cleaned; typecheck green. Linter count 2025 -> 2021, all inherited, none new.
+
+Scope decision (deliberate, to avoid credit burn): delivery notes, sales orders,
+recurring invoices, sales returns and the eTIMS group are NOT worth a deep
+schema scrub — their identifiers are woven through the shared document engine,
+outbox, audit and studio metadata that we are keeping. They are left inert
+(no navigation, no hooks, no UI). Next work goes to microfinance business logic:
+retargeting receivables/payables and the payment settlement engine to loans,
+group/individual collections, and microfinance-tailored statements.
+
+## Report catalogue retargeted to microfinance (done 2026-09-04)
+
+- `REPORT_REGISTRY` categories/domains reduced to microfinance-relevant sets:
+  categories are now lending, statutory, cash_bank, audit, management,
+  fixed_assets; domains are finance + lending only (hr/sales/purchases/
+  inventory/pos/projects/crm removed).
+- Removed orphaned ERP reports from the catalogue, nav and search: FX
+  Revaluation, FX Exposure, Realized FX Gain/Loss, Aged Receivables, Aged
+  Payables (the FX *pages/routes* stay only because period-close tooling links
+  to them; they are no longer part of the report catalogue).
+- Added the remaining lending reports to the registry (officer & branch
+  collections, PAR aging, product performance, client exposure) so palette,
+  favorites, run history and permissions apply to them.
+- Reports sidebar now leads with a "Lending & portfolio" family; the FX and
+  Receivables/Payables families are gone. Report Center quick access defaults
+  to portfolio / arrears / collections.
+
+
+
+
+
+DO NOT ASK ME ACHITECTURAL QUESTIONS , YOU ARE THE ENGINEER, YOU HAVE THE CODEBASE, YOU KNOW WHATW E ARE BUILDING SO REASON CRITICALLY AND ANALYTICALLY 
