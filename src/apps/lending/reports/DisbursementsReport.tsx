@@ -28,7 +28,9 @@ const COLUMNS: ReportColumn[] = [
   { key: "reference", header: "Reference", width: "w-[160px]" },
   { key: "received_by", header: "Received by", width: "w-[200px]" },
   { key: "status", header: "Status", width: "w-[120px]" },
-  { key: "amount", header: "Amount", format: "currency", width: "w-[140px]" },
+  { key: "amount", header: "Principal", format: "currency", width: "w-[140px]" },
+  { key: "fees_deducted", header: "Fees", format: "currency", width: "w-[120px]" },
+  { key: "net_amount", header: "Net paid", format: "currency", width: "w-[140px]" },
 ];
 
 export function DisbursementsReport() {
@@ -53,6 +55,8 @@ export function DisbursementsReport() {
         received_by: r.received_by_name ?? "—",
         status: r.reversed ? "Reversed" : "Posted",
         amount: r.amount,
+        fees_deducted: r.fees_deducted,
+        net_amount: r.net_amount,
       },
     }));
 

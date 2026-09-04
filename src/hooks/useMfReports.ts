@@ -167,6 +167,8 @@ export interface MfDisbursementRow {
   method: string;
   reference: string | null;
   received_by_name: string | null;
+  fees_deducted: number;
+  net_amount: number;
   reversed: boolean;
 }
 
@@ -200,6 +202,8 @@ export function useMfDisbursementsReport(from: string, to: string) {
         method: r.method as string,
         reference: (r.reference as string) ?? null,
         received_by_name: (r.received_by_name as string) ?? null,
+        fees_deducted: Number(r.fees_deducted ?? 0),
+        net_amount: Number(r.net_amount ?? r.amount ?? 0),
         reversed: !!r.reversed_at,
       }));
     },
