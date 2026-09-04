@@ -3,9 +3,8 @@
  * ================================
  *
  * Producer-agnostic operational surface for every accounting-worthy business
- * fact enqueued into `public.accounting_events`. Supersedes the POS-specific
- * "POS Posting Queue" workspace — POS statements now appear here as one
- * producer among many (`producer='pos'`, `producer_doc_type='pos_statement'`).
+ * fact enqueued into `public.accounting_events` — lending disbursements,
+ * repayments, write-offs and other microfinance business events.
  *
  * Contract with the Posting Engine
  * --------------------------------
@@ -137,11 +136,11 @@ function fmtMoney(n: number | null | undefined, ccy: string) {
 }
 
 const EVENT_KIND_LABELS: Record<string, string> = {
-  shift_close: "Shift close",
-  drawer_close: "Drawer close",
-  day_close: "Day close",
-  sale: "Sale",
-  refund: "Refund",
+  loan_disbursement: "Loan disbursement",
+  loan_repayment: "Loan repayment",
+  loan_write_off: "Loan write-off",
+  fee_charged: "Fee charged",
+  penalty_charged: "Penalty charged",
 };
 
 function humanizeEventKind(kind: string): string {
@@ -150,7 +149,6 @@ function humanizeEventKind(kind: string): string {
 }
 
 function producerLabel(producer: string, docType: string): string {
-  if (producer === "pos" && docType === "pos_statement") return "POS · Shift close";
   const p = producer.toUpperCase();
   const d = docType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return `${p} · ${d}`;
@@ -208,7 +206,7 @@ export default function AccountingEventsWorkspace() {
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
         title="Accounting Events"
-        description="Every accounting-worthy business fact — POS shift closes, and (soon) sales invoices, bills, and inventory moves — flows through this workspace. Each row represents one canonical event routed through the unified Posting Engine (accounting_post_event). The legacy POS Posting Queue redirects here."
+        description="Every accounting-worthy business fact — loan disbursements, repayments, write-offs and other microfinance events — flows through this workspace. Each row is one canonical event routed through the unified Posting Engine (accounting_post_event)."
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">{scope.scopeLabel}</div>
@@ -264,14 +262,14 @@ export default function AccountingEventsWorkspace() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={7}>
+                <TableRow><TableCell colSpan={6}>
                   <div className="flex items-center gap-2 py-6 justify-center text-muted-foreground text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                   </div>
                 </TableCell></TableRow>
               )}
               {!isLoading && rows.length === 0 && (
-                <TableRow><TableCell colSpan={7}>
+                <TableRow><TableCell colSpan={6}>
                   <div className="flex items-center gap-2 py-6 justify-center text-muted-foreground text-sm">
                     <Sparkles className="h-4 w-4 text-emerald-600" />
                     Nothing in this state — the sub-ledger is quiet.

@@ -569,7 +569,6 @@ export function FinanceApp() {
           }
         />
 
-        {/* Inventory ⇄ GL Reconciliation (Phase B1) */}
 
         {/* Control Account Reconciliation (Phase B2) */}
         <Route
@@ -601,15 +600,10 @@ export function FinanceApp() {
             legacy per-product accounts or outbox-row state. */}
 
 
-        {/* Stock Adjustments Report (Phase B5) */}
 
-        {/* Stock Transfers Report (Phase B5) */}
 
-        {/* FX Revaluation Report (Phase B6) */}
 
-        {/* FX Exposure Report (Currency & FX Step G) */}
 
-        {/* Realized FX Gain/Loss Report (Currency & FX Step 4) */}
 
 
 
