@@ -71,6 +71,12 @@ export function DisbursementsReport() {
         amount: data
           .filter((r) => !r.reversed)
           .reduce((acc, r) => acc + r.amount, 0),
+        fees_deducted: data
+          .filter((r) => !r.reversed)
+          .reduce((acc, r) => acc + r.fees_deducted, 0),
+        net_amount: data
+          .filter((r) => !r.reversed)
+          .reduce((acc, r) => acc + r.net_amount, 0),
       },
     });
     return detail;
