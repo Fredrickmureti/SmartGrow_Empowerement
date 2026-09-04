@@ -34,7 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LoadingState, StatusBadge } from "@/design-system";
+import { Plus, Trash2 } from "lucide-react";
 import {
+  MF_FEE_BASES,
+  MF_FEE_BASIS_LABELS,
+  MF_FEE_COLLECTIONS,
+  MF_FEE_COLLECTION_LABELS,
   MF_INTEREST_METHODS,
   MF_INTEREST_RATE_PERIODS,
   MF_PENALTY_BASES,
@@ -44,8 +49,10 @@ import {
   type MfInterestRatePeriod,
   type MfLoanProduct,
   type MfPenaltyBasis,
+  type MfProductFee,
   type MfRepaymentFrequency,
 } from "@/hooks/useMfLoanProducts";
+
 
 interface ProductVersionDialogProps {
   open: boolean;
