@@ -3,12 +3,13 @@
  * for this bank line to explain it.
  *
  * ADR-0147 names two kinds of resolution: *clearing* money already recorded
- * (a receipt sitting in Undeposited Funds, a supplier payment presenting at the
- * bank) and *settling* a document, which records new money. Until now clearing
- * was reachable only as an engine suggestion — when the suggestion was
- * suppressed, an operator's only options were to settle the invoice a second
- * time or hand-post a journal. Both are the duplicate the engine exists to
- * prevent, so clearing gets its own picker.
+ * (a receipt sitting in Undeposited Funds) and *settling* a document, which
+ * records new money. Clearing gets its own picker so an operator never has to
+ * post the same money twice.
+ *
+ * Microfinance scope: only money-in receipts parked in a holding account are
+ * clearable. Money-out lines reconcile through the Expenses tab, an account
+ * offset or a transfer — the ERP supplier-payment branch is gone.
  *
  * Two rules keep the picker honest rather than merely helpful:
  *  - A receipt is deposited **in full** and at most once, so only recorded
@@ -27,15 +28,15 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface ClearableRecordedPayment {
-  /** `payment` for a customer receipt, `bill_payment` for a supplier payment. */
-  kind: "payment" | "bill_payment";
+  /** `payment` — a recorded receipt waiting to be banked. */
+  kind: "payment";
   id: string;
   amount: number;
   date: string;
   reference: string | null;
   method: string | null;
   partyName: string | null;
-  /** The clearing account the money is waiting in (money-in only). */
+  /** The clearing account the money is waiting in. */
   holdingAccountId: string | null;
 }
 
