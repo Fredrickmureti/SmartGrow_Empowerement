@@ -1,10 +1,11 @@
 import { normalizeError } from "@/services/resilience";
 /**
- * useJournalBooks — Odoo-style journal categorization (Sales, Purchases,
- * Bank, Cash, Misc). Each journal entry can be tagged with a journal_book_id
- * so reports can filter by source ledger.
+ * useJournalBooks — journal categorization for a microfinance institution.
+ * Books are Bank, Cash and General only; lending money-flows (disbursements,
+ * collections) are General books seeded with lending names. Each journal entry
+ * carries a journal_book_id so reports can filter by source ledger.
  *
- * Created by Phase 13 finance overhaul. Backed by `public.journal_books`.
+ * Backed by `public.journal_books`.
  */
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,13 +13,30 @@ import { useOrganization } from "@/hooks/useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { useToast } from "@/hooks/use-toast";
 
-export type JournalType =
-  | "sale"
-  | "purchase"
-  | "bank"
-  | "cash"
-  | "general"
-  | "situation";
+/**
+ * Microfinance journal types. `sale` / `purchase` / `situation` were ERP-era
+ * types and are no longer offered; legacy rows carrying them are deactivated
+ * by `seedDefaults`.
+ */
+export type JournalType = "bank" | "cash" | "general";
+
+/** The books a microfinance institution actually posts through. */
+const MF_DEFAULT_BOOKS: Array<{
+  code: string;
+  name: string;
+  journal_type: JournalType;
+  description: string;
+}> = [
+  { code: "DSB", name: "Disbursements", journal_type: "general", description: "Loan disbursements to clients" },
+  { code: "COL", name: "Collections", journal_type: "general", description: "Loan repayments collected from clients and groups" },
+  { code: "BNK", name: "Bank", journal_type: "bank", description: "Bank movements, transfers and banking of collections" },
+  { code: "CSH", name: "Cash", journal_type: "cash", description: "Branch cash movements" },
+  { code: "MSC", name: "Miscellaneous", journal_type: "general", description: "Manual journals and adjustments" },
+];
+
+/** Journal types inherited from the ERP era — kept only to deactivate. */
+const RETIRED_JOURNAL_TYPES = ["sale", "purchase", "situation"];
+
 
 export interface JournalBook {
   id: string;
@@ -75,24 +93,59 @@ export function useJournalBooks() {
     fetchBooks();
   }, [fetchBooks]);
 
-  /** Seed the 5 standard journal books for the active business. */
+  /**
+   * Seed the microfinance journal books for the active business and retire the
+   * inherited ERP books (Sales / Purchases). Retired books are deactivated,
+   * never deleted — historical entries keep their book reference.
+   */
   const seedDefaults = useCallback(async () => {
-    if (!currentBusiness?.id) return;
-    const { error } = await (supabase as any).rpc(
-      "seed_default_journal_books",
-      { _business_id: currentBusiness.id },
-    );
-    if (error) {
+    if (!currentOrg?.id || !currentBusiness?.id) return;
+    try {
+      const existing = new Set(books.map((book) => book.code));
+      const missing = MF_DEFAULT_BOOKS.filter((book) => !existing.has(book.code));
+
+      if (missing.length > 0) {
+        const { error } = await (supabase as any).from("journal_books").insert(
+          missing.map((book) => ({
+            organization_id: currentOrg.id,
+            business_id: currentBusiness.id,
+            ...book,
+          })),
+        );
+        if (error) throw error;
+      }
+
+      const retired = books.filter(
+        (book) =>
+          book.is_active &&
+          (RETIRED_JOURNAL_TYPES.includes(book.journal_type as string) ||
+            ["SAL", "PUR"].includes(book.code)),
+      );
+      for (const book of retired) {
+        const { error } = await (supabase as any)
+          .from("journal_books")
+          .update({ is_active: false })
+          .eq("id", book.id);
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Journal books updated",
+        description:
+          retired.length > 0
+            ? `${missing.length} created, ${retired.length} retired.`
+            : `${missing.length} created.`,
+      });
+      await fetchBooks();
+    } catch (error) {
       toast({
         title: "Could not seed journal books",
         description: normalizeError(error).message,
         variant: "destructive",
       });
-      return;
     }
-    toast({ title: "Default journal books created" });
-    await fetchBooks();
-  }, [currentBusiness?.id, fetchBooks, toast]);
+  }, [currentOrg?.id, currentBusiness?.id, books, fetchBooks, toast]);
+
 
   const createBook = useCallback(
     async (book: {

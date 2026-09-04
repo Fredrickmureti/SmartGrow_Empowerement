@@ -64,12 +64,22 @@ interface MappingConfig {
   systemManaged?: boolean;
 }
 
+/**
+ * Institution-level ledger roles.
+ *
+ * Lending money-flows (loan principal receivable, interest / fee / penalty
+ * income, disbursement clearing, write-off expense, loan loss provision …) are
+ * NOT configured here — they live in Lending → Configuration → Accounting
+ * (`mf_account_mappings`), which is the single writer the posting engine reads.
+ * This screen covers only the institution's own books: treasury accounts, tax,
+ * operating expense, equity and fixed assets.
+ */
 const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
   // ── Core (always visible) ──────────────────────
   {
     key: "cash",
     label: "Cash Account",
-    description: "Default account for cash transactions and POS cash sales",
+    description: "Default account for branch cash movements",
     icon: Wallet,
     accountType: "asset",
     codePattern: ["1000", "100"],
@@ -80,7 +90,7 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
   {
     key: "bank",
     label: "Bank Account",
-    description: "Default bank account for payments and transfers",
+    description: "Default bank account for disbursements, banking and transfers",
     icon: Building,
     accountType: "asset",
     codePattern: ["1010", "101"],
@@ -89,20 +99,9 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
     systemManaged: true,
   },
   {
-    key: "accounts_receivable",
-    label: "Accounts Receivable",
-    description: "Trade receivables — debited when invoices are confirmed",
-    icon: CreditCard,
-    accountType: "asset",
-    codePattern: ["1100", "110"],
-    namePattern: ["receivable", "debtors"],
-    group: "core",
-    systemManaged: true,
-  },
-  {
     key: "accounts_payable",
     label: "Accounts Payable",
-    description: "Trade payables — credited when bills are confirmed",
+    description: "Amounts owed by the institution — credited when a payable is recorded",
     icon: Receipt,
     accountType: "liability",
     codePattern: ["2000", "200"],
@@ -111,31 +110,9 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
     systemManaged: true,
   },
   {
-    key: "sales_revenue",
-    label: "Sales Revenue",
-    description: "Default revenue account (products can override with their own)",
-    icon: TrendingUp,
-    accountType: "income",
-    codePattern: ["4000", "400"],
-    namePattern: ["sales", "revenue"],
-    group: "core",
-    systemManaged: true,
-  },
-  {
-    key: "cost_of_goods_sold",
-    label: "Cost of Goods Sold",
-    description: "COGS — posted when inventory products are sold",
-    icon: Package,
-    accountType: "expense",
-    codePattern: ["5000", "500"],
-    namePattern: ["cost of goods", "cogs", "cost of sales"],
-    group: "core",
-    systemManaged: true,
-  },
-  {
     key: "operating_expenses",
     label: "Operating Expenses",
-    description: "Default expense account for bills and general expenses",
+    description: "Default expense account for institutional expenses",
     icon: BarChart3,
     accountType: "expense",
     codePattern: ["6000", "600"],
@@ -145,7 +122,7 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
   {
     key: "retained_earnings",
     label: "Retained Earnings",
-    description: "Accumulated profits — used for year-end closing entries",
+    description: "Accumulated surplus — used for year-end closing entries",
     icon: PiggyBank,
     accountType: "equity",
     codePattern: ["3200", "320"],
@@ -178,29 +155,9 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
 
   // ── Advanced (collapsible) ─────────────────────
   {
-    key: "inventory",
-    label: "Inventory",
-    description: "Stock/inventory asset — debited on purchase, credited on sale",
-    icon: Package,
-    accountType: "asset",
-    codePattern: ["1200", "120"],
-    namePattern: ["inventory", "stock"],
-    group: "advanced",
-  },
-  {
-    key: "customer_deposits",
-    label: "Customer Deposits / Prepayments",
-    description: "Liability for customer overpayments and credit note refund obligations",
-    icon: BadgeDollarSign,
-    accountType: "liability",
-    codePattern: ["2200", "220"],
-    namePattern: ["customer deposit", "customer advance", "unearned revenue", "customer credit"],
-    group: "advanced",
-  },
-  {
     key: "fixed_asset",
     label: "Fixed Assets",
-    description: "Default account for fixed asset acquisitions (property, equipment)",
+    description: "Default account for fixed asset acquisitions (property, equipment, vehicles)",
     icon: Landmark,
     accountType: "asset",
     codePattern: ["1500", "150"],
@@ -239,105 +196,21 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
     systemManaged: true,
   },
   {
-    key: "cumulative_translation_adjustment",
-    label: "Cumulative Translation Adjustment (CTA)",
-    description:
-      "Equity account holding translation differences when this company's books are translated into a group presentation currency (IAS 21 / ASC 830)",
-    icon: Scale,
-    accountType: "equity",
-    codePattern: ["3900", "390"],
-    namePattern: ["translation", "cta", "comprehensive income"],
-    group: "advanced",
-  },
-
-  {
-    key: "inventory_adjustment",
-    label: "Inventory Adjustment",
-    description: "Expense for stock write-offs, shrinkage, and adjustments",
-    icon: Package,
-    accountType: "expense",
-    codePattern: ["5100", "510"],
-    namePattern: ["inventory adjustment", "stock adjustment", "inventory shrinkage"],
-    group: "advanced",
-  },
-  {
-    key: "cash_short_over",
-    label: "Cash Over/Short",
-    description: "P&L account used by POS shift close: shortages debit this account; overages credit it.",
-    icon: Scale,
-    accountType: "expense",
-    codePattern: ["6910", "690"],
-    namePattern: ["cash over", "cash short", "over/short", "short over"],
-    group: "payment_methods",
-    systemManaged: true,
-  },
-  {
     key: "other_income",
     label: "Other Income",
-    description: "Non-operating income (interest, misc. revenue)",
+    description: "Non-operating income (bank interest, miscellaneous revenue)",
     icon: TrendingUp,
     accountType: "income",
     codePattern: ["4500", "450"],
     namePattern: ["other income", "miscellaneous income", "interest income"],
     group: "advanced",
   },
-  {
-    key: "fx_realized_gain",
-    label: "FX Realized Gain",
-    description: "Exchange gain recognised when a foreign-currency document is settled",
-    icon: TrendingUp,
-    accountType: "income",
-    codePattern: ["4600", "460"],
-    namePattern: ["foreign exchange", "fx gain", "exchange gain", "currency gain"],
-    group: "advanced",
-  },
-  {
-    key: "fx_realized_loss",
-    label: "FX Realized Loss",
-    description: "Exchange loss recognised when a foreign-currency document is settled",
-    icon: Scale,
-    accountType: "expense",
-    codePattern: ["6600", "660"],
-    namePattern: ["foreign exchange", "fx loss", "exchange loss", "currency loss"],
-    group: "advanced",
-  },
-  {
-    key: "fx_unrealized_gain",
-    label: "FX Unrealized Gain",
-    description: "Exchange gain from period-end revaluation of open foreign-currency balances",
-    icon: TrendingUp,
-    accountType: "income",
-    codePattern: ["4610", "461"],
-    namePattern: ["unrealized exchange", "unrealised exchange", "foreign exchange", "fx gain"],
-    group: "advanced",
-  },
-  {
-    key: "fx_unrealized_loss",
-    label: "FX Unrealized Loss",
-    description: "Exchange loss from period-end revaluation of open foreign-currency balances",
-    icon: Scale,
-    accountType: "expense",
-    codePattern: ["6610", "661"],
-    namePattern: ["unrealized exchange", "unrealised exchange", "foreign exchange", "fx loss"],
-    group: "advanced",
-  },
-
 
   // ── Payment Methods (collapsible) ──────────────
   {
-    key: "credit_card_clearing",
-    label: "Credit Card Clearing",
-    description: "Intermediate account for credit card receipts before bank settlement",
-    icon: CreditCard,
-    accountType: "asset",
-    codePattern: ["1050", "105"],
-    namePattern: ["credit card", "card clearing"],
-    group: "payment_methods",
-  },
-  {
     key: "mobile_money",
     label: "Mobile Money",
-    description: "Account for mobile money payments (general)",
+    description: "Mobile money float account (general)",
     icon: Smartphone,
     accountType: "asset",
     codePattern: ["1060", "106"],
@@ -360,42 +233,27 @@ const ACCOUNT_TYPE_CONFIGS: MappingConfig[] = [
 const CONFIG_KEY_TO_SETTING_KEY: Record<string, string> = {
   cash: "cash",
   bank: "bank",
-  accounts_receivable: "accounts_receivable",
   accounts_payable: "accounts_payable",
-  inventory: "inventory",
   sales_tax_payable: "output_tax",
   purchase_tax_receivable: "input_tax",
-  sales_revenue: "sales_revenue",
-  // DB canonicalize_role_key() rewrites 'cost_of_goods_sold' → 'cogs' on write,
-  // so the stored setting_key is always 'cogs'. Map UI config key to the
-  // canonical form so the reverse-map at load time finds the row.
-  cost_of_goods_sold: "cogs",
   operating_expenses: "operating_expenses",
   retained_earnings: "retained_earnings",
-  customer_deposits: "customer_deposits",
   fixed_asset: "fixed_asset",
   accumulated_depreciation: "accumulated_depreciation",
   depreciation_expense: "depreciation_expense",
   opening_balance_equity: "opening_balance_equity",
-  inventory_adjustment: "inventory_adjustment",
-  cash_short_over: "cash_short_over",
   other_income: "other_income",
-  fx_realized_gain: "fx_realized_gain",
-  fx_realized_loss: "fx_realized_loss",
-  fx_unrealized_gain: "fx_unrealized_gain",
-  fx_unrealized_loss: "fx_unrealized_loss",
-
-  credit_card_clearing: "credit_card_clearing",
   mobile_money: "mobile_money",
   mpesa: "mpesa",
 };
 
 const GROUP_META: Record<string, { title: string; description: string; defaultOpen: boolean }> = {
-  core: { title: "Core Accounts", description: "Required for invoicing, bills, payments, and expenses", defaultOpen: true },
+  core: { title: "Core Accounts", description: "Treasury, payables, expense and equity defaults", defaultOpen: true },
   tax: { title: "Tax Accounts", description: "Required if you collect or pay tax (VAT/GST)", defaultOpen: true },
-  advanced: { title: "Advanced Accounts", description: "Assets, depreciation, deposits, and migration", defaultOpen: false },
-  payment_methods: { title: "POS & Payment Method Accounts", description: "Specific accounts for POS cash variance, card, mobile money, and M-Pesa receipts", defaultOpen: false },
+  advanced: { title: "Fixed Assets & Equity", description: "Fixed assets, depreciation, migration and other income", defaultOpen: false },
+  payment_methods: { title: "Payment Method Accounts", description: "Mobile money and M-Pesa receipt accounts", defaultOpen: false },
 };
+
 
 export function DefaultAccountsConfig() {
   const { currentOrg } = useOrganization();
