@@ -107,7 +107,7 @@ export function ApprovalRulesManager() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    entity_type: "invoice" as string,
+    entity_type: "mf_loan_application" as string,
     action_name: "",
     description: "",
     approver_type: "specific_user",
@@ -121,7 +121,7 @@ export function ApprovalRulesManager() {
 
   const resetForm = () => {
     setFormData({
-      entity_type: "invoice",
+      entity_type: "mf_loan_application",
       action_name: "",
       description: "",
       approver_type: "specific_user",
@@ -233,7 +233,7 @@ export function ApprovalRulesManager() {
             <ShieldCheck className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No approval rules</h3>
             <p className="text-muted-foreground mb-4">
-              Set up rules to require approval before confirming orders, invoices, or other actions.
+              Set up rules to require approval before confirming loan approvals, disbursements, or other actions.
             </p>
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />

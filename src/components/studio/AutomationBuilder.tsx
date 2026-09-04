@@ -73,7 +73,7 @@ import { AutomationTemplateGallery } from "./AutomationTemplateGallery";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { normalizeError } from "@/services/resilience";
 
-const FINANCIAL_MODELS = ["invoice", "bill", "expense", "credit_note"];
+const FINANCIAL_MODELS = ["mf_loan", "mf_disbursement", "mf_repayment", "expense"];
 
 const TRIGGER_ICONS: Record<TriggerType, React.ReactNode> = {
   on_create: <Plus className="h-4 w-4" />,
@@ -121,7 +121,7 @@ export function AutomationBuilder() {
     name: "",
     description: "",
     trigger_type: "on_create" as TriggerType,
-    target_model: "invoice" as EntityType,
+    target_model: "mf_loan" as EntityType,
   });
 
   const handleCreateAutomation = async () => {
@@ -155,7 +155,7 @@ export function AutomationBuilder() {
         name: "",
         description: "",
         trigger_type: "on_create",
-        target_model: "invoice",
+        target_model: "mf_loan",
       });
       // Open steps dialog for the new automation
       setSelectedAutomation(created);
