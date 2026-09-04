@@ -47,17 +47,21 @@ Invariants:
 - DB slimming already executed: consolidation, HR extras, retail/POS, warehouse,
   scanner/workstation, sales pricing engine.
 
-Confirmed remaining ERP residue (scoped below, not open questions):
-- Sales/purchase code still live: `fetchARSummary`/`fetchAPSummary`,
+Re-verified 2026-09-04 by grep, previous residue list corrected:
+- Sales/purchase code residue: GONE. `fetchARSummary`, `fetchAPSummary`,
   `confirmInvoiceGL`, `confirmBillGL`, `RecordCustomerPaymentDialog`,
-  `ContactPreviewDrawer`, consumers in `OnboardingChecklist`, `pages/Reports.tsx`.
-- FX hooks/tests still in the tree: `useFxRevaluation`, `useFxExposure`, call sites
-  in `ClosePeriodSheet.tsx`, `FinanceAccountingControls.tsx`,
-  `fx-tenant-isolation.test.ts`, `src/lib/reports/branchScopability.ts`.
-- Dead ERP table groups still in the database (M5).
+  `ContactPreviewDrawer` return zero hits in `src/`.
+- FX surface residue: GONE. `useFxRevaluation`, `useFxExposure` and
+  `fx-tenant-isolation.test.ts` return zero hits. M6 is therefore closed.
+- Still in the database and still referenced by shared code: `contacts`
+  (22 files — journal counterparty, command palette, entity resolver, studio
+  entity catalogue, dashboard composition), `projects` (9 files, all catalogue /
+  permission lists), `cost_layers`, `backorders`, `carriers`, `payments` /
+  `payment_allocations` (9 files).
 - Inert by decision (identifiers welded into shared document/outbox/audit/studio
   metadata; removal costs more than it returns): delivery notes, sales orders,
   sales returns, recurring invoices, eTIMS.
+
 
 ## Milestones — one at a time, verified before the next
 
@@ -81,20 +85,27 @@ adjustment, card clearing, customer deposits, customer credit, sales revenue,
 remained. Typecheck clean, `GET /` → 200.
 
 ### M5 — Dead ERP table groups (IN PROGRESS: sales chain DONE, purchasing chain DONE)
-One migration per group, FK-ordered, code references deleted in the same step:
-sales chain (invoices, credit notes, estimates, proforma, customer
-credits/statements, dunning, AR disputes) → purchasing chain (bills, bill
-payments/matching, vendor credits/refunds/statements) → CRM `contacts` (with
-`ContactPreviewDrawer` and the AR/AP open-items helpers/tests) → projects → cost
-layers → backorders/carriers. Inert welded groups stay. Verify object counts after
-each migration.
+One migration per group, FK-ordered, code references deleted in the same step.
+Remaining order, cheapest-and-safest first:
+1. `cost_layers` + lineage/consumptions, `backorders`, `carriers` — 1 code
+   reference each, no shared surface. One migration, one code sweep.
+2. `projects` (+ `analytic_*` project bindings if orphaned) — 9 references, all
+   app-catalogue / permission / query-key lists. Delete the catalogue entries.
+3. `payments` / `payment_allocations` — ERP customer receipts; nothing in the
+   lending flow writes them. Confirm `useGovernedEntityOptions`,
+   `useClearableRecordedPayments`, `useFiscalPeriodDetail` first, then drop.
+4. `contacts` — LAST, because it is welded into shared surfaces: journal-entry
+   counterparty (`JournalLineRow`, `financeJournalEntry` snapshot), command
+   palette (`providers/customers.ts`, `buildIndex`), `entityResolver`,
+   `contactHierarchy`/`contactAddresses`, studio entity catalogue, dashboard
+   composition, permissions. Decision required before executing: either point
+   journal counterparty at `mf_clients` or drop the counterparty field entirely.
+Inert welded groups stay. Verify object counts after each migration.
 
-### M6 — FX surface purge (code only)
-Delete `useFxRevaluation`/`useFxExposure`, their call sites in `ClosePeriodSheet`
-and `FinanceAccountingControls`, and `fx-tenant-isolation.test.ts`. Keep
-`exchange_rates` and currency plumbing — documents and GL depend on it.
+### M6 — FX surface purge — DONE (verified 2026-09-04, zero references remain)
 
 ### M7 — Orphan function purge
+
 Drop PL/pgSQL functions whose referenced relations no longer exist, in
 dependency-checked batches per group. Never touch `mf_*`. Confirm no trigger on a
 live table depends on a function before dropping it.
@@ -115,6 +126,21 @@ server-side data, company-info injection, shared PDF path. No new engine.
 - Update this file after each milestone; keep it short and factual.
 
 ## Progress log (latest first)
+### 2026-09-04 — Plan re-verified against the codebase; M5 step "logistics/costing" DONE.
+Verification corrected two stale claims: the sales/purchase code residue and the
+whole FX surface (`useFxRevaluation`, `useFxExposure`, `fx-tenant-isolation.test.ts`)
+no longer exist — M6 closed with no work.
+Migration dropped: `cost_layers`, `cost_layer_consumptions`, `cost_layer_lineage`,
+`sales_return_cost_allocations`, `backorders`, `carriers`, plus
+`delivery_notes.carrier_id`. Code: removed the `/settings/carriers` nav entry (and
+its unused `Truck` icon) and the `backorders` dashboard widget id and its two role
+slot lists. Typecheck clean, `GET /` → 200 (a 500 seen mid-run was a stale Vite dep
+optimizer state after a lockfile change, cleared by a dev-server restart).
+Noted for later, not actioned: `useDashboardComposition` still carries ERP widget
+ids (`sales.*`, `inventory.*`, `hr.*`, `payroll.*`, `purchases.*`, `lowStock`,
+`creditAlerts`) — one focused sweep, best done with M5 step 3.
+Next: M5 step 2 — drop `projects` and delete its 9 catalogue/permission references.
+
 ### 2026-09-04 — M5 step 2 DONE: purchasing / vendor-billing chain dropped.
 Dropped tables: bills, bill_items, bill_grn_matches, bill_match_exceptions,
 bill_match_results, bill_match_tolerance_policies, bill_payments,
