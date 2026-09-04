@@ -86,7 +86,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
       if (status !== "all") q = q.eq("status", status);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as MfClient[];
+      return (data ?? []) as unknown as MfClient[];
     },
     enabled: !!businessId,
   });
