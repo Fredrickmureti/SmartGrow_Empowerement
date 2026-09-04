@@ -109,7 +109,7 @@ export function AppSelectionStep({
         name: a.name,
         description: a.description || null,
         category: ["finance", "sales", "contacts", "purchases", "inventory"].includes(a.id) ? "core" :
-          ["pos", "crm", "employees", "time-off", "attendance", "payroll", "projects", "studio"].includes(a.id) ? "operations" :
+          ["pos", "crm", "employees", "time-off", "attendance", "payroll", "studio"].includes(a.id) ? "operations" :
           ["reports"].includes(a.id) ? "analytics" : "integrations",
         is_available: true,
         is_core: ["finance", "sales", "purchases"].includes(a.id),

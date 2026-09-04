@@ -32,7 +32,6 @@ export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
   payroll:     [],
   hr:          [],
   timesheets:  [],
-  projects:    [],
   pos:         [],
 };
 

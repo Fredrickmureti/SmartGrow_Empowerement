@@ -80,7 +80,6 @@ const RELATED_MODEL_OPTIONS = [
   { value: "products", label: "Products" },
   { value: "invoices", label: "Invoices" },
   { value: "estimates", label: "Estimates" },
-  { value: "projects", label: "Projects" },
   { value: "employees", label: "Employees" },
   { value: "accounts", label: "Accounts" },
 ];
@@ -100,9 +99,6 @@ const RELATED_DISPLAY_FIELDS: Record<string, { value: string; label: string }[]>
   ],
   estimates: [
     { value: "estimate_number", label: "Estimate Number" },
-  ],
-  projects: [
-    { value: "name", label: "Name" },
   ],
   employees: [
     { value: "first_name", label: "First Name" },

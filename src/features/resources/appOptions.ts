@@ -22,7 +22,6 @@ export const RESOURCE_APP_OPTIONS: ResourceAppOption[] = [
   { key: "inventory", label: "Inventory" },
   { key: "pos", label: "Point of Sale" },
   { key: "payroll", label: "Payroll" },
-  { key: "projects", label: "Projects" },
   { key: "crm", label: "CRM" },
   { key: "reports", label: "Reports" },
   { key: "platform", label: "Platform & Settings" },

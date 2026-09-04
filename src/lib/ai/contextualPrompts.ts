@@ -41,11 +41,6 @@ const PROMPTS: Record<string, ContextualPrompt[]> = {
     { text: "Employee count by department", icon: Users },
     { text: "Upcoming payroll", icon: Wallet },
   ],
-  "/projects-app": [
-    { text: "Active project status", icon: Briefcase },
-    { text: "Overdue tasks", icon: Calendar },
-    { text: "Time logged this week", icon: Briefcase },
-  ],
   "/crm-app": [
     { text: "Open leads summary", icon: Target },
     { text: "Pipeline value", icon: TrendingUp },
