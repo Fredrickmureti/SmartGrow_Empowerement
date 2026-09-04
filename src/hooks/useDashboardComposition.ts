@@ -50,7 +50,6 @@ export type DashboardWidgetId =
   | "lowStock"
   | "creditAlerts"
   | "pendingApprovals"
-  | "backorders"
   | "branchComparison"
   | "activityFeed"
   | "payrollSummary"
@@ -212,7 +211,7 @@ export function useDashboardComposition(): DashboardComposition {
         "purchases.kpis","purchases.aging",
       ]),
       operations: new Set([
-        "kpi","recentActivity","lowStock","backorders","pendingApprovals",
+        "kpi","recentActivity","lowStock","pendingApprovals",
         "upcomingDeadlines","quickActions","activityFeed",
         "finance.bankBalances",
         "sales.pipeline",
@@ -234,7 +233,7 @@ export function useDashboardComposition(): DashboardComposition {
       ]),
       generic: new Set([
         "kpi","revenueChart","recentActivity","bankBalance","lowStock","creditAlerts",
-        "pendingApprovals","backorders","branchComparison","payrollSummary",
+        "pendingApprovals","branchComparison","payrollSummary",
         "upcomingDeadlines","quickActions","activityFeed","aiInsights",
         "finance.kpis","finance.journals","finance.bankBalances",
         "sales.kpis","sales.pipeline","sales.aging","sales.topCustomers",
