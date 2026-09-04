@@ -35044,7 +35044,10 @@ export type Database = {
         Args: { p_business_id: string }
         Returns: Json
       }
-      ledger_visible_journal_statuses: { Args: never; Returns: string[] }
+      ledger_visible_journal_statuses: {
+        Args: never
+        Returns: Database["public"]["Enums"]["journal_status"][]
+      }
       legal_orders_return_extract: {
         Args: {
           _branch_id?: string
