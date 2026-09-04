@@ -209,6 +209,40 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     onError: (e) => toast.error(friendly(e, "The disbursement was refused")),
   });
 
+  /**
+   * Financial integrity: reverse a disbursement made in error. The server
+   * reverses the original journal entry, returns the loan to
+   * `pending_disbursement` and restores the contractual schedule. Refused once
+   * any receipt exists on the loan.
+   */
+  const reverseDisbursement = useMutation({
+    mutationFn: async (input: { loanId: string; reason: string }) => {
+      const { data: rows, error: findError } = await supabase
+        .from("mf_loan_disbursements")
+        .select("id")
+        .eq("loan_id", input.loanId)
+        .is("reversed_at", null)
+        .limit(1);
+      if (findError) throw findError;
+      const disbursementId = rows?.[0]?.id;
+      if (!disbursementId) throw new Error("This loan has no disbursement to reverse.");
+
+      const { data, error } = await supabase.rpc("mf_reverse_disbursement", {
+        p_disbursement_id: disbursementId,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Disbursement reversed — the loan is back to pending disbursement");
+    },
+    onError: (e) => toast.error(friendly(e, "The reversal was refused")),
+  });
+
+
+
   /** Lifecycle exception: write off an active loan (server-posted). */
   const writeOff = useMutation({
     mutationFn: async (input: { loanId: string; writtenOffOn: string; reason: string }) => {
