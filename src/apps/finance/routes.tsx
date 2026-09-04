@@ -103,16 +103,8 @@ export function FinanceApp() {
             </InstitutionRoute>
           }
         />
-        
 
 
-        {/* Customer Credits — apply + refund wizards (list route below). */}
-
-        {/* Customer Credits */}
-
-        {/* Vendor Credits — AP mirror of Customer Credits (ADR 0028). */}
-
-        {/* Customer Statements */}
 
         {/* Chart of Accounts */}
         <Route
