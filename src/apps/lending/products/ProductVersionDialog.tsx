@@ -61,6 +61,14 @@ interface ProductVersionDialogProps {
   businessId: string | undefined;
 }
 
+/** One fee row being edited. Values stay strings until publish. */
+interface FeeDraft {
+  name: string;
+  basis: MfProductFee["basis"];
+  value: string;
+  collection: MfProductFee["collection"];
+}
+
 interface FormState {
   currency_code: string;
   min_amount: string;
@@ -72,6 +80,7 @@ interface FormState {
   interest_rate: string;
   interest_rate_period: MfInterestRatePeriod;
   grace_period_installments: string;
+  fees: FeeDraft[];
   penalty_rate: string;
   penalty_basis: MfPenaltyBasis;
   effective_from: string;
@@ -90,12 +99,21 @@ const EMPTY: FormState = {
   interest_rate: "20",
   interest_rate_period: "per_annum",
   grace_period_installments: "0",
+  fees: [],
   penalty_rate: "0",
   penalty_basis: "overdue_installment",
   effective_from: new Date().toISOString().slice(0, 10),
   min_completed_cycles: "0",
   activate: true,
 };
+
+const NEW_FEE: FeeDraft = {
+  name: "Processing fee",
+  basis: "fixed",
+  value: "0",
+  collection: "deducted_from_disbursement",
+};
+
 
 export function ProductVersionDialog({
   open,
