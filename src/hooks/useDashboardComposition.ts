@@ -104,7 +104,7 @@ export interface DashboardComposition {
   // Data-state signals
   isNewTenant: boolean;
   setupGaps: Array<
-    "bank" | "customers" | "products" | "coa" | "employees"
+    "bank" | "clients" | "coa"
   >;
 
   /** Role preset derived from permissions. */
@@ -132,10 +132,7 @@ export function useDashboardComposition(): DashboardComposition {
   const businessId = currentBusiness?.id ?? null;
   const scopeReady = !!orgId && !!businessId;
 
-  const installedContacts = isInstalled("contacts");
-  const installedInventory = isInstalled("inventory");
   const installedFinance = isInstalled("finance");
-  const installedHR = isInstalled("hr") || isInstalled("employees");
 
   const mkQuery = (table: string, enabled: boolean) => ({
     queryKey: ["composition-count", table, orgId, businessId],
@@ -154,10 +151,8 @@ export function useDashboardComposition(): DashboardComposition {
     },
   });
 
-  const { data: customersCount } = useQuery(mkQuery("contacts", installedContacts));
-  const { data: productsCount } = useQuery(mkQuery("products", installedInventory));
+  const { data: clientsCount } = useQuery(mkQuery("mf_clients", true));
   const { data: coaCount } = useQuery(mkQuery("accounts", installedFinance));
-  const { data: employeesCount } = useQuery(mkQuery("employees", installedHR));
 
   return useMemo<DashboardComposition>(() => {
     const hasFinance = isInstalled("finance") && (perms.canViewFinancials || perms.canManageFinancials);
@@ -174,9 +169,7 @@ export function useDashboardComposition(): DashboardComposition {
     const setupGaps: DashboardComposition["setupGaps"] = [];
     if (hasFinance && !bankLoading && !hasAnyBank) setupGaps.push("bank");
     if (hasFinance && (coaCount ?? 1) === 0) setupGaps.push("coa");
-    if (hasContacts && (customersCount ?? 1) === 0) setupGaps.push("customers");
-    if (hasInventory && (productsCount ?? 1) === 0) setupGaps.push("products");
-    if (hasHR && (employeesCount ?? 1) === 0) setupGaps.push("employees");
+    if ((clientsCount ?? 1) === 0) setupGaps.push("clients");
 
     // Role resolution — derived from current permissions / role
     // string. `perms.role` is the AppRole stored on user_roles;
@@ -268,7 +261,7 @@ export function useDashboardComposition(): DashboardComposition {
       showBranchComparison: scope.kind === "all_branches" && scope.isConsolidatedAuthorized,
       showExecutive: scope.isExecutiveAuthorized,
       showAIInsights: hasAnyBank,
-      showPayrollSummary: hasHR && (employeesCount ?? 0) > 0,
+      showPayrollSummary: false,
       showUpcomingDeadlines: hasSales || hasPurchases || hasHR || hasFinance,
 
       isNewTenant: setupGaps.length >= 2,
@@ -278,6 +271,6 @@ export function useDashboardComposition(): DashboardComposition {
     };
   }, [
     isInstalled, perms, scope, bankAccounts, bankLoading,
-    customersCount, productsCount, coaCount, employeesCount,
+    clientsCount, coaCount,
   ]);
 }

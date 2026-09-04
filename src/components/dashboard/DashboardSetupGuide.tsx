@@ -29,29 +29,13 @@ const ITEMS: Record<DashboardComposition["setupGaps"][number], SetupItem> = {
     href: "/finance/banking",
     icon: Building2,
   },
-  customers: {
-    key: "customers",
-    title: "Add your first customer",
-    description: "Set up customers so you can start invoicing and tracking receivables.",
-    cta: "Add customer",
-    href: "/contacts-app/customers",
+  clients: {
+    key: "clients",
+    title: "Register your first client",
+    description: "Clients are the borrowers your officers manage and lend to.",
+    cta: "Add client",
+    href: "/lending/clients",
     icon: FileText,
-  },
-  invoices: {
-    key: "invoices",
-    title: "Create your first invoice",
-    description: "Bill a customer and start tracking outstanding receivables.",
-    cta: "Create invoice",
-    href: "/sales/invoices",
-    icon: FileText,
-  },
-  products: {
-    key: "products",
-    title: "Add your first product",
-    description: "Stock items power inventory, sales, and low-stock alerts.",
-    cta: "Add product",
-    href: "/inventory-app/products",
-    icon: Package,
   },
   coa: {
     key: "coa",
@@ -60,14 +44,6 @@ const ITEMS: Record<DashboardComposition["setupGaps"][number], SetupItem> = {
     cta: "Open accounts",
     href: "/finance/accounts",
     icon: BookOpen,
-  },
-  employees: {
-    key: "employees",
-    title: "Add your first employee",
-    description: "Required before you can run payroll or track timesheets.",
-    cta: "Add employee",
-    href: "/hr/employees",
-    icon: UserSquare2,
   },
 };
 
