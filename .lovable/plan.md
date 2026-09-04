@@ -163,8 +163,16 @@ THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
 
 
 
-Where things stand: the supplier-billing group is fully scoped out and ready to remove, but I stopped before making any change.
+The migration was not applied. Exact error:
 
-What I confirmed: nothing in the app still reads the supplier bills, bill payments, matching, or vendor credit/statement records — so removing them is safe from the app side. They are still wired into a handful of shared database routines (bank matching, currency-change checks, reset/reversal helpers) that must be trimmed in the same step, otherwise bank reconciliation and currency settings would break.
+```
+ERROR: 42P13: cannot remove parameter defaults from existing function
+HINT: Use DROP FUNCTION change_business_base_currency(uuid,text,text,boolean) first.
+```
 
-What remains: one carefully ordered removal of the supplier billing and vendor credit records plus their exclusive helpers, with the shared bank-matching and currency routines rewritten to drop their supplier branches; then the older contacts, projects, and stock-costing leftovers. Nothing has been changed yet, so the app is exactly as it was.
+That is a purely mechanical issue: my `CREATE OR REPLACE` for `change_business_base_currency` omitted the default values on `p_reason` / `p_confirm_impacts`. Since the whole migration runs in one transaction, nothing was committed — the database is still in the pre-M5-step-2 state (supplier billing tables and vendor credit tables still present).
+
+Remaining work for M5 step 2 (purchasing/vendor-billing removal):
+1. Re-send the same migration with one fix — `DROP FUNCTION IF EXISTS public.change_business_base_currency(uuid,text,text,boolean);` before its `CREATE`, or re-declare the original defaults.
+2. After it applies, remove the now-dead app surfaces: delete `src/components/settings/OrgDataResetTool.tsx` and `src/components/settings/ResetWorkspaceDialog.tsx` plus their two imports/usages in `src/pages/settings/WorkspaceSettings.tsx`, and drop remaining bill/vendor references in legacy types, permission lists, query keys and architecture tests.
+3. Verify typecheck and a `GET /` 200, then update `.lovable/plan.md` (M5 step 2 complete, next: remaining ERP table groups → M6 FX purge).
