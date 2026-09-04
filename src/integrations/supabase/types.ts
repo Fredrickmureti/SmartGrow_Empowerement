@@ -18417,9 +18417,12 @@ export type Database = {
           created_at: string
           disbursed_by: string | null
           disbursed_on: string
+          fee_breakdown: Json
+          fees_deducted: number
           id: string
           loan_id: string
           method: string
+          net_amount: number | null
           notes: string | null
           received_by_name: string | null
           reference: string | null
@@ -18435,9 +18438,12 @@ export type Database = {
           created_at?: string
           disbursed_by?: string | null
           disbursed_on: string
+          fee_breakdown?: Json
+          fees_deducted?: number
           id?: string
           loan_id: string
           method: string
+          net_amount?: number | null
           notes?: string | null
           received_by_name?: string | null
           reference?: string | null
@@ -18453,9 +18459,12 @@ export type Database = {
           created_at?: string
           disbursed_by?: string | null
           disbursed_on?: string
+          fee_breakdown?: Json
+          fees_deducted?: number
           id?: string
           loan_id?: string
           method?: string
+          net_amount?: number | null
           notes?: string | null
           received_by_name?: string | null
           reference?: string | null
@@ -38310,6 +38319,7 @@ export type Database = {
         Args: { p_closed_on?: string; p_loan_id: string; p_notes?: string }
         Returns: string
       }
+      mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
       mf_create_loan_from_application: {
         Args: {
           p_application_id: string
@@ -38333,6 +38343,10 @@ export type Database = {
       }
       mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
       mf_is_portfolio_restricted: { Args: { p_user: string }; Returns: boolean }
+      mf_loan_fee_total: {
+        Args: { p_collection: string; p_loan_id: string }
+        Returns: number
+      }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
