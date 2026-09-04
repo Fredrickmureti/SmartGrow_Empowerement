@@ -352,9 +352,13 @@ function Kpi({
 }
 
 function EventDrawer({
+  event, onClose, currency,
+}: {
+  event: AccountingEventRow | null;
   onClose: () => void;
   currency: string;
 }) {
+
   const qc = useQueryClient();
 
   const postNow = useMutation({
