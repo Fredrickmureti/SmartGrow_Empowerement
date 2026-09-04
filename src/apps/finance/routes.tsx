@@ -53,7 +53,6 @@ const BankAccountEditPage = lazy(() => import("@/features/finance/banking/BankAc
 const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
 const TrialBalance = lazy(() => import("@/pages/reports/TrialBalance"));
 const GeneralLedger = lazy(() => import("@/pages/reports/GeneralLedger"));
-const AgingReport = lazy(() => import("@/pages/reports/AgingReport"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
 const Reports = lazy(() => import("@/pages/Reports"));
 const JournalReport = lazy(() => import("@/pages/reports/JournalReport"));
@@ -68,9 +67,6 @@ const BankReconciliationReport = lazy(() => import("@/pages/reports/BankReconcil
 
 // ADR 0143 — inventory reports are dual-hosted: same page components, mounted
 // under both /finance/reports/* and /inventory-app/reports/*.
-const FxRevaluationReport = lazy(() => import("@/pages/reports/FxRevaluationReport"));
-const FxExposureReport = lazy(() => import("@/pages/reports/FxExposureReport"));
-const FxRealizedReport = lazy(() => import("@/pages/reports/FxRealizedReport"));
 
 
 const FinanceSettingsPage = lazy(() => import("@/pages/finance/FinanceSettings"));
@@ -507,16 +503,6 @@ export function FinanceApp() {
           }
         />
         
-        <Route
-          path="reports/aging"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Aging Reports">
-                <AgingReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
         
         
 
@@ -644,40 +630,10 @@ export function FinanceApp() {
         {/* Stock Transfers Report (Phase B5) */}
 
         {/* FX Revaluation Report (Phase B6) */}
-        <Route
-          path="reports/fx-revaluation"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="FX Revaluation Report">
-                <FxRevaluationReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* FX Exposure Report (Currency & FX Step G) */}
-        <Route
-          path="reports/fx-exposure"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="FX Exposure Report">
-                <FxExposureReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Realized FX Gain/Loss Report (Currency & FX Step 4) */}
-        <Route
-          path="reports/fx-realized"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Realized FX Gain/Loss Report">
-                <FxRealizedReport />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
 
 
