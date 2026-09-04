@@ -35,7 +35,6 @@ export type BankMatchTier =
 
 export type BankMatchCandidateKind =
   | "payment"
-  | "bill_payment"
   | "invoice"
   | "bill"
   | "transfer"
