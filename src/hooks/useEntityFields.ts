@@ -87,26 +87,9 @@ export interface EntityFieldValue {
 }
 
 // Entity type labels for UI display
-export const ENTITY_TYPE_LABELS: Record<EntityType, string> = {
-  contact: "Contacts",
-  product: "Products",
-  invoice: "Invoices",
-  estimate: "Estimates",
-  sales_order: "Sales Orders",
-  purchase_order: "Purchase Orders",
-  project: "Projects",
-  crm_lead: "CRM Leads",
-  expense: "Expenses",
-  bill: "Bills",
-  employee: "Employees",
-  credit_note: "Credit Notes",
-  payment: "Payments",
-  delivery_note: "Delivery Notes",
-  sales_return: "Sales Returns",
-  proforma_invoice: "Proforma Invoices",
-  recurring_invoice: "Recurring Invoices",
-  stock_adjustment: "Stock Adjustments",
-};
+export { ENTITY_TYPE_LABELS } from "@/lib/studio/entities";
+import { ENTITY_TYPE_LABELS } from "@/lib/studio/entities";
+
 
 // Field type labels for UI display
 export const FIELD_TYPE_LABELS: Record<FieldType, string> = {
