@@ -145,7 +145,7 @@ describe("no application code reads the retired finance_ap_open_items view", () 
     expect(
       offenders,
       "finance_ap_open_items is retired — call the finance_ap_open_items_as_of " +
-        "RPC (see src/services/finance/openItems.ts). Offenders: " +
+        "RPC. Offenders: " +
         offenders.join(", "),
     ).toEqual([]);
   });

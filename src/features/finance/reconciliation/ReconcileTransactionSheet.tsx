@@ -68,8 +68,7 @@ interface ReconcileTransactionSheetProps {
         | "bill"
         | "transfer"
         | "manual"
-        | "payment"
-        | "bill_payment";
+        | "payment";
       reconciled_entity_id?: string;
       category?: string;
       createGLEntry?: boolean;
@@ -80,7 +79,6 @@ interface ReconcileTransactionSheetProps {
           | "bill"
           | "account"
           | "payment"
-          | "bill_payment"
           | "transfer";
         document_id: string;
         amount: number;
@@ -282,7 +280,7 @@ export function ReconcileTransactionSheet({
         reconciled_type:
           chosen.kind === "account"
             ? "manual"
-            : (chosen.kind as "invoice" | "bill" | "payment" | "bill_payment" | "transfer"),
+            : (chosen.kind as "invoice" | "bill" | "payment" | "transfer"),
         allocations: chosen.allocations,
         category: chosen.label,
       });
@@ -576,7 +574,7 @@ export function ReconcileTransactionSheet({
           onValueChange={setActiveTab}
         >
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="recorded" className="gap-1.5">
+            <TabsTrigger value="recorded" disabled={!isCredit} className="gap-1.5">
               <Banknote className="h-3.5 w-3.5" />
               Recorded
             </TabsTrigger>
@@ -596,15 +594,13 @@ export function ReconcileTransactionSheet({
           */}
           <TabsContent value="recorded" className="mt-4">
             <p className="mb-3 text-xs text-muted-foreground">
-              {isCredit
-                ? "Receipts already recorded and waiting to be banked. Depositing one moves it out of its holding account — it does not settle the invoice again."
-                : "Supplier payments already recorded and waiting to present at the bank."}
+              Receipts already recorded and waiting to be banked. Depositing one moves it
+              out of its holding account — it does not record the money a second time.
             </p>
             {clearableCandidates.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No recorded {isCredit ? "receipt" : "payment"} of {formatTxn(transactionAmount)} is
-                waiting. A recorded {isCredit ? "receipt" : "payment"} is cleared in full, so only
-                an exact amount can explain this line.
+                No recorded receipt of {formatTxn(transactionAmount)} is waiting. A recorded
+                receipt is banked in full, so only an exact amount can explain this line.
               </p>
             ) : (
               <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
@@ -645,7 +641,7 @@ export function ReconcileTransactionSheet({
                           {formatTxn(candidate.amount)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {isCredit ? "Not yet banked" : "Not yet cleared"}
+                          Not yet banked
                         </p>
                       </div>
                     </Label>
