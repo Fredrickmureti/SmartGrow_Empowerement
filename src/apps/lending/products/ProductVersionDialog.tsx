@@ -145,7 +145,14 @@ export function ProductVersionDialog({
             interest_rate: String(latest.interest_rate),
             interest_rate_period: latest.interest_rate_period,
             grace_period_installments: String(latest.grace_period_installments),
+            fees: (latest.fees ?? []).map((f) => ({
+              name: f.name ?? "",
+              basis: f.basis ?? "fixed",
+              value: String(f.value ?? 0),
+              collection: f.collection ?? "deducted_from_disbursement",
+            })),
             penalty_rate: String(latest.penalty_rate),
+
             penalty_basis: latest.penalty_basis,
             effective_from: new Date().toISOString().slice(0, 10),
             min_completed_cycles: String(latest.eligibility?.min_completed_cycles ?? 0),
