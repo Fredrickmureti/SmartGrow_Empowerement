@@ -27,10 +27,8 @@ export interface AccountMovement {
 export interface TransactionCounts {
   postedJournalEntries: number;
   draftJournalEntries: number;
-  invoices: number;
-  draftInvoices: number;
-  bills: number;
-  draftBills: number;
+  disbursements: number;
+  repayments: number;
   payments: number;
   expenses: number;
 }
@@ -61,13 +59,13 @@ export interface CloseReadiness {
   healthScore: number;
 }
 
-export interface SubledgerSummary {
-  arTotal: number;
-  apTotal: number;
-  arOverdue: number;
-  apOverdue: number;
-  arCount: number;
-  apCount: number;
+export interface PortfolioSummary {
+  /** Total outstanding (principal + interest + fees) across live loans. */
+  outstanding: number;
+  /** Amount past due across live loans. */
+  overdue: number;
+  loanCount: number;
+  overdueLoanCount: number;
 }
 
 export interface BudgetComparison {
@@ -117,7 +115,7 @@ export interface FiscalPeriodDetailData {
   transactionCounts: TransactionCounts;
   recentEntries: RecentJournalEntry[];
   closeReadiness: CloseReadiness;
-  subledger: SubledgerSummary;
+  portfolio: PortfolioSummary;
   budgetComparison: BudgetComparison[];
   assetSummary: AssetSummary;
   priorPeriod: PriorPeriodComparison;
@@ -193,21 +191,16 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         accountsResult,
         postedJEResult,
         draftJEResult,
-        invoicesResult,
-        draftInvoicesResult,
-        billsResult,
-        draftBillsResult,
+        disbursementsResult,
+        repaymentsResult,
         paymentsResult,
         expensesResult,
         recentJEResult,
         unreconciledResult,
         reconciledResult,
         totalBankTxnResult,
-        // AR/AP
-        arResult,
-        arOverdueResult,
-        apResult,
-        apOverdueResult,
+        // Loan portfolio position
+        portfolioResult,
         // Prior period GL
         priorMovementsResult,
         // Budget (authoritative server-side comparison)
@@ -254,46 +247,21 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           .eq("status", "draft")
           .gte("entry_date", startDate)
           .lte("entry_date", endDate),
-        // Invoices count
+        // Loan disbursements in period (live, not reversed)
         supabase
-          .from("invoices")
+          .from("mf_loan_disbursements")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .neq("status", "draft")
-          .gte("issue_date", startDate)
-          .lte("issue_date", endDate),
-        // Draft invoices count
+          .eq("business_id", businessId)
+          .is("reversed_at", null)
+          .gte("disbursed_on", startDate)
+          .lte("disbursed_on", endDate),
+        // Loan repayments in period
         supabase
-          .from("invoices")
+          .from("mf_repayments")
           .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "draft")
-          .gte("issue_date", startDate)
-          .lte("issue_date", endDate),
-        // Bills count
-        supabase
-          .from("bills")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .neq("status", "draft")
-          .gte("bill_date", startDate)
-          .lte("bill_date", endDate),
-        // Draft bills count
-        supabase
-          .from("bills")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "draft")
-          .gte("bill_date", startDate)
-          .lte("bill_date", endDate),
+          .eq("business_id", businessId)
+          .gte("paid_on", startDate)
+          .lte("paid_on", endDate),
         // Payments count
         supabase
           .from("payments")
@@ -349,46 +317,11 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         .eq("business_id", businessId)
           .gte("transaction_date", startDate)
           .lte("transaction_date", endDate),
-        // AR: open invoices in period
+        // Loan portfolio position — server-derived balances view.
         supabase
-          .from("invoices")
-          .select("id, total, status", { count: "exact" })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .in("status", ["sent", "confirmed", "overdue", "partial"])
-          .gte("issue_date", startDate)
-          .lte("issue_date", endDate),
-        // AR overdue
-        supabase
-          .from("invoices")
-          .select("id, total", { count: "exact" })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "overdue")
-          .gte("issue_date", startDate)
-          .lte("issue_date", endDate),
-        // AP: open bills in period
-        supabase
-          .from("bills")
-          .select("id, total, status", { count: "exact" })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .in("status", ["open", "overdue", "partial"])
-          .gte("bill_date", startDate)
-          .lte("bill_date", endDate),
-        // AP overdue
-        supabase
-          .from("bills")
-          .select("id, total", { count: "exact" })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "overdue")
-          .gte("bill_date", startDate)
-          .lte("bill_date", endDate),
+          .from("mf_loan_balances")
+          .select("loan_id, total_outstanding, amount_overdue")
+          .eq("business_id", businessId),
         // Prior period GL movements
         supabase.rpc("get_account_movements", {
           _org_id: orgId,

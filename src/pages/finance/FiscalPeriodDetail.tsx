@@ -146,7 +146,7 @@ export default function FiscalPeriodDetail() {
     );
   }
 
-  const { financials, transactionCounts, accountBreakdown, topAccounts, recentEntries, closeReadiness, subledger, budgetComparison, assetSummary, priorPeriod, bankSummary } = detail;
+  const { financials, transactionCounts, accountBreakdown, topAccounts, recentEntries, closeReadiness, portfolio, budgetComparison, assetSummary, priorPeriod, bankSummary } = detail;
   const isOpen = period.status === "open";
   const isClosed = period.status === "closed";
 
@@ -293,7 +293,7 @@ export default function FiscalPeriodDetail() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="accounts">Accounts</TabsTrigger>
             <TabsTrigger value="entries">Journal Entries</TabsTrigger>
-            <TabsTrigger value="subledgers">Subledgers</TabsTrigger>
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
             <TabsTrigger value="bank">Bank</TabsTrigger>
             {(assetSummary.additions > 0 || assetSummary.depreciationPosted > 0 || assetSummary.depreciationUnposted > 0) && (
               <TabsTrigger value="assets">Assets</TabsTrigger>
@@ -333,8 +333,8 @@ export default function FiscalPeriodDetail() {
                   {[
                     { label: "Posted JEs", value: transactionCounts.postedJournalEntries, icon: BookOpen, link: `/finance/journal-entries?dateFrom=${period.start_date}&dateTo=${period.end_date}&status=posted` },
                     { label: "Draft JEs", value: transactionCounts.draftJournalEntries, icon: BookOpen, variant: "warning" as const, link: `/finance/journal-entries?status=draft` },
-                    { label: "Bills", value: transactionCounts.bills, icon: Receipt, link: `/finance/bills` },
-                    { label: "Draft Bills", value: transactionCounts.draftBills, icon: Receipt, variant: "warning" as const },
+                    { label: "Disbursements", value: transactionCounts.disbursements, icon: Receipt, link: `/lending/loans` },
+                    { label: "Repayments", value: transactionCounts.repayments, icon: Receipt, link: `/lending/repayments` },
 
                     { label: "Payments", value: transactionCounts.payments, icon: CreditCard, link: `/finance/payments` },
                     { label: "Expenses", value: transactionCounts.expenses, icon: Wallet, link: `/finance/expenses` },
@@ -511,60 +511,53 @@ export default function FiscalPeriodDetail() {
             </Card>
           </TabsContent>
 
-          {/* ── SUBLEDGERS TAB ── */}
-          <TabsContent value="subledgers" className="space-y-4">
+          {/* ── PORTFOLIO TAB ── */}
+          <TabsContent value="portfolio" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* AR */}
+              {/* Outstanding */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> Accounts Receivable
+                    <FileText className="h-4 w-4" /> Loan Portfolio
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Open Items</span>
-                    <span className="font-semibold text-sm">{subledger.arCount}</span>
+                    <span className="text-sm">Live Loans</span>
+                    <span className="font-semibold text-sm">{portfolio.loanCount}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
                     <span className="text-sm">Total Outstanding</span>
-                    <span className="font-semibold text-sm">{formatCurrency(subledger.arTotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Overdue</span>
-                    <span className={`font-semibold text-sm ${subledger.arOverdue > 0 ? "text-destructive" : ""}`}>
-                      {formatCurrency(subledger.arOverdue)}
-                    </span>
+                    <span className="font-semibold text-sm">{formatCurrency(portfolio.outstanding)}</span>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* AP */}
+              {/* Arrears */}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
-                    <Receipt className="h-4 w-4" /> Accounts Payable
+                    <AlertTriangle className="h-4 w-4" /> Arrears
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Open Bills</span>
-                    <span className="font-semibold text-sm">{subledger.apCount}</span>
+                    <span className="text-sm">Loans in Arrears</span>
+                    <span className={`font-semibold text-sm ${portfolio.overdueLoanCount > 0 ? "text-destructive" : ""}`}>
+                      {portfolio.overdueLoanCount}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Total Outstanding</span>
-                    <span className="font-semibold text-sm">{formatCurrency(subledger.apTotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Overdue</span>
-                    <span className={`font-semibold text-sm ${subledger.apOverdue > 0 ? "text-destructive" : ""}`}>
-                      {formatCurrency(subledger.apOverdue)}
+                    <span className="text-sm">Amount Overdue</span>
+                    <span className={`font-semibold text-sm ${portfolio.overdue > 0 ? "text-destructive" : ""}`}>
+                      {formatCurrency(portfolio.overdue)}
                     </span>
                   </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
+
 
           {/* ── BANK TAB ── */}
           <TabsContent value="bank" className="space-y-4">
