@@ -28,9 +28,8 @@
 import {
   FileText,
   BookOpen,
-  Users,
   Wallet,
-  Coins,
+  HandCoins,
   Target,
   ShieldCheck,
   BarChart3,

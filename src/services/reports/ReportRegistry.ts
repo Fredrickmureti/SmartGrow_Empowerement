@@ -24,8 +24,7 @@ export type ReportCategory =
   | "lending"
   | "cash_bank"
   | "fixed_assets"
-  | "audit"
-  | "intelligence";
+  | "audit";
 
 /**
  * Reporting domains. A domain is the workspace a report belongs to — the set
