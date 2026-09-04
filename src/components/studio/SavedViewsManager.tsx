@@ -105,7 +105,7 @@ interface SavedViewsManagerProps {
 }
 
 export function SavedViewsManager({ entityType: initialEntityType }: SavedViewsManagerProps) {
-  const [selectedEntityType, setSelectedEntityType] = useState<EntityType>(initialEntityType || "contact");
+  const [selectedEntityType, setSelectedEntityType] = useState<EntityType>(initialEntityType || "mf_client");
   const { views, isLoading, createView, updateView, deleteView } = useSavedViews(selectedEntityType);
   
   const [showDialog, setShowDialog] = useState(false);

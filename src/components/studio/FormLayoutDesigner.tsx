@@ -95,7 +95,7 @@ interface FormLayoutDesignerProps {
 }
 
 export function FormLayoutDesigner({ entityType: initialEntityType }: FormLayoutDesignerProps) {
-  const [selectedEntityType, setSelectedEntityType] = useState<EntityType>(initialEntityType || "contact");
+  const [selectedEntityType, setSelectedEntityType] = useState<EntityType>(initialEntityType || "mf_client");
   const { layouts, isLoading, createLayout, updateLayout, deleteLayout } = useFormLayouts(selectedEntityType);
   const { getFieldsForEntityType } = useAllEntityFields();
   
