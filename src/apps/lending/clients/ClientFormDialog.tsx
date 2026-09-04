@@ -180,12 +180,12 @@ export function ClientFormDialog({
         status: form.status,
         notes: orNull(form.notes),
       };
+      // Existing client: upload images first, then one update with everything.
+      // New client: insert first (we need the id), then patch image paths.
       const saved = client
         ? { id: client.id, business_id: client.business_id }
         : await onCreate(payload);
-      if (client) await onUpdate(client.id, payload);
 
-      // KYC images: upload new captures, clear removed ones, then patch paths.
       const pathPatch: Partial<MfClientInput> = {};
       for (const [kind, pending] of Object.entries(images) as [MfKycKind, KycPending][]) {
         if (pending === undefined) continue;
@@ -203,7 +203,10 @@ export function ClientFormDialog({
           );
         }
       }
-      if (Object.keys(pathPatch).length > 0) {
+
+      if (client) {
+        await onUpdate(client.id, { ...payload, ...pathPatch });
+      } else if (Object.keys(pathPatch).length > 0) {
         await onUpdate(saved.id, pathPatch);
       }
       onOpenChange(false);
