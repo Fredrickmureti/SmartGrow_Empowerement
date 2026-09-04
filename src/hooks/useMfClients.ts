@@ -101,11 +101,12 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
       const { data: auth } = await supabase.auth.getUser();
       const { data, error } = await supabase
         .from("mf_clients")
-        .insert({ ...input, business_id: businessId, created_by: auth.user?.id ?? null })
+        // Cast until the generated Database types pick up the KYC path columns.
+        .insert({ ...input, business_id: businessId, created_by: auth.user?.id ?? null } as never)
         .select(SELECT)
         .single();
       if (error) throw error;
-      return data as MfClient;
+      return data as unknown as MfClient;
     },
     onSuccess: () => {
       invalidate();
@@ -118,7 +119,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
 
   const updateClient = useMutation({
     mutationFn: async ({ id, ...patch }: Partial<MfClientInput> & { id: string }) => {
-      const { error } = await supabase.from("mf_clients").update(patch).eq("id", id);
+      const { error } = await supabase.from("mf_clients").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
