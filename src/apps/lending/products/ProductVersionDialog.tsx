@@ -34,7 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LoadingState, StatusBadge } from "@/design-system";
+import { Plus, Trash2 } from "lucide-react";
 import {
+  MF_FEE_BASES,
+  MF_FEE_BASIS_LABELS,
+  MF_FEE_COLLECTIONS,
+  MF_FEE_COLLECTION_LABELS,
   MF_INTEREST_METHODS,
   MF_INTEREST_RATE_PERIODS,
   MF_PENALTY_BASES,
@@ -44,14 +49,24 @@ import {
   type MfInterestRatePeriod,
   type MfLoanProduct,
   type MfPenaltyBasis,
+  type MfProductFee,
   type MfRepaymentFrequency,
 } from "@/hooks/useMfLoanProducts";
+
 
 interface ProductVersionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: MfLoanProduct | null;
   businessId: string | undefined;
+}
+
+/** One fee row being edited. Values stay strings until publish. */
+interface FeeDraft {
+  name: string;
+  basis: MfProductFee["basis"];
+  value: string;
+  collection: MfProductFee["collection"];
 }
 
 interface FormState {
@@ -65,6 +80,7 @@ interface FormState {
   interest_rate: string;
   interest_rate_period: MfInterestRatePeriod;
   grace_period_installments: string;
+  fees: FeeDraft[];
   penalty_rate: string;
   penalty_basis: MfPenaltyBasis;
   effective_from: string;
@@ -83,12 +99,21 @@ const EMPTY: FormState = {
   interest_rate: "20",
   interest_rate_period: "per_annum",
   grace_period_installments: "0",
+  fees: [],
   penalty_rate: "0",
   penalty_basis: "overdue_installment",
   effective_from: new Date().toISOString().slice(0, 10),
   min_completed_cycles: "0",
   activate: true,
 };
+
+const NEW_FEE: FeeDraft = {
+  name: "Processing fee",
+  basis: "fixed",
+  value: "0",
+  collection: "deducted_from_disbursement",
+};
+
 
 export function ProductVersionDialog({
   open,
@@ -120,7 +145,14 @@ export function ProductVersionDialog({
             interest_rate: String(latest.interest_rate),
             interest_rate_period: latest.interest_rate_period,
             grace_period_installments: String(latest.grace_period_installments),
+            fees: (latest.fees ?? []).map((f) => ({
+              name: f.name ?? "",
+              basis: f.basis ?? "fixed",
+              value: String(f.value ?? 0),
+              collection: f.collection ?? "deducted_from_disbursement",
+            })),
             penalty_rate: String(latest.penalty_rate),
+
             penalty_basis: latest.penalty_basis,
             effective_from: new Date().toISOString().slice(0, 10),
             min_completed_cycles: String(latest.eligibility?.min_completed_cycles ?? 0),
