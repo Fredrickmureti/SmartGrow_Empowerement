@@ -328,6 +328,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     refetch: query.refetch,
     createFromApplication,
     disburse,
+    reverseDisbursement,
     writeOff,
     closeLoan,
     reissueLoan,
