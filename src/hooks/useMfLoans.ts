@@ -302,8 +302,18 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
 }
 
 
-/** Contractual schedule and event history for one loan. */
+/** Penalty charged / paid / outstanding for one installment. */
+export interface MfLoanPenaltyRow {
+  loan_id: string;
+  installment_no: number;
+  penalty_charged: number;
+  penalty_paid: number;
+  penalty_outstanding: number;
+}
+
+/** Contractual schedule, penalty position and event history for one loan. */
 export function useMfLoanSchedule(loanId?: string) {
+
   const schedule = useQuery({
     queryKey: ["mf-loan-schedule", loanId],
     queryFn: async () => {
@@ -336,10 +346,28 @@ export function useMfLoanSchedule(loanId?: string) {
     enabled: !!loanId,
   });
 
+  // Penalty position per installment. Server-owned view — never derived here.
+  const penalties = useQuery({
+    queryKey: ["mf-loan-penalty-status", loanId],
+    queryFn: async () => {
+      if (!loanId) return [] as MfLoanPenaltyRow[];
+      const { data, error } = await supabase
+        .from("mf_loan_penalty_status")
+        .select("loan_id,installment_no,penalty_charged,penalty_paid,penalty_outstanding")
+        .eq("loan_id", loanId)
+        .order("installment_no");
+      if (error) throw error;
+      return (data ?? []) as unknown as MfLoanPenaltyRow[];
+    },
+    enabled: !!loanId,
+  });
+
   return {
     schedule: schedule.data ?? [],
     events: events.data ?? [],
+    penalties: penalties.data ?? [],
     isLoading: schedule.isLoading,
     error: schedule.error as Error | null,
   };
 }
+
