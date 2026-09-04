@@ -165,6 +165,17 @@ export function ProductVersionDialog({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const setFee = (index: number, patch: Partial<FeeDraft>) =>
+    setForm((prev) => ({
+      ...prev,
+      fees: prev.fees.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+    }));
+
+  const addFee = () => setForm((prev) => ({ ...prev, fees: [...prev.fees, { ...NEW_FEE }] }));
+
+  const removeFee = (index: number) =>
+    setForm((prev) => ({ ...prev, fees: prev.fees.filter((_, i) => i !== index) }));
+
   const invalid = useMemo(() => {
     const min = Number(form.min_amount);
     const max = Number(form.max_amount);
@@ -173,6 +184,13 @@ export function ProductVersionDialog({
     if (!(min > 0) || !(max >= min)) return "Amount band is invalid.";
     if (!(minT > 0) || !(maxT >= minT)) return "Term band is invalid.";
     if (Number(form.interest_rate) < 0) return "Interest rate cannot be negative.";
+    for (const fee of form.fees) {
+      if (!fee.name.trim()) return "Every fee needs a name.";
+      const value = Number(fee.value);
+      if (!Number.isFinite(value) || value < 0) return `Fee "${fee.name}" has an invalid value.`;
+      if (fee.basis === "percent_of_principal" && value >= 100)
+        return `Fee "${fee.name}" cannot be 100% or more of principal.`;
+    }
     return null;
   }, [form]);
 
@@ -195,7 +213,12 @@ export function ProductVersionDialog({
           interest_rate: Number(form.interest_rate),
           interest_rate_period: form.interest_rate_period,
           grace_period_installments: Number(form.grace_period_installments),
-          fees: [],
+          fees: form.fees.map<MfProductFee>((f) => ({
+            name: f.name.trim(),
+            basis: f.basis,
+            value: Number(f.value),
+            collection: f.collection,
+          })),
           penalty_rate: Number(form.penalty_rate),
           penalty_basis: form.penalty_basis,
           eligibility: { min_completed_cycles: Number(form.min_completed_cycles) },
@@ -207,6 +230,7 @@ export function ProductVersionDialog({
       setSaving(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
