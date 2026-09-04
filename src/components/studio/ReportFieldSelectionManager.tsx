@@ -42,63 +42,15 @@ import {
   GripVertical,
 } from "lucide-react";
 
-// Core fields per entity type that can appear in reports
-const REPORT_CORE_FIELDS: Record<string, { field: string; label: string }[]> = {
-  invoice: [
-    { field: "invoice_number", label: "Invoice #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "issue_date", label: "Issue Date" },
-    { field: "due_date", label: "Due Date" },
-    { field: "status", label: "Status" },
-    { field: "subtotal", label: "Subtotal" },
-    { field: "tax_amount", label: "Tax" },
-    { field: "total_amount", label: "Total" },
-    { field: "payment_terms", label: "Payment Terms" },
-    { field: "reference", label: "Reference" },
-    { field: "notes", label: "Notes" },
-  ],
-  estimate: [
-    { field: "estimate_number", label: "Estimate #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "issue_date", label: "Issue Date" },
-    { field: "valid_until", label: "Valid Until" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "notes", label: "Notes" },
-  ],
-  sales_order: [
-    { field: "order_number", label: "Order #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "order_date", label: "Order Date" },
-    { field: "delivery_date", label: "Delivery Date" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "notes", label: "Notes" },
-  ],
-  purchase_order: [
-    { field: "order_number", label: "PO #" },
-    { field: "vendor_name", label: "Vendor" },
-    { field: "order_date", label: "Order Date" },
-    { field: "expected_date", label: "Expected Date" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "notes", label: "Notes" },
-  ],
-  bill: [
-    { field: "bill_number", label: "Bill #" },
-    { field: "vendor_name", label: "Vendor" },
-    { field: "bill_date", label: "Bill Date" },
-    { field: "due_date", label: "Due Date" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "notes", label: "Notes" },
-  ],
-};
-
-const REPORTABLE_ENTITIES = ["invoice", "estimate", "sales_order", "purchase_order", "bill"];
+// Core fields per entity type that can appear in reports (microfinance catalogue)
+import {
+  CORE_FIELDS as REPORT_CORE_FIELDS,
+  REPORTABLE_ENTITIES,
+} from "@/lib/studio/entities";
 
 export function ReportFieldSelectionManager() {
-  const [selectedEntityType, setSelectedEntityType] = useState<string>("invoice");
+  const [selectedEntityType, setSelectedEntityType] = useState<string>("mf_loan");
+
   const { configs, isLoading, createConfig, updateConfig, deleteConfig } = useReportFieldConfigs(selectedEntityType);
   const { fieldConfigs: customFields } = useEntityFields(selectedEntityType as EntityType);
   const [showDialog, setShowDialog] = useState(false);

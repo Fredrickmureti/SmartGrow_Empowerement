@@ -57,7 +57,7 @@ export function AutomationTemplateGallery({
   const [createdTemplates, setCreatedTemplates] = useState<Set<string>>(new Set());
 
   const popularTemplates = getPopularTemplates();
-  const categories = ["sales", "crm", "inventory", "purchasing", "accounting"];
+  const categories = ["lending", "collections", "clients", "accounting"];
 
   const handleUseTemplate = async (template: AutomationTemplate) => {
     setIsCreating(true);

@@ -16,92 +16,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Common core fields per entity type
-const CORE_FIELDS: Record<string, { field: string; label: string }[]> = {
-  contact: [
-    { field: "name", label: "Name" },
-    { field: "email", label: "Email" },
-    { field: "phone", label: "Phone" },
-    { field: "type", label: "Type" },
-    { field: "company_name", label: "Company" },
-    { field: "status", label: "Status" },
-    { field: "created_at", label: "Created At" },
-  ],
-  product: [
-    { field: "name", label: "Name" },
-    { field: "sku", label: "SKU" },
-    { field: "type", label: "Type" },
-    { field: "price", label: "Price" },
-    { field: "cost", label: "Cost" },
-    { field: "category", label: "Category" },
-    { field: "status", label: "Status" },
-  ],
-  invoice: [
-    { field: "invoice_number", label: "Invoice #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "due_date", label: "Due Date" },
-    { field: "issue_date", label: "Issue Date" },
-  ],
-  estimate: [
-    { field: "estimate_number", label: "Estimate #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "valid_until", label: "Valid Until" },
-  ],
-  sales_order: [
-    { field: "order_number", label: "Order #" },
-    { field: "contact_name", label: "Customer" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "order_date", label: "Order Date" },
-  ],
-  purchase_order: [
-    { field: "order_number", label: "PO #" },
-    { field: "vendor_name", label: "Vendor" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "order_date", label: "Order Date" },
-  ],
-  project: [
-    { field: "name", label: "Name" },
-    { field: "status", label: "Status" },
-    { field: "start_date", label: "Start Date" },
-    { field: "end_date", label: "End Date" },
-    { field: "progress", label: "Progress" },
-  ],
-  crm_lead: [
-    { field: "name", label: "Name" },
-    { field: "contact_name", label: "Contact" },
-    { field: "stage", label: "Stage" },
-    { field: "expected_revenue", label: "Expected Revenue" },
-    { field: "probability", label: "Probability" },
-    { field: "created_at", label: "Created At" },
-  ],
-  expense: [
-    { field: "description", label: "Description" },
-    { field: "amount", label: "Amount" },
-    { field: "category", label: "Category" },
-    { field: "status", label: "Status" },
-    { field: "expense_date", label: "Date" },
-  ],
-  bill: [
-    { field: "bill_number", label: "Bill #" },
-    { field: "vendor_name", label: "Vendor" },
-    { field: "status", label: "Status" },
-    { field: "total_amount", label: "Total" },
-    { field: "due_date", label: "Due Date" },
-  ],
-  employee: [
-    { field: "name", label: "Name" },
-    { field: "email", label: "Email" },
-    { field: "department", label: "Department" },
-    { field: "position", label: "Position" },
-    { field: "status", label: "Status" },
-  ],
-};
+// Built-in core fields per entity type (microfinance catalogue)
+import { CORE_FIELDS } from "@/lib/studio/entities";
+
 
 interface ViewConfigPanelProps {
   viewType: ViewType;

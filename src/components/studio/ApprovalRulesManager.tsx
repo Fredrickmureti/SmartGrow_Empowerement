@@ -52,41 +52,43 @@ import {
 } from "lucide-react";
 
 const ENTITY_ACTIONS: Record<string, { value: string; label: string }[]> = {
-  invoice: [
-    { value: "confirm", label: "Confirm Invoice" },
-    { value: "void", label: "Void Invoice" },
-    { value: "send", label: "Send Invoice" },
+  mf_loan_application: [
+    { value: "submit_assessment", label: "Submit Assessment" },
+    { value: "approve", label: "Approve Application" },
+    { value: "reject", label: "Reject Application" },
   ],
-  estimate: [
-    { value: "confirm", label: "Confirm Estimate" },
-    { value: "convert_to_invoice", label: "Convert to Invoice" },
+  mf_loan: [
+    { value: "authorize_disbursement", label: "Authorise Disbursement" },
+    { value: "top_up", label: "Approve Top-Up" },
+    { value: "restructure", label: "Restructure Loan" },
+    { value: "write_off", label: "Write Off Loan" },
   ],
-  sales_order: [
-    { value: "confirm", label: "Confirm Sales Order" },
-    { value: "cancel", label: "Cancel Sales Order" },
+  mf_disbursement: [
+    { value: "release_funds", label: "Release Funds" },
+    { value: "cancel", label: "Cancel Disbursement" },
   ],
-  purchase_order: [
-    { value: "confirm", label: "Confirm Purchase Order" },
-    { value: "cancel", label: "Cancel PO" },
+  mf_repayment: [
+    { value: "reverse", label: "Reverse Repayment" },
+    { value: "waive_charge", label: "Waive Charge" },
   ],
-  bill: [
-    { value: "confirm", label: "Confirm Bill" },
-    { value: "void", label: "Void Bill" },
+  mf_collection_activity: [
+    { value: "escalate", label: "Escalate to Collections" },
+    { value: "close", label: "Close Collection Case" },
+  ],
+  mf_loan_product: [
+    { value: "publish_version", label: "Publish Product Version" },
+    { value: "deactivate", label: "Deactivate Product" },
+  ],
+  mf_client: [
+    { value: "approve_kyc", label: "Approve KYC" },
+    { value: "blacklist", label: "Blacklist Client" },
   ],
   expense: [
     { value: "approve", label: "Approve Expense" },
     { value: "reject", label: "Reject Expense" },
   ],
-  stock_adjustment: [
-    { value: "apply", label: "Apply Stock Adjustment" },
-  ],
-  employee_loan: [
-    { value: "approve", label: "Approve Employee Loan" },
-    { value: "authorize_disbursement", label: "Authorise Loan Disbursement" },
-    { value: "restructure", label: "Restructure Loan" },
-    { value: "write_off", label: "Write Off Loan" },
-  ],
 };
+
 
 
 const THRESHOLD_OPERATORS = [
@@ -105,7 +107,7 @@ export function ApprovalRulesManager() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    entity_type: "invoice" as string,
+    entity_type: "mf_loan_application" as string,
     action_name: "",
     description: "",
     approver_type: "specific_user",
@@ -119,7 +121,7 @@ export function ApprovalRulesManager() {
 
   const resetForm = () => {
     setFormData({
-      entity_type: "invoice",
+      entity_type: "mf_loan_application",
       action_name: "",
       description: "",
       approver_type: "specific_user",
@@ -231,7 +233,7 @@ export function ApprovalRulesManager() {
             <ShieldCheck className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No approval rules</h3>
             <p className="text-muted-foreground mb-4">
-              Set up rules to require approval before confirming orders, invoices, or other actions.
+              Set up rules to require approval before confirming loan approvals, disbursements, or other actions.
             </p>
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4 mr-2" />
