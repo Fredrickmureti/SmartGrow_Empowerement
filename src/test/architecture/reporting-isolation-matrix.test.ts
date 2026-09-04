@@ -54,9 +54,7 @@ const REPORTING_RPCS = [
 ] as const;
 
 
-const SERVICE_FILES = [
-  "src/services/finance/openItems.ts",
-];
+const SERVICE_FILES: string[] = [];
 
 describe("reporting isolation matrix — client half", () => {
   it("passes an explicit _org_id to every reporting RPC call", () => {

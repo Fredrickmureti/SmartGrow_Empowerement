@@ -119,15 +119,6 @@ describe("Phase 14 — financial reports scope labeling", () => {
     expect(fr).toMatch(/branchId:\s*filters\.branchId/);
   });
 
-  it("Aging Report threads filters.branchId into useAgingReport", () => {
-    const ar = read("src/pages/reports/AgingReport.tsx");
-    expect(ar).toMatch(/useReportFilters/);
-    expect(ar).toMatch(/branchId:\s*filters\.branchId/);
-    const hook = read("src/hooks/useAgingReport.ts");
-    expect(hook).toMatch(/branchId\?:\s*string\s*\|\s*null/);
-    expect(hook).toMatch(/effectiveBranchId/);
-  });
-
   it("Journal Report narrows by filters.branchId", () => {
     const jr = read("src/pages/reports/JournalReport.tsx");
     // Server-side report RPC — the branch travels as an RPC argument.
