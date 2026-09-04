@@ -44,8 +44,6 @@ import { useClearableRecordedPayments } from "@/hooks/useClearableRecordedPaymen
 
 import {
   Search,
-  FileText,
-  Receipt,
   CreditCard,
   ArrowDownLeft,
   ArrowUpRight,
