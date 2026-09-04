@@ -43,6 +43,11 @@ export interface MfClient {
   next_of_kin_name: string | null;
   next_of_kin_relationship: string | null;
   next_of_kin_phone: string | null;
+  photo_path: string | null;
+  id_front_path: string | null;
+  id_back_path: string | null;
+  kin_id_front_path: string | null;
+  kin_id_back_path: string | null;
   loan_officer_id: string | null;
   joined_on: string;
   status: MfClientStatus;
@@ -59,7 +64,7 @@ export type MfClientInput = Partial<Omit<MfClient, "id" | "business_id" | "creat
 };
 
 const SELECT =
-  "id,business_id,branch_id,client_number,full_name,national_id,date_of_birth,gender,phone,email,physical_address,occupation,business_type,business_location,next_of_kin_name,next_of_kin_relationship,next_of_kin_phone,loan_officer_id,joined_on,status,completed_cycles,notes,created_at,updated_at";
+  "id,business_id,branch_id,client_number,full_name,national_id,date_of_birth,gender,phone,email,physical_address,occupation,business_type,business_location,next_of_kin_name,next_of_kin_relationship,next_of_kin_phone,photo_path,id_front_path,id_back_path,kin_id_front_path,kin_id_back_path,loan_officer_id,joined_on,status,completed_cycles,notes,created_at,updated_at";
 
 export function useMfClients(options?: { branchId?: string | null; status?: MfClientStatus | "all" }) {
   const { currentBusiness } = useBusinesses();
@@ -144,4 +149,61 @@ export function nextClientNumber(existing: Array<{ client_number: string }>): st
     if (m) max = Math.max(max, Number(m[1]));
   }
   return `CL-${String(max + 1).padStart(4, "0")}`;
+}
+
+/* ------------------------------------------------------------------ */
+/* KYC images — private `mf-kyc` bucket, filed under business/client. */
+/* ------------------------------------------------------------------ */
+
+export type MfKycKind =
+  | "photo"
+  | "id_front"
+  | "id_back"
+  | "kin_id_front"
+  | "kin_id_back";
+
+export const MF_KYC_COLUMN: Record<MfKycKind, keyof MfClient> = {
+  photo: "photo_path",
+  id_front: "id_front_path",
+  id_back: "id_back_path",
+  kin_id_front: "kin_id_front_path",
+  kin_id_back: "kin_id_back_path",
+};
+
+const KYC_BUCKET = "mf-kyc";
+
+/** Uploads (or replaces) one KYC image and returns its storage path. */
+export async function uploadKycImage(
+  businessId: string,
+  clientId: string,
+  kind: MfKycKind,
+  file: Blob,
+): Promise<string> {
+  const path = `${businessId}/${clientId}/${kind}.jpg`;
+  const { error } = await supabase.storage
+    .from(KYC_BUCKET)
+    .upload(path, file, { upsert: true, contentType: "image/jpeg", cacheControl: "0" });
+  if (error) throw error;
+  return path;
+}
+
+export async function removeKycImage(path: string): Promise<void> {
+  const { error } = await supabase.storage.from(KYC_BUCKET).remove([path]);
+  if (error) throw error;
+}
+
+/** Short-lived signed URL for a stored KYC image (private bucket). */
+export function useKycImageUrl(path: string | null | undefined) {
+  return useQuery({
+    queryKey: ["mf-kyc-url", path],
+    enabled: !!path,
+    staleTime: 50 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.storage
+        .from(KYC_BUCKET)
+        .createSignedUrl(path!, 60 * 60);
+      if (error) throw error;
+      return data.signedUrl;
+    },
+  });
 }
