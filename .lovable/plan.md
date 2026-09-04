@@ -137,23 +137,20 @@ customer groups); orphaned FX/stock report route stubs removed.
 
 
 ==========THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
+I paused mid-way through the fiscal-period cleanup. Here's where things stand:
 
+Done so far
+- `ClosePeriodSheet.tsx` — draft-invoice readiness removed; journal-entry readiness retained.
+- `parseQuery.ts` + tests — ERP aliases replaced with client/member/borrower; 10 tests pass.
+- `selfActionCatalogue.ts` and `useGovernedEntityOptions.ts` — bill / bill-payment governance removed; payment, journal-entry, expense, bank-account governance retained.
+- `useFiscalPeriodDetail.ts` — partially converted: `transactionCounts` now uses disbursements/repayments, the AR/AP `subledger` block is replaced by a `portfolio` summary (outstanding, overdue, loan count, loans in arrears), and close-readiness now flags loans in arrears instead of draft invoices/bills.
 
-Stopped here — no further tool calls.
+Still outstanding (file currently won't typecheck until finished)
+1. `useFiscalPeriodDetail.ts` — replace the query legs (lines ~191–391): drop `invoicesResult`, `draftInvoicesResult`, `billsResult`, `draftBillsResult`, `arResult`, `arOverdueResult`, `apResult`, `apOverdueResult`; add `disbursementsResult` (`mf_loan_disbursements`, `disbursed_on` in period), `repaymentsResult` (`mf_repayments`, `paid_on` in period) and `portfolioResult` (`mf_loan_balances` by business). Also update the `TransactionCounts` / `SubledgerSummary` interfaces (lines 27–36, 64–71 → `LoanPortfolioSummary` with `outstanding`, `overdue`, `loanCount`, `overdueLoanCount`), the `subledger` field in `FiscalPeriodDetailData` (line 120), and the header comment on line 6.
+2. `src/pages/finance/FiscalPeriodDetail.tsx` — rename the Subledgers tab to a Loan Portfolio card using the new `portfolio` fields (lines ~514–567) and swap the Bills/Draft Bills tiles for Disbursements/Repayments (lines 336–337).
+3. Then the remaining M4 items: `TransactionPreviewDrawer.tsx`, `openItems.ts`, `ContactPreviewDrawer.tsx`, AR/AP architecture tests, and only afterwards the first FK-ordered sales-chain migration.
 
-Done this pass (M4 code prep, part 1): deleted the remaining sales/purchase hooks and services with no live render path — `useCreditNotes`, `useCustomerCredit`, `useCustomerCredits`, `useDashboardActionItems`, `usePayments`, `useInvoiceValidation`, `services/finance/invoicePayability.ts`, and the bills command provider (unregistered from `providers/registry.ts`). Removed the invoice data-integrity banner and its hook from `FinancialReports.tsx`. Typecheck is clean.
-
-Remaining before any table drops (in order):
-1. `ClosePeriodSheet.tsx` — drop the "Draft invoices" readiness leg (keep unposted journal entries); the readiness query and the second stat block are the only edits.
-2. `useFiscalPeriodDetail.ts` — remove the invoices/bills counts and AR/AP legs, keeping JE/GL sections.
-3. `TransactionPreviewDrawer.tsx` — remove the `invoice`, `payment`, `bill`, bill-payment and `credit_note` branches plus their `/sales/*` and `/purchases/*` deep links; keep journal/bank branches.
-4. `useGovernedEntityOptions.ts` — drop the `bills` entity option.
-5. `lib/command/parseQuery.ts` — remove the `bill/bills/vendor/po → records:bills` aliases.
-6. `services/finance/openItems.ts` + `ContactPreviewDrawer` + the AR/AP architecture tests (`reporting-isolation-matrix`, `ap-credit-position-provenance`, `ap-aging-scenario-fixtures`, `branch-id-stamping`, `reports-data-source-contract`) — these are what still bind the sales/purchase chain.
-
-Only after that does the first M4 migration (sales chain drop, FK-ordered, one group per migration) become safe. The plan file already records M4 as next; I did not update it with this partial progress.
-
-
+Run a typecheck first thing when you resume — the hook is in an inconsistent state until step 1 is complete.
 
 =============
 And kindly note: **there is absolutely no room for unnecessary work or credit wastage here.** We need to be highly deliberate about scope.
