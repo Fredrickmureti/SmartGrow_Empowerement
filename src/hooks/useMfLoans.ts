@@ -406,3 +406,47 @@ export function useMfLoanSchedule(loanId?: string) {
   };
 }
 
+
+/**
+ * One fee line as the server resolves it for a loan. The browser never
+ * computes a fee — this is a read-only preview of `mf_compute_loan_fees`.
+ */
+export interface MfLoanFeeLine {
+  name: string;
+  basis: "percent_of_principal" | "fixed";
+  value: number;
+  collection: "deducted_from_disbursement" | "added_to_first_installment";
+  amount: number;
+}
+
+/** Server-resolved fee preview for a loan (used before disbursement). */
+export function useMfLoanFeePreview(loanId: string | null | undefined) {
+  const query = useQuery({
+    queryKey: ["mf-loan-fee-preview", loanId ?? null],
+    queryFn: async () => {
+      if (!loanId) return [] as MfLoanFeeLine[];
+      const { data, error } = await supabase.rpc("mf_compute_loan_fees", {
+        p_loan_id: loanId,
+      });
+      if (error) throw error;
+      return ((data ?? []) as unknown as MfLoanFeeLine[]).map((f) => ({
+        ...f,
+        value: Number(f.value),
+        amount: Number(f.amount),
+      }));
+    },
+    enabled: !!loanId,
+  });
+
+  const fees = query.data ?? [];
+  const deductedTotal = fees
+    .filter((f) => f.collection === "deducted_from_disbursement")
+    .reduce((sum, f) => sum + f.amount, 0);
+
+  return {
+    fees,
+    deductedTotal,
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
