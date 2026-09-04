@@ -45,29 +45,18 @@ function useCloseReadiness(period: PeriodToClose | null) {
     queryKey: ["close-readiness", currentOrg?.id, period?.id],
     queryFn: async () => {
       if (!currentOrg?.id || !period?.id || !currentBusiness?.id) {
-        return { unpostedCount: 0, draftInvoices: 0 };
+        return { unpostedCount: 0 };
       }
-      const [unposted, drafts] = await Promise.all([
-        supabase
-          .from("journal_entries")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "draft")
-          .gte("entry_date", period.start_date)
-          .lte("entry_date", period.end_date),
-        supabase
-          .from("invoices")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("status", "draft")
-          .gte("issue_date", period.start_date)
-          .lte("issue_date", period.end_date),
-      ]);
+      const unposted = await supabase
+        .from("journal_entries")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", currentOrg.id)
+        .eq("business_id", currentBusiness.id)
+        .eq("status", "draft")
+        .gte("entry_date", period.start_date)
+        .lte("entry_date", period.end_date);
       return {
         unpostedCount: unposted.count || 0,
-        draftInvoices: drafts.count || 0,
       };
     },
     enabled: !!currentOrg?.id && !!period?.id,
