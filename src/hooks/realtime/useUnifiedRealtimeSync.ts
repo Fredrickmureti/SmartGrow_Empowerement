@@ -6,7 +6,7 @@
  * and should use useLazyRealtimeSync at the page/hook level instead.
  * 
  * Tables subscribed (12):
- *   invoices, bills, payments, expenses, bill_payments, credit_notes,
+ *   payments, expenses,
  *   journal_entries, accounts, bank_transactions, bank_accounts,
  *   fiscal_periods, fixed_assets
  * 
@@ -84,14 +84,6 @@ const TABLE_HANDLERS: Record<string, TableHandler> = {
     ...getDashboardKeys(orgId, businessId),
   ]),
 
-  // Bills → AP, aging, financial reports, dashboard
-  bills: createDefaultHandler((orgId, businessId) => [
-    queryKeys.bills.all(orgId),
-    queryKeys.bills.list(orgId, businessId),
-    queryKeys.reports.aging(orgId),
-    queryKeys.reports.financial(orgId),
-    ...getDashboardKeys(orgId, businessId),
-  ]),
 
   // Payments → AR/AP aging, financial reports, dashboard, account balances
   payments: createDefaultHandler((orgId, businessId) => [
@@ -103,17 +95,6 @@ const TABLE_HANDLERS: Record<string, TableHandler> = {
     ...getBalanceKeys(orgId, businessId),
   ]),
 
-  // Bill payments → AP aging, bills, dashboard, account balances
-  bill_payments: createDefaultHandler((orgId, businessId) => [
-    queryKeys.payments.all(orgId),
-    queryKeys.payments.list(orgId, businessId),
-    queryKeys.bills.all(orgId),
-    queryKeys.bills.list(orgId, businessId),
-    queryKeys.reports.aging(orgId),
-    queryKeys.reports.financial(orgId),
-    ...getDashboardKeys(orgId, businessId),
-    ...getBalanceKeys(orgId, businessId),
-  ]),
 
   // Expenses → financial reports, dashboard
   expenses: createDefaultHandler((orgId, businessId) => [
@@ -289,7 +270,7 @@ export function useUnifiedRealtimeSync(): void {
     }
 
     const prefixes = [
-      ['journal-entries'], ['accounts'], ['invoices'], ['bills'],
+      ['journal-entries'], ['accounts'], ['invoices'],
       ['payments'], ['expenses'], ['bank-transactions'], ['bank-accounts'],
       ['fiscal-periods'], ['fiscal-period-detail'], ['fiscal-period'],
       ['fixed-assets'], ['credit-notes'],

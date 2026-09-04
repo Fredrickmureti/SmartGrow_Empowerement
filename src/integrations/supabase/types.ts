@@ -3070,7 +3070,6 @@ export type Database = {
           legal_order_remittance_batch_id: string | null
           match_type: string
           matched_amount: number
-          matched_bill_payment_id: string | null
           matched_entity_id: string | null
           matched_entity_type: string | null
           matched_journal_entry_id: string | null
@@ -3107,7 +3106,6 @@ export type Database = {
           legal_order_remittance_batch_id?: string | null
           match_type?: string
           matched_amount?: number
-          matched_bill_payment_id?: string | null
           matched_entity_id?: string | null
           matched_entity_type?: string | null
           matched_journal_entry_id?: string | null
@@ -3144,7 +3142,6 @@ export type Database = {
           legal_order_remittance_batch_id?: string | null
           match_type?: string
           matched_amount?: number
-          matched_bill_payment_id?: string | null
           matched_entity_id?: string | null
           matched_entity_type?: string | null
           matched_journal_entry_id?: string | null
@@ -3195,20 +3192,6 @@ export type Database = {
             columns: ["fee_account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_matches_matched_bill_payment_id_fkey"
-            columns: ["matched_bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "bill_payments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_matches_matched_bill_payment_id_fkey"
-            columns: ["matched_bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_unapplied_advances"
             referencedColumns: ["id"]
           },
           {
@@ -3843,922 +3826,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_grn_matches: {
-        Row: {
-          bill_id: string
-          bill_item_id: string
-          business_id: string
-          created_at: string
-          created_by: string | null
-          goods_receipt_id: string
-          goods_receipt_item_id: string
-          id: string
-          matched_quantity: number
-          notes: string | null
-          organization_id: string
-          unit_cost_variance: number | null
-          updated_at: string
-        }
-        Insert: {
-          bill_id: string
-          bill_item_id: string
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          goods_receipt_id: string
-          goods_receipt_item_id: string
-          id?: string
-          matched_quantity: number
-          notes?: string | null
-          organization_id: string
-          unit_cost_variance?: number | null
-          updated_at?: string
-        }
-        Update: {
-          bill_id?: string
-          bill_item_id?: string
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          goods_receipt_id?: string
-          goods_receipt_item_id?: string
-          id?: string
-          matched_quantity?: number
-          notes?: string | null
-          organization_id?: string
-          unit_cost_variance?: number | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_grn_matches_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_grn_matches_bill_item_id_fkey"
-            columns: ["bill_item_id"]
-            isOneToOne: false
-            referencedRelation: "bill_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_grn_matches_bill_item_id_fkey"
-            columns: ["bill_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_bill_creditable_qty"
-            referencedColumns: ["bill_item_id"]
-          },
-        ]
-      }
-      bill_items: {
-        Row: {
-          account_id: string | null
-          analytic_account_id: string | null
-          bill_id: string
-          created_at: string
-          description: string
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number
-          packaging_id: string | null
-          product_id: string | null
-          project_id: string | null
-          purchase_order_item_id: string | null
-          quantity: number
-          sort_order: number
-          task_id: string | null
-          tax_amount: number
-          tax_rate: number
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          account_id?: string | null
-          analytic_account_id?: string | null
-          bill_id: string
-          created_at?: string
-          description: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          packaging_id?: string | null
-          product_id?: string | null
-          project_id?: string | null
-          purchase_order_item_id?: string | null
-          quantity?: number
-          sort_order?: number
-          task_id?: string | null
-          tax_amount?: number
-          tax_rate?: number
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          account_id?: string | null
-          analytic_account_id?: string | null
-          bill_id?: string
-          created_at?: string
-          description?: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          packaging_id?: string | null
-          product_id?: string | null
-          project_id?: string | null
-          purchase_order_item_id?: string | null
-          quantity?: number
-          sort_order?: number
-          task_id?: string | null
-          tax_amount?: number
-          tax_rate?: number
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_items_analytic_account_id_fkey"
-            columns: ["analytic_account_id"]
-            isOneToOne: false
-            referencedRelation: "analytic_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_items_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_items_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_match_exceptions: {
-        Row: {
-          bill_id: string
-          business_id: string
-          details: Json
-          id: string
-          match_state: Database["public"]["Enums"]["bill_match_state"]
-          organization_id: string
-          raised_at: string
-          raised_by: string | null
-          reason: string
-          resolution: string | null
-          resolved_at: string | null
-          resolved_by: string | null
-        }
-        Insert: {
-          bill_id: string
-          business_id: string
-          details?: Json
-          id?: string
-          match_state: Database["public"]["Enums"]["bill_match_state"]
-          organization_id: string
-          raised_at?: string
-          raised_by?: string | null
-          reason: string
-          resolution?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Update: {
-          bill_id?: string
-          business_id?: string
-          details?: Json
-          id?: string
-          match_state?: Database["public"]["Enums"]["bill_match_state"]
-          organization_id?: string
-          raised_at?: string
-          raised_by?: string | null
-          reason?: string
-          resolution?: string | null
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_match_exceptions_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_match_results: {
-        Row: {
-          bill_id: string
-          business_id: string
-          created_at: string
-          details: Json
-          exception_state: Database["public"]["Enums"]["bill_match_exception_state"]
-          id: string
-          landed_cost_bill_id: string | null
-          landed_cost_uplift: number
-          match_state: Database["public"]["Enums"]["bill_match_state"]
-          matched_at: string
-          matched_by: string | null
-          organization_id: string
-          price_variance: number
-          purchase_order_id: string | null
-          qty_variance: number
-          updated_at: string
-        }
-        Insert: {
-          bill_id: string
-          business_id: string
-          created_at?: string
-          details?: Json
-          exception_state?: Database["public"]["Enums"]["bill_match_exception_state"]
-          id?: string
-          landed_cost_bill_id?: string | null
-          landed_cost_uplift?: number
-          match_state: Database["public"]["Enums"]["bill_match_state"]
-          matched_at?: string
-          matched_by?: string | null
-          organization_id: string
-          price_variance?: number
-          purchase_order_id?: string | null
-          qty_variance?: number
-          updated_at?: string
-        }
-        Update: {
-          bill_id?: string
-          business_id?: string
-          created_at?: string
-          details?: Json
-          exception_state?: Database["public"]["Enums"]["bill_match_exception_state"]
-          id?: string
-          landed_cost_bill_id?: string | null
-          landed_cost_uplift?: number
-          match_state?: Database["public"]["Enums"]["bill_match_state"]
-          matched_at?: string
-          matched_by?: string | null
-          organization_id?: string
-          price_variance?: number
-          purchase_order_id?: string | null
-          qty_variance?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_match_results_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: true
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_match_tolerance_policies: {
-        Row: {
-          business_id: string
-          created_at: string
-          created_by: string | null
-          effective_from: string
-          effective_to: string | null
-          id: string
-          notes: string | null
-          price_tolerance_pct: number
-          qty_tolerance_pct: number
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          notes?: string | null
-          price_tolerance_pct?: number
-          qty_tolerance_pct?: number
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          effective_from?: string
-          effective_to?: string | null
-          id?: string
-          notes?: string | null
-          price_tolerance_pct?: number
-          qty_tolerance_pct?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      bill_payment_allocations: {
-        Row: {
-          amount: number
-          bill_id: string
-          bill_payment_id: string
-          branch_id: string | null
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          id: string
-          organization_id: string | null
-          source: string
-        }
-        Insert: {
-          amount: number
-          bill_id: string
-          bill_payment_id: string
-          branch_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id?: string | null
-          source?: string
-        }
-        Update: {
-          amount?: number
-          bill_id?: string
-          bill_payment_id?: string
-          branch_id?: string | null
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          organization_id?: string | null
-          source?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_payment_allocations_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payment_allocations_bill_payment_id_fkey"
-            columns: ["bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "bill_payments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payment_allocations_bill_payment_id_fkey"
-            columns: ["bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_unapplied_advances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_payment_reversal_events: {
-        Row: {
-          amount: number | null
-          bill_payment_id: string
-          business_id: string | null
-          client_request_id: string | null
-          created_at: string
-          id: string
-          op: string
-          organization_id: string
-          performed_at: string
-          performed_by: string | null
-          reason_text: string | null
-          reversal_journal_entry_ids: string[]
-          touched_bills: string[]
-          updated_at: string
-        }
-        Insert: {
-          amount?: number | null
-          bill_payment_id: string
-          business_id?: string | null
-          client_request_id?: string | null
-          created_at?: string
-          id?: string
-          op: string
-          organization_id: string
-          performed_at?: string
-          performed_by?: string | null
-          reason_text?: string | null
-          reversal_journal_entry_ids?: string[]
-          touched_bills?: string[]
-          updated_at?: string
-        }
-        Update: {
-          amount?: number | null
-          bill_payment_id?: string
-          business_id?: string | null
-          client_request_id?: string | null
-          created_at?: string
-          id?: string
-          op?: string
-          organization_id?: string
-          performed_at?: string
-          performed_by?: string | null
-          reason_text?: string | null
-          reversal_journal_entry_ids?: string[]
-          touched_bills?: string[]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_payment_reversal_events_bill_payment_id_fkey"
-            columns: ["bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "bill_payments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payment_reversal_events_bill_payment_id_fkey"
-            columns: ["bill_payment_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_unapplied_advances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bill_payments: {
-        Row: {
-          amount: number
-          approved_at: string | null
-          approved_by: string | null
-          bank_account_id: string | null
-          bill_id: string
-          branch_id: string | null
-          business_id: string
-          client_request_id: string | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          currency_rate: number
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          payment_date: string
-          payment_method: string | null
-          reference: string | null
-          status: string
-          submitted_at: string | null
-          submitted_by: string | null
-          updated_at: string
-          vendor_id: string | null
-          void_reason: string | null
-          void_reason_code: string | null
-          voided_at: string | null
-          voided_by: string | null
-        }
-        Insert: {
-          amount: number
-          approved_at?: string | null
-          approved_by?: string | null
-          bank_account_id?: string | null
-          bill_id: string
-          branch_id?: string | null
-          business_id: string
-          client_request_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency: string
-          currency_rate?: number
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id: string
-          payment_date?: string
-          payment_method?: string | null
-          reference?: string | null
-          status?: string
-          submitted_at?: string | null
-          submitted_by?: string | null
-          updated_at?: string
-          vendor_id?: string | null
-          void_reason?: string | null
-          void_reason_code?: string | null
-          voided_at?: string | null
-          voided_by?: string | null
-        }
-        Update: {
-          amount?: number
-          approved_at?: string | null
-          approved_by?: string | null
-          bank_account_id?: string | null
-          bill_id?: string
-          branch_id?: string | null
-          business_id?: string
-          client_request_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          currency_rate?: number
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          payment_date?: string
-          payment_method?: string | null
-          reference?: string | null
-          status?: string
-          submitted_at?: string | null
-          submitted_by?: string | null
-          updated_at?: string
-          vendor_id?: string | null
-          void_reason?: string | null
-          void_reason_code?: string | null
-          voided_at?: string | null
-          voided_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_payments_bank_account_id_fkey"
-            columns: ["bank_account_id"]
-            isOneToOne: false
-            referencedRelation: "bank_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_void_reason_code_fkey"
-            columns: ["void_reason_code"]
-            isOneToOne: false
-            referencedRelation: "reversal_reason_codes"
-            referencedColumns: ["code"]
-          },
-        ]
-      }
-      bills: {
-        Row: {
-          account_id: string | null
-          amount_paid: number
-          approved_at: string | null
-          approved_by: string | null
-          attachment_url: string | null
-          bill_date: string | null
-          bill_number: string
-          branch_id: string | null
-          business_id: string
-          company_currency_total: number | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          currency_rate: number
-          discount_amount: number | null
-          due_date: string
-          goods_receipt_id: string | null
-          id: string
-          is_sample_data: boolean
-          issue_date: string
-          journal_entry_id: string | null
-          migration_session_id: string | null
-          notes: string | null
-          organization_id: string
-          party_snapshot: Json | null
-          payment_term_id: string | null
-          project_id: string | null
-          remit_to_address: string | null
-          remit_to_contact_id: string | null
-          source_expense_id: string | null
-          source_purchase_order_id: string | null
-          status: Database["public"]["Enums"]["bill_status"]
-          submitted_at: string | null
-          submitted_by: string | null
-          subtotal: number
-          task_id: string | null
-          tax_amount: number
-          total: number
-          updated_at: string
-          vendor_id: string
-          vendor_invoice_number: string | null
-          void_reason: string | null
-          void_reason_code: string | null
-          voided_at: string | null
-          voided_by: string | null
-        }
-        Insert: {
-          account_id?: string | null
-          amount_paid?: number
-          approved_at?: string | null
-          approved_by?: string | null
-          attachment_url?: string | null
-          bill_date?: string | null
-          bill_number: string
-          branch_id?: string | null
-          business_id: string
-          company_currency_total?: number | null
-          created_at?: string
-          created_by?: string | null
-          currency: string
-          currency_rate?: number
-          discount_amount?: number | null
-          due_date?: string
-          goods_receipt_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          issue_date?: string
-          journal_entry_id?: string | null
-          migration_session_id?: string | null
-          notes?: string | null
-          organization_id: string
-          party_snapshot?: Json | null
-          payment_term_id?: string | null
-          project_id?: string | null
-          remit_to_address?: string | null
-          remit_to_contact_id?: string | null
-          source_expense_id?: string | null
-          source_purchase_order_id?: string | null
-          status?: Database["public"]["Enums"]["bill_status"]
-          submitted_at?: string | null
-          submitted_by?: string | null
-          subtotal?: number
-          task_id?: string | null
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          vendor_id: string
-          vendor_invoice_number?: string | null
-          void_reason?: string | null
-          void_reason_code?: string | null
-          voided_at?: string | null
-          voided_by?: string | null
-        }
-        Update: {
-          account_id?: string | null
-          amount_paid?: number
-          approved_at?: string | null
-          approved_by?: string | null
-          attachment_url?: string | null
-          bill_date?: string | null
-          bill_number?: string
-          branch_id?: string | null
-          business_id?: string
-          company_currency_total?: number | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          currency_rate?: number
-          discount_amount?: number | null
-          due_date?: string
-          goods_receipt_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          issue_date?: string
-          journal_entry_id?: string | null
-          migration_session_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          party_snapshot?: Json | null
-          payment_term_id?: string | null
-          project_id?: string | null
-          remit_to_address?: string | null
-          remit_to_contact_id?: string | null
-          source_expense_id?: string | null
-          source_purchase_order_id?: string | null
-          status?: Database["public"]["Enums"]["bill_status"]
-          submitted_at?: string | null
-          submitted_by?: string | null
-          subtotal?: number
-          task_id?: string | null
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          vendor_id?: string
-          vendor_invoice_number?: string | null
-          void_reason?: string | null
-          void_reason_code?: string | null
-          voided_at?: string | null
-          voided_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bills_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "bills_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_migration_session_id_fkey"
-            columns: ["migration_session_id"]
-            isOneToOne: false
-            referencedRelation: "migration_sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_payment_term_id_fkey"
-            columns: ["payment_term_id"]
-            isOneToOne: false
-            referencedRelation: "payment_terms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_source_expense_id_fkey"
-            columns: ["source_expense_id"]
-            isOneToOne: false
-            referencedRelation: "expenses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_void_reason_code_fkey"
-            columns: ["void_reason_code"]
-            isOneToOne: false
-            referencedRelation: "reversal_reason_codes"
-            referencedColumns: ["code"]
           },
         ]
       }
@@ -17728,7 +16795,6 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           bank_account_id: string | null
-          bill_id: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -17774,7 +16840,6 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           bank_account_id?: string | null
-          bill_id?: string | null
           branch_id?: string | null
           business_id: string
           client_request_id?: string | null
@@ -17820,7 +16885,6 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           bank_account_id?: string | null
-          bill_id?: string | null
           branch_id?: string | null
           business_id?: string
           client_request_id?: string | null
@@ -17866,13 +16930,6 @@ export type Database = {
             columns: ["bank_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payments_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
             referencedColumns: ["id"]
           },
           {
@@ -23196,886 +22253,6 @@ export type Database = {
         }
         Relationships: []
       }
-      vendor_credit_balances: {
-        Row: {
-          applied_total: number
-          balance: number
-          business_id: string
-          created_at: string
-          credited_total: number
-          currency: string
-          expired_total: number
-          id: string
-          organization_id: string
-          refunded_total: number
-          updated_at: string
-          vendor_id: string
-        }
-        Insert: {
-          applied_total?: number
-          balance?: number
-          business_id: string
-          created_at?: string
-          credited_total?: number
-          currency?: string
-          expired_total?: number
-          id?: string
-          organization_id: string
-          refunded_total?: number
-          updated_at?: string
-          vendor_id: string
-        }
-        Update: {
-          applied_total?: number
-          balance?: number
-          business_id?: string
-          created_at?: string
-          credited_total?: number
-          currency?: string
-          expired_total?: number
-          id?: string
-          organization_id?: string
-          refunded_total?: number
-          updated_at?: string
-          vendor_id?: string
-        }
-        Relationships: []
-      }
-      vendor_credit_movements: {
-        Row: {
-          amount: number
-          balance_id: string
-          bill_id: string | null
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          created_by: string | null
-          currency: string
-          id: string
-          journal_entry_id: string | null
-          kind: string
-          notes: string | null
-          organization_id: string
-          refund_id: string | null
-          vendor_credit_note_id: string | null
-          vendor_id: string
-        }
-        Insert: {
-          amount: number
-          balance_id: string
-          bill_id?: string | null
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          currency: string
-          id?: string
-          journal_entry_id?: string | null
-          kind: string
-          notes?: string | null
-          organization_id: string
-          refund_id?: string | null
-          vendor_credit_note_id?: string | null
-          vendor_id: string
-        }
-        Update: {
-          amount?: number
-          balance_id?: string
-          bill_id?: string | null
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          id?: string
-          journal_entry_id?: string | null
-          kind?: string
-          notes?: string | null
-          organization_id?: string
-          refund_id?: string | null
-          vendor_credit_note_id?: string | null
-          vendor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_credit_movements_balance_id_fkey"
-            columns: ["balance_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_credit_balances"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_credit_note_applications: {
-        Row: {
-          amount: number
-          applied_at: string
-          applied_by: string | null
-          bill_id: string
-          business_id: string | null
-          created_at: string
-          credit_note_id: string
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          reversal_journal_entry_id: string | null
-          reversal_reason: string | null
-          reversed_at: string | null
-          reversed_by: string | null
-        }
-        Insert: {
-          amount: number
-          applied_at?: string
-          applied_by?: string | null
-          bill_id: string
-          business_id?: string | null
-          created_at?: string
-          credit_note_id: string
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id: string
-          reversal_journal_entry_id?: string | null
-          reversal_reason?: string | null
-          reversed_at?: string | null
-          reversed_by?: string | null
-        }
-        Update: {
-          amount?: number
-          applied_at?: string
-          applied_by?: string | null
-          bill_id?: string
-          business_id?: string | null
-          created_at?: string
-          credit_note_id?: string
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          reversal_journal_entry_id?: string | null
-          reversal_reason?: string | null
-          reversed_at?: string | null
-          reversed_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_credit_note_applications_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_credit_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
-            columns: ["reversal_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
-            columns: ["reversal_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_applications_reversal_journal_entry_id_fkey"
-            columns: ["reversal_journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_credit_note_items: {
-        Row: {
-          account_id: string | null
-          bill_item_id: string | null
-          created_at: string
-          credit_note_id: string
-          description: string
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number
-          packaging_id: string | null
-          product_id: string | null
-          quantity: number
-          sort_order: number
-          source_tax_rate: number | null
-          source_unit_price: number | null
-          tax_amount: number
-          tax_rate: number
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          account_id?: string | null
-          bill_item_id?: string | null
-          created_at?: string
-          credit_note_id: string
-          description?: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          packaging_id?: string | null
-          product_id?: string | null
-          quantity?: number
-          sort_order?: number
-          source_tax_rate?: number | null
-          source_unit_price?: number | null
-          tax_amount?: number
-          tax_rate?: number
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          account_id?: string | null
-          bill_item_id?: string | null
-          created_at?: string
-          credit_note_id?: string
-          description?: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          packaging_id?: string | null
-          product_id?: string | null
-          quantity?: number
-          sort_order?: number
-          source_tax_rate?: number | null
-          source_unit_price?: number | null
-          tax_amount?: number
-          tax_rate?: number
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_credit_note_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_items_account_id_fkey"
-            columns: ["account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_items_bill_item_id_fkey"
-            columns: ["bill_item_id"]
-            isOneToOne: false
-            referencedRelation: "bill_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_items_bill_item_id_fkey"
-            columns: ["bill_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_bill_creditable_qty"
-            referencedColumns: ["bill_item_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_items_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_credit_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_note_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_credit_notes: {
-        Row: {
-          accounting_status: string
-          amount_applied: number
-          approval_request_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          bill_id: string | null
-          branch_id: string | null
-          business_id: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          client_request_id: string | null
-          commercial_status: string
-          created_at: string
-          created_by: string | null
-          credit_date: string
-          credit_note_number: string
-          currency: string
-          dispute_reason: string | null
-          dispute_resolution: string | null
-          dispute_resolved_at: string | null
-          dispute_resolved_by: string | null
-          disputed_at: string | null
-          disputed_by: string | null
-          exchange_rate: number | null
-          exchange_rate_date: string | null
-          goods_receipt_id: string | null
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          origin: string
-          purchase_order_id: string | null
-          reason_code: string | null
-          rejected_at: string | null
-          rejected_by: string | null
-          rejected_reason: string | null
-          reversal_journal_entry_id: string | null
-          reversal_reason: string | null
-          reversal_reason_code: string | null
-          reversed_at: string | null
-          reversed_by: string | null
-          row_version: number
-          settlement_status: string
-          source_return_id: string | null
-          status: string
-          submitted_at: string | null
-          submitted_by: string | null
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          vendor_document_date: string | null
-          vendor_document_number: string | null
-          vendor_id: string
-        }
-        Insert: {
-          accounting_status?: string
-          amount_applied?: number
-          approval_request_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          bill_id?: string | null
-          branch_id?: string | null
-          business_id?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          client_request_id?: string | null
-          commercial_status?: string
-          created_at?: string
-          created_by?: string | null
-          credit_date?: string
-          credit_note_number: string
-          currency: string
-          dispute_reason?: string | null
-          dispute_resolution?: string | null
-          dispute_resolved_at?: string | null
-          dispute_resolved_by?: string | null
-          disputed_at?: string | null
-          disputed_by?: string | null
-          exchange_rate?: number | null
-          exchange_rate_date?: string | null
-          goods_receipt_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id: string
-          origin?: string
-          purchase_order_id?: string | null
-          reason_code?: string | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejected_reason?: string | null
-          reversal_journal_entry_id?: string | null
-          reversal_reason?: string | null
-          reversal_reason_code?: string | null
-          reversed_at?: string | null
-          reversed_by?: string | null
-          row_version?: number
-          settlement_status?: string
-          source_return_id?: string | null
-          status?: string
-          submitted_at?: string | null
-          submitted_by?: string | null
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          vendor_document_date?: string | null
-          vendor_document_number?: string | null
-          vendor_id: string
-        }
-        Update: {
-          accounting_status?: string
-          amount_applied?: number
-          approval_request_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          bill_id?: string | null
-          branch_id?: string | null
-          business_id?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          client_request_id?: string | null
-          commercial_status?: string
-          created_at?: string
-          created_by?: string | null
-          credit_date?: string
-          credit_note_number?: string
-          currency?: string
-          dispute_reason?: string | null
-          dispute_resolution?: string | null
-          dispute_resolved_at?: string | null
-          dispute_resolved_by?: string | null
-          disputed_at?: string | null
-          disputed_by?: string | null
-          exchange_rate?: number | null
-          exchange_rate_date?: string | null
-          goods_receipt_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          journal_entry_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          origin?: string
-          purchase_order_id?: string | null
-          reason_code?: string | null
-          rejected_at?: string | null
-          rejected_by?: string | null
-          rejected_reason?: string | null
-          reversal_journal_entry_id?: string | null
-          reversal_reason?: string | null
-          reversal_reason_code?: string | null
-          reversed_at?: string | null
-          reversed_by?: string | null
-          row_version?: number
-          settlement_status?: string
-          source_return_id?: string | null
-          status?: string
-          submitted_at?: string | null
-          submitted_by?: string | null
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          vendor_document_date?: string | null
-          vendor_document_number?: string | null
-          vendor_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_credit_notes_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_credit_notes_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_refunds: {
-        Row: {
-          amount: number
-          bank_account_id: string
-          branch_id: string | null
-          business_id: string
-          client_request_id: string | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          id: string
-          journal_entry_id: string | null
-          organization_id: string
-          payment_method: string | null
-          reason: string | null
-          reference: string | null
-          refund_date: string
-          source_vendor_credit_note_id: string | null
-          status: string
-          updated_at: string
-          vendor_id: string
-        }
-        Insert: {
-          amount: number
-          bank_account_id: string
-          branch_id?: string | null
-          business_id: string
-          client_request_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency: string
-          id?: string
-          journal_entry_id?: string | null
-          organization_id: string
-          payment_method?: string | null
-          reason?: string | null
-          reference?: string | null
-          refund_date: string
-          source_vendor_credit_note_id?: string | null
-          status?: string
-          updated_at?: string
-          vendor_id: string
-        }
-        Update: {
-          amount?: number
-          bank_account_id?: string
-          branch_id?: string | null
-          business_id?: string
-          client_request_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string
-          id?: string
-          journal_entry_id?: string | null
-          organization_id?: string
-          payment_method?: string | null
-          reason?: string | null
-          reference?: string | null
-          refund_date?: string
-          source_vendor_credit_note_id?: string | null
-          status?: string
-          updated_at?: string
-          vendor_id?: string
-        }
-        Relationships: []
-      }
-      vendor_statement_send_jobs: {
-        Row: {
-          attempts: number
-          branch_id: string | null
-          business_id: string
-          claimed_at: string | null
-          completed_at: string | null
-          contact_id: string
-          created_at: string
-          id: string
-          idempotency_key: string
-          last_error: string | null
-          max_attempts: number
-          message: string | null
-          next_attempt_at: string
-          organization_id: string
-          recipient_email: string
-          requested_by: string | null
-          statement_id: string
-          status: string
-          subject: string
-          updated_at: string
-        }
-        Insert: {
-          attempts?: number
-          branch_id?: string | null
-          business_id: string
-          claimed_at?: string | null
-          completed_at?: string | null
-          contact_id: string
-          created_at?: string
-          id?: string
-          idempotency_key: string
-          last_error?: string | null
-          max_attempts?: number
-          message?: string | null
-          next_attempt_at?: string
-          organization_id: string
-          recipient_email: string
-          requested_by?: string | null
-          statement_id: string
-          status?: string
-          subject: string
-          updated_at?: string
-        }
-        Update: {
-          attempts?: number
-          branch_id?: string | null
-          business_id?: string
-          claimed_at?: string | null
-          completed_at?: string | null
-          contact_id?: string
-          created_at?: string
-          id?: string
-          idempotency_key?: string
-          last_error?: string | null
-          max_attempts?: number
-          message?: string | null
-          next_attempt_at?: string
-          organization_id?: string
-          recipient_email?: string
-          requested_by?: string | null
-          statement_id?: string
-          status?: string
-          subject?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_statement_send_jobs_statement_id_fkey"
-            columns: ["statement_id"]
-            isOneToOne: false
-            referencedRelation: "vendor_statements"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      vendor_statements: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          closing_balance: number
-          contact_id: string
-          created_at: string
-          created_by: string | null
-          currency: string | null
-          document_record_id: string | null
-          finalized_at: string | null
-          id: string
-          opening_balance: number
-          organization_id: string
-          pdf_url: string | null
-          period_end: string
-          period_start: string
-          sent_at: string | null
-          sent_to: string | null
-          statement_date: string
-          total_billed: number
-          total_payments: number
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id?: string | null
-          closing_balance?: number
-          contact_id: string
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          document_record_id?: string | null
-          finalized_at?: string | null
-          id?: string
-          opening_balance?: number
-          organization_id: string
-          pdf_url?: string | null
-          period_end: string
-          period_start: string
-          sent_at?: string | null
-          sent_to?: string | null
-          statement_date?: string
-          total_billed?: number
-          total_payments?: number
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string | null
-          closing_balance?: number
-          contact_id?: string
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          document_record_id?: string | null
-          finalized_at?: string | null
-          id?: string
-          opening_balance?: number
-          organization_id?: string
-          pdf_url?: string | null
-          period_end?: string
-          period_start?: string
-          sent_at?: string | null
-          sent_to?: string | null
-          statement_date?: string
-          total_billed?: number
-          total_payments?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "vendor_statements_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_document_record_id_fkey"
-            columns: ["document_record_id"]
-            isOneToOne: false
-            referencedRelation: "document_records"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "vendor_statements_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       webhook_events: {
         Row: {
           event_id: string
@@ -24625,58 +22802,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      finance_ap_open_items: {
-        Row: {
-          aging_bucket: string | null
-          base_residual_amount: number | null
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          credited_amount: number | null
-          currency: string | null
-          days_past_due: number | null
-          document_date: string | null
-          document_id: string | null
-          document_number: string | null
-          document_status: string | null
-          document_total: number | null
-          due_date: string | null
-          exchange_rate: number | null
-          journal_entry_id: string | null
-          organization_id: string | null
-          paid_amount: number | null
-          residual_amount: number | null
-          source_kind: string | null
-        }
-        Relationships: []
-      }
-      finance_ap_vendor_credit: {
-        Row: {
-          base_credit_amount: number | null
-          business_id: string | null
-          contact_id: string | null
-          credit_amount: number | null
-          currency: string | null
-          organization_id: string | null
-        }
-        Insert: {
-          base_credit_amount?: never
-          business_id?: string | null
-          contact_id?: string | null
-          credit_amount?: never
-          currency?: string | null
-          organization_id?: string | null
-        }
-        Update: {
-          base_credit_amount?: never
-          business_id?: string | null
-          contact_id?: string | null
-          credit_amount?: never
-          currency?: string | null
-          organization_id?: string | null
-        }
-        Relationships: []
       }
       legal_order_effective_kind_defaults: {
         Row: {
@@ -25294,59 +23419,6 @@ export type Database = {
           },
           {
             foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_bill_creditable_qty: {
-        Row: {
-          bill_id: string | null
-          bill_item_id: string | null
-          billed_qty: number | null
-          business_id: string | null
-          credited_qty: number | null
-          description: string | null
-          organization_id: string | null
-          product_id: string | null
-          remaining_net_amount: number | null
-          remaining_qty: number | null
-          tax_rate: number | null
-          unit_price: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_items_bill_id_fkey"
-            columns: ["bill_id"]
-            isOneToOne: false
-            referencedRelation: "bills"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "bills_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -26220,129 +24292,6 @@ export type Database = {
           },
         ]
       }
-      vendor_credit_tieout: {
-        Row: {
-          account_code: string | null
-          account_id: string | null
-          account_name: string | null
-          business_id: string | null
-          currency: string | null
-          drift: number | null
-          gl_balance: number | null
-          organization_id: string | null
-          subledger_balance: number | null
-          system_role: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "accounts_system_role_fkey"
-            columns: ["system_role"]
-            isOneToOne: false
-            referencedRelation: "system_account_roles"
-            referencedColumns: ["role_key"]
-          },
-        ]
-      }
-      vendor_ledger_entries: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          created_at: string | null
-          credit: number | null
-          currency: string | null
-          debit: number | null
-          doc_id: string | null
-          doc_ref: string | null
-          doc_type: string | null
-          entry_date: string | null
-          organization_id: string | null
-        }
-        Relationships: []
-      }
-      vendor_unapplied_advances: {
-        Row: {
-          amount: number | null
-          applied_amount: number | null
-          branch_id: string | null
-          business_id: string | null
-          created_at: string | null
-          id: string | null
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string | null
-          outstanding_amount: number | null
-          payment_date: string | null
-          payment_method: string | null
-          reference: string | null
-          vendor_id: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bill_payments_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "ap_subledger_entries"
-            referencedColumns: ["journal_entry_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "journal_entries"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_journal_entry_id_fkey"
-            columns: ["journal_entry_id"]
-            isOneToOne: false
-            referencedRelation: "v_je_source_consistency"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "bill_payments_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bill_payments_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Functions: {
       __test_no_dropped_payroll_table_refs: {
@@ -26632,17 +24581,6 @@ export type Database = {
       }
       _eba_sync_primary_to_employees: {
         Args: { p_employee_id: string }
-        Returns: undefined
-      }
-      _emit_bill_match_outbox: {
-        Args: { _bill_id: string; _payload: Json; _state: string }
-        Returns: undefined
-      }
-      _emit_vcn_outbox: {
-        Args: {
-          _state: string
-          _vcn: Database["public"]["Tables"]["vendor_credit_notes"]["Row"]
-        }
         Returns: undefined
       }
       _execute_organization_delete: {
@@ -27002,14 +24940,6 @@ export type Database = {
         Args: { p_business_id: string; p_party_or_role_id: string }
         Returns: string
       }
-      _resolve_vendor_credit_note_line: {
-        Args: { _bill_id: string; _exclude_vcn_id: string; _line: Json }
-        Returns: Json
-      }
-      _resolve_vendor_credit_note_lines: {
-        Args: { _bill_id: string; _exclude_vcn_id: string; _items: Json }
-        Returns: Json
-      }
       _rtest: {
         Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
@@ -27091,76 +25021,6 @@ export type Database = {
       }
       _user_is_active_platform_admin: {
         Args: { p_user: string }
-        Returns: boolean
-      }
-      _vcn_load: {
-        Args: { _id: string }
-        Returns: {
-          accounting_status: string
-          amount_applied: number
-          approval_request_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          bill_id: string | null
-          branch_id: string | null
-          business_id: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          client_request_id: string | null
-          commercial_status: string
-          created_at: string
-          created_by: string | null
-          credit_date: string
-          credit_note_number: string
-          currency: string
-          dispute_reason: string | null
-          dispute_resolution: string | null
-          dispute_resolved_at: string | null
-          dispute_resolved_by: string | null
-          disputed_at: string | null
-          disputed_by: string | null
-          exchange_rate: number | null
-          exchange_rate_date: string | null
-          goods_receipt_id: string | null
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          origin: string
-          purchase_order_id: string | null
-          reason_code: string | null
-          rejected_at: string | null
-          rejected_by: string | null
-          rejected_reason: string | null
-          reversal_journal_entry_id: string | null
-          reversal_reason: string | null
-          reversal_reason_code: string | null
-          reversed_at: string | null
-          reversed_by: string | null
-          row_version: number
-          settlement_status: string
-          source_return_id: string | null
-          status: string
-          submitted_at: string | null
-          submitted_by: string | null
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          vendor_document_date: string | null
-          vendor_document_number: string | null
-          vendor_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "vendor_credit_notes"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      _vcn_requires_approval: {
-        Args: { _business_id: string; _org_id: string }
         Returns: boolean
       }
       _wms_assert_business_access: {
@@ -27355,50 +25215,6 @@ export type Database = {
         }
         Returns: Json
       }
-      apply_vendor_advance_atomic: {
-        Args: {
-          _actor?: string
-          _amount: number
-          _apply_date?: string
-          _bill_id: string
-          _bill_payment_id: string
-          _client_request_id?: string
-        }
-        Returns: Json
-      }
-      apply_vendor_credit_atomic: {
-        Args: {
-          p_amount: number
-          p_bill_id: string
-          p_user_id: string
-          p_vcn_id: string
-        }
-        Returns: Json
-      }
-      apply_vendor_credit_fifo_atomic: {
-        Args: {
-          _applied_by?: string
-          _bill_ids?: string[]
-          _branch_id?: string
-          _business_id: string
-          _org_id: string
-          _vendor_credit_note_id: string
-        }
-        Returns: Json
-      }
-      apply_vendor_credit_to_bill_atomic: {
-        Args: {
-          _amount: number
-          _applied_by?: string
-          _bill_id: string
-          _branch_id?: string
-          _business_id: string
-          _notes?: string
-          _org_id: string
-          _vendor_credit_note_id: string
-        }
-        Returns: Json
-      }
       approval_can_decide: {
         Args: { _request_id: string; _user: string }
         Returns: boolean
@@ -27493,106 +25309,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "approval_requests"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      approve_bill: {
-        Args: { p_bill_id: string }
-        Returns: {
-          account_id: string | null
-          amount_paid: number
-          approved_at: string | null
-          approved_by: string | null
-          attachment_url: string | null
-          bill_date: string | null
-          bill_number: string
-          branch_id: string | null
-          business_id: string
-          company_currency_total: number | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          currency_rate: number
-          discount_amount: number | null
-          due_date: string
-          goods_receipt_id: string | null
-          id: string
-          is_sample_data: boolean
-          issue_date: string
-          journal_entry_id: string | null
-          migration_session_id: string | null
-          notes: string | null
-          organization_id: string
-          party_snapshot: Json | null
-          payment_term_id: string | null
-          project_id: string | null
-          remit_to_address: string | null
-          remit_to_contact_id: string | null
-          source_expense_id: string | null
-          source_purchase_order_id: string | null
-          status: Database["public"]["Enums"]["bill_status"]
-          submitted_at: string | null
-          submitted_by: string | null
-          subtotal: number
-          task_id: string | null
-          tax_amount: number
-          total: number
-          updated_at: string
-          vendor_id: string
-          vendor_invoice_number: string | null
-          void_reason: string | null
-          void_reason_code: string | null
-          voided_at: string | null
-          voided_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "bills"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      approve_bill_atomic: {
-        Args: { _actor: string; _bill_id: string }
-        Returns: Json
-      }
-      approve_bill_payment: {
-        Args: { p_payment_id: string }
-        Returns: {
-          amount: number
-          approved_at: string | null
-          approved_by: string | null
-          bank_account_id: string | null
-          bill_id: string
-          branch_id: string | null
-          business_id: string
-          client_request_id: string | null
-          created_at: string
-          created_by: string | null
-          currency: string
-          currency_rate: number
-          id: string
-          is_sample_data: boolean
-          journal_entry_id: string | null
-          notes: string | null
-          organization_id: string
-          payment_date: string
-          payment_method: string | null
-          reference: string | null
-          status: string
-          submitted_at: string | null
-          submitted_by: string | null
-          updated_at: string
-          vendor_id: string | null
-          void_reason: string | null
-          void_reason_code: string | null
-          voided_at: string | null
-          voided_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "bill_payments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -27724,7 +25440,6 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           bank_account_id: string | null
-          bill_id: string | null
           branch_id: string | null
           business_id: string
           client_request_id: string | null
@@ -28565,37 +26280,6 @@ export type Database = {
           target_kind: string
         }[]
       }
-      claim_vendor_statement_send_jobs: {
-        Args: { _limit?: number }
-        Returns: {
-          attempts: number
-          branch_id: string | null
-          business_id: string
-          claimed_at: string | null
-          completed_at: string | null
-          contact_id: string
-          created_at: string
-          id: string
-          idempotency_key: string
-          last_error: string | null
-          max_attempts: number
-          message: string | null
-          next_attempt_at: string
-          organization_id: string
-          recipient_email: string
-          requested_by: string | null
-          statement_id: string
-          status: string
-          subject: string
-          updated_at: string
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "vendor_statement_send_jobs"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
       cleanup_automation_tracker: { Args: never; Returns: undefined }
       cleanup_orphan_signups: {
         Args: never
@@ -28705,10 +26389,6 @@ export type Database = {
         }
         Returns: Json
       }
-      complete_vendor_statement_send_job: {
-        Args: { _error?: string; _job_id: string; _success: boolean }
-        Returns: undefined
-      }
       compute_employee_user_access_status: {
         Args: { p_employee_id: string }
         Returns: string
@@ -28734,10 +26414,6 @@ export type Database = {
           p_warehouse_id?: string
         }
         Returns: number
-      }
-      confirm_bill_atomic: {
-        Args: { _bill_id: string; _user_id: string }
-        Returns: Json
       }
       confirm_credit_note_atomic: {
         Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
@@ -29322,30 +26998,6 @@ export type Database = {
           token: string
         }[]
       }
-      create_vendor_credit_note_atomic: {
-        Args: {
-          _bill_id: string
-          _branch_id: string
-          _business_id: string
-          _client_request_id?: string
-          _credit_date: string
-          _exchange_rate?: number
-          _exchange_rate_date?: string
-          _goods_receipt_id?: string
-          _issue?: boolean
-          _items: Json
-          _notes: string
-          _org_id: string
-          _origin?: string
-          _purchase_order_id?: string
-          _reason_code?: string
-          _source_return_id?: string
-          _vendor_document_date?: string
-          _vendor_document_number?: string
-          _vendor_id: string
-        }
-        Returns: Json
-      }
       crm_can_admin_pipeline: {
         Args: { _business_id: string; _org_id: string; _user_id: string }
         Returns: boolean
@@ -29405,10 +27057,6 @@ export type Database = {
       delete_journal_entry_atomic: {
         Args: { _je_id: string; _org_id: string }
         Returns: boolean
-      }
-      delete_vendor_credit_note_atomic: {
-        Args: { _vcn_id: string }
-        Returns: Json
       }
       describe_exchange_rate: {
         Args: {
@@ -29642,15 +27290,6 @@ export type Database = {
         }
         Returns: string
       }
-      enqueue_vendor_statement_send: {
-        Args: {
-          _message?: string
-          _recipient_email: string
-          _statement_id: string
-          _subject: string
-        }
-        Returns: string
-      }
       ensure_cash_short_over_account: {
         Args: { p_business_id: string; p_org_id: string }
         Returns: string
@@ -29746,7 +27385,6 @@ export type Database = {
         Returns: Json
       }
       expense_approve: { Args: { p_expense_id: string }; Returns: Json }
-      expense_convert_to_bill: { Args: { p_expense_id: string }; Returns: Json }
       expense_is_own_or_report: {
         Args: { _created_by: string; _employee_id: string; _user_id: string }
         Returns: boolean
@@ -29817,53 +27455,6 @@ export type Database = {
       finance_aging_bucket: {
         Args: { p_as_of: string; p_due_date: string }
         Returns: string
-      }
-      finance_ap_open_items_as_of: {
-        Args: {
-          _as_of?: string
-          _branch_id?: string
-          _business_id?: string
-          _org_id: string
-        }
-        Returns: {
-          aging_bucket: string
-          base_residual_amount: number
-          branch_id: string
-          business_id: string
-          contact_id: string
-          credited_amount: number
-          currency: string
-          days_past_due: number
-          document_date: string
-          document_id: string
-          document_number: string
-          document_status: string
-          document_total: number
-          due_date: string
-          exchange_rate: number
-          journal_entry_id: string
-          organization_id: string
-          paid_amount: number
-          residual_amount: number
-          source_kind: string
-        }[]
-      }
-      finance_ap_vendor_credit_as_of: {
-        Args: {
-          _as_of?: string
-          _branch_id?: string
-          _business_id?: string
-          _org_id: string
-        }
-        Returns: {
-          base_credit_amount: number
-          branch_id: string
-          business_id: string
-          contact_id: string
-          credit_amount: number
-          currency: string
-          organization_id: string
-        }[]
       }
       finance_ar_customer_credit_as_of: {
         Args: {
@@ -29979,16 +27570,6 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
-      finance_purchase_expense_reconciliation: {
-        Args: {
-          _branch_id?: string
-          _business_id?: string
-          _from: string
-          _org_id: string
-          _to: string
-        }
-        Returns: Json
-      }
       finance_sales_revenue_reconciliation: {
         Args: {
           _branch_id?: string
@@ -29998,15 +27579,6 @@ export type Database = {
           _to: string
         }
         Returns: Json
-      }
-      find_bill_vendor_business_mismatches: {
-        Args: never
-        Returns: {
-          bill_business_id: string
-          bill_id: string
-          vendor_business_id: string
-          vendor_id: string
-        }[]
       }
       find_cross_business_journal_lines: {
         Args: never
@@ -30241,26 +27813,6 @@ export type Database = {
         Args: { _manager_employee_id: string }
         Returns: string[]
       }
-      get_ap_summary: {
-        Args: {
-          _as_of?: string
-          _branch_id?: string
-          _business_id?: string
-          _org_id: string
-        }
-        Returns: {
-          current_bucket: number
-          days30: number
-          days60: number
-          days90: number
-          not_due: number
-          open_document_count: number
-          overdue_count: number
-          total_residual: number
-          unposted_amount: number
-          unposted_document_count: number
-        }[]
-      }
       get_ar_ap_aging_from_ledger: {
         Args: {
           _as_of_date: string
@@ -30332,25 +27884,6 @@ export type Database = {
           updated_at: string
         }[]
       }
-      get_bill_status_counts:
-        | {
-            Args: { _business_id?: string; _org_id: string }
-            Returns: {
-              count: number
-              status: string
-            }[]
-          }
-        | {
-            Args: {
-              _branch_id?: string
-              _business_id?: string
-              _org_id: string
-            }
-            Returns: {
-              count: number
-              status: string
-            }[]
-          }
       get_budget_variance_report: {
         Args: { _budget_id: string }
         Returns: {
@@ -30780,10 +28313,6 @@ export type Database = {
         Returns: string
       }
       get_next_asset_number: { Args: { _org_id: string }; Returns: string }
-      get_next_bill_number: {
-        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
-        Returns: string
-      }
       get_next_carton_number: {
         Args: { p_business?: string; p_org: string }
         Returns: string
@@ -30876,10 +28405,6 @@ export type Database = {
             Returns: string
           }
       get_next_task_number: { Args: { p_project_id: string }; Returns: string }
-      get_next_vendor_credit_note_number: {
-        Args: { p_business_id?: string; p_organization_id: string }
-        Returns: string
-      }
       get_next_wave_number: {
         Args: { p_business?: string; p_org: string }
         Returns: string
@@ -31157,17 +28682,6 @@ export type Database = {
           project_name: string
           timesheet_id: string
         }[]
-      }
-      get_top_vendor_spend: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_from: string
-          p_limit?: number
-          p_organization_id: string
-          p_to: string
-        }
-        Returns: Json
       }
       get_user_allowed_branches: {
         Args: { _business_id: string; _user_id: string }
@@ -31537,10 +29051,6 @@ export type Database = {
         }
         Returns: string
       }
-      issue_vendor_credit_note_atomic: {
-        Args: { _vcn_id: string }
-        Returns: Json
-      }
       landed_cost_assert_bill_unencumbered: {
         Args: { _bill_id: string; _operation?: string }
         Returns: undefined
@@ -31779,23 +29289,11 @@ export type Database = {
         }
         Returns: undefined
       }
-      mark_po_billed: {
-        Args: { p_bill_id: string; p_po_id: string }
-        Returns: Json
-      }
       mark_print_job_failed: {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined
       }
       mask_sensitive_value: { Args: { p_value: string }; Returns: string }
-      match_bill_atomic: {
-        Args: {
-          _actor: string
-          _bill_id: string
-          _landed_cost_bill_id?: string
-        }
-        Returns: Json
-      }
       match_bill_with_landed_cost: {
         Args: { _actor: string; _bill_id: string; _landed_cost_bill_id: string }
         Returns: Json
@@ -32246,11 +29744,6 @@ export type Database = {
       platform_delete_organization: {
         Args: { p_confirmation_token: string; p_org_id: string }
         Returns: Json
-      }
-      po_resync_billed_state: { Args: { _po_id: string }; Returns: undefined }
-      po_resync_billed_state_for_bill: {
-        Args: { _bill_id: string }
-        Returns: undefined
       }
       pos_payment_session_allocated: {
         Args: { p_session_id: string }
@@ -32907,66 +30400,6 @@ export type Database = {
         }
         Returns: Json
       }
-      record_bill_payment_atomic:
-        | {
-            Args: {
-              _amount: number
-              _ap_account_id?: string
-              _bank_account_id?: string
-              _bill_id: string
-              _business_id: string
-              _cash_account_id?: string
-              _created_by?: string
-              _je_entry_number?: string
-              _notes?: string
-              _org_id: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _amount: number
-              _ap_account_id?: string
-              _bank_account_id?: string
-              _bill_id: string
-              _business_id: string
-              _cash_account_id?: string
-              _created_by?: string
-              _je_entry_number?: string
-              _notes?: string
-              _org_id: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _amount: number
-              _ap_account_id?: string
-              _bank_account_id?: string
-              _bill_id: string
-              _branch_id?: string
-              _business_id: string
-              _cash_account_id?: string
-              _created_by?: string
-              _je_entry_number?: string
-              _notes?: string
-              _org_id: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
       record_device_login: {
         Args: {
           p_browser?: string
@@ -33009,51 +30442,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      record_multi_bill_payment:
-        | {
-            Args: {
-              _allocations: Json
-              _bank_account_id?: string
-              _branch_id?: string
-              _business_id: string
-              _created_by?: string
-              _notes?: string
-              _org_id: string
-              _payable_account_id?: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _request_id?: string
-              _total_amount: number
-              _vendor_id: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _allocations: Json
-              _bank_account_id?: string
-              _branch_id?: string
-              _business_id: string
-              _created_by?: string
-              _credit_account_id?: string
-              _exchange_rate?: number
-              _notes?: string
-              _org_id: string
-              _payable_account_id?: string
-              _payment_date: string
-              _payment_method?: string
-              _reference?: string
-              _request_id?: string
-              _total_amount: number
-              _vendor_id: string
-              _wht_account_id?: string
-              _wht_rate?: number
-            }
-            Returns: Json
-          }
       record_multi_invoice_payment: {
         Args: {
           _allocations: Json
@@ -33154,25 +30542,6 @@ export type Database = {
         }
         Returns: string
       }
-      record_vendor_advance_payment: {
-        Args: {
-          _advance_asset_account_id?: string
-          _amount: number
-          _bank_account_id?: string
-          _bank_gl_account_id?: string
-          _branch_id?: string
-          _business_id: string
-          _created_by?: string
-          _notes?: string
-          _org_id: string
-          _payment_date: string
-          _payment_method?: string
-          _reference?: string
-          _request_id?: string
-          _vendor_id: string
-        }
-        Returns: Json
-      }
       recurring_next_start: {
         Args: {
           _anchor_day?: number
@@ -33209,19 +30578,6 @@ export type Database = {
         }
         Returns: string
       }
-      refund_from_vendor_atomic: {
-        Args: {
-          _amount: number
-          _bank_account_id: string
-          _client_request_id?: string
-          _payment_method?: string
-          _reason_text?: string
-          _reference?: string
-          _refund_date?: string
-          _vendor_credit_note_id: string
-        }
-        Returns: string
-      }
       register_governance_module: {
         Args: {
           p_depends_on?: string[]
@@ -33245,10 +30601,6 @@ export type Database = {
       }
       reinstate_supplier: {
         Args: { p_notes?: string; p_supplier_id: string }
-        Returns: Json
-      }
-      reject_bill_atomic: {
-        Args: { _actor: string; _bill_id: string; _reason: string }
         Returns: Json
       }
       release_sales_order_reservations_atomic: {
@@ -33464,7 +30816,6 @@ export type Database = {
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
       reset_module__hr: { Args: { org_id: string }; Returns: Json }
       reset_module__pos: { Args: { org_id: string }; Returns: Json }
-      reset_module__purchases: { Args: { org_id: string }; Returns: Json }
       reset_module__sales: { Args: { org_id: string }; Returns: Json }
       reset_module__sequences: { Args: { org_id: string }; Returns: Json }
       reset_module__transactions_ledger: {
@@ -33475,7 +30826,6 @@ export type Database = {
         Args: { org_id: string }
         Returns: Json
       }
-      reset_module__vendor_returns: { Args: { org_id: string }; Returns: Json }
       reset_my_signup: { Args: never; Returns: Json }
       reset_my_workspace: {
         Args: { confirmation_phrase: string; org_id: string }
@@ -33532,15 +30882,6 @@ export type Database = {
           _status: Database["public"]["Enums"]["ar_dispute_status"]
         }
         Returns: undefined
-      }
-      resolve_bill_match_exception_atomic: {
-        Args: {
-          _actor?: string
-          _bill_id: string
-          _decision: string
-          _note?: string
-        }
-        Returns: Json
       }
       resolve_branch_scoped: {
         Args: { _branch_id: string; _business_id: string; _table_name: string }
@@ -33764,10 +31105,6 @@ export type Database = {
         Args: { _document_id: string }
         Returns: Json
       }
-      resolve_reversal_intent_vendor_credit_note: {
-        Args: { _document_id: string }
-        Returns: Json
-      }
       resolve_rule_recipients: {
         Args: {
           p_entity_id?: string
@@ -33930,17 +31267,6 @@ export type Database = {
           _user_id?: string
         }
         Returns: string
-      }
-      reverse_vendor_credit_note_atomic: {
-        Args: {
-          _actor?: string
-          _client_request_id?: string
-          _reason: string
-          _reason_code?: string
-          _reversal_date?: string
-          _vcn_id: string
-        }
-        Returns: Json
       }
       revoke_scanner_session: {
         Args: { p_session_id: string }
@@ -34265,10 +31591,6 @@ export type Database = {
         }
         Returns: string
       }
-      submit_bill_atomic: {
-        Args: { _actor: string; _bill_id: string }
-        Returns: Json
-      }
       submit_document_intent: {
         Args: {
           p_document_record_id: string
@@ -34373,10 +31695,6 @@ export type Database = {
         }
         Returns: string
       }
-      unapply_vendor_credit_from_bill_atomic: {
-        Args: { _application_id: string; _reason?: string }
-        Returns: Json
-      }
       unarchive_supplier: {
         Args: { p_notes?: string; p_supplier_id: string }
         Returns: Json
@@ -34407,10 +31725,6 @@ export type Database = {
       }
       update_app_last_accessed: {
         Args: { p_app_id: string; p_org_id: string }
-        Returns: undefined
-      }
-      update_bill_items_atomic: {
-        Args: { _bill_id: string; _items: Json }
         Returns: undefined
       }
       update_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
@@ -34526,21 +31840,6 @@ export type Database = {
         }
         Returns: Json
       }
-      update_vendor_credit_note_atomic: {
-        Args: {
-          _bill_id?: string
-          _credit_date?: string
-          _items?: Json
-          _notes?: string
-          _origin?: string
-          _reason_code?: string
-          _vcn_id: string
-          _vendor_document_date?: string
-          _vendor_document_number?: string
-          _vendor_id?: string
-        }
-        Returns: Json
-      }
       upsert_collector_assignment: {
         Args: {
           _business_id?: string
@@ -34597,37 +31896,6 @@ export type Database = {
           _system_role: string
         }
         Returns: string
-      }
-      upsert_vendor_statement_atomic: {
-        Args: { _payload: Json }
-        Returns: {
-          branch_id: string | null
-          business_id: string | null
-          closing_balance: number
-          contact_id: string
-          created_at: string
-          created_by: string | null
-          currency: string | null
-          document_record_id: string | null
-          finalized_at: string | null
-          id: string
-          opening_balance: number
-          organization_id: string
-          pdf_url: string | null
-          period_end: string
-          period_start: string
-          sent_at: string | null
-          sent_to: string | null
-          statement_date: string
-          total_billed: number
-          total_payments: number
-        }
-        SetofOptions: {
-          from: "*"
-          to: "vendor_statements"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       user_belongs_to_org:
         | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
@@ -34709,38 +31977,6 @@ export type Database = {
           suggested_account_type: string
         }[]
       }
-      vendor_advance_account: {
-        Args: { _business_id: string }
-        Returns: string
-      }
-      vendor_credit_account: { Args: { _business_id: string }; Returns: string }
-      vendor_credit_balance_id: {
-        Args: {
-          _business_id: string
-          _currency: string
-          _org_id: string
-          _vendor_id: string
-        }
-        Returns: string
-      }
-      vendor_credit_note_approve: { Args: { _id: string }; Returns: Json }
-      vendor_credit_note_cancel: {
-        Args: { _id: string; _reason?: string }
-        Returns: Json
-      }
-      vendor_credit_note_dispute: {
-        Args: { _id: string; _reason?: string }
-        Returns: Json
-      }
-      vendor_credit_note_reject: {
-        Args: { _id: string; _reason?: string }
-        Returns: Json
-      }
-      vendor_credit_note_resolve_dispute: {
-        Args: { _id: string; _outcome: string }
-        Returns: Json
-      }
-      vendor_credit_note_submit: { Args: { _id: string }; Returns: Json }
       verify_company_isolation: {
         Args: never
         Returns: {
@@ -34766,28 +32002,6 @@ export type Database = {
             Returns: Json
           }
         | { Args: { p_pin: string }; Returns: Json }
-      void_bill_atomic: {
-        Args: {
-          _actor?: string
-          _bill_id: string
-          _client_request_id?: string
-          _reason: string
-          _reason_code?: string
-          _void_date?: string
-        }
-        Returns: Json
-      }
-      void_bill_payment_atomic: {
-        Args: {
-          _actor?: string
-          _bill_payment_id: string
-          _client_request_id?: string
-          _reason: string
-          _reason_code?: string
-          _void_date?: string
-        }
-        Returns: Json
-      }
       void_invoice_atomic: {
         Args: {
           _actor?: string
