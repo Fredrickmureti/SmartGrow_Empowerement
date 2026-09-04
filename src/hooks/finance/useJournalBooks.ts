@@ -93,24 +93,59 @@ export function useJournalBooks() {
     fetchBooks();
   }, [fetchBooks]);
 
-  /** Seed the 5 standard journal books for the active business. */
+  /**
+   * Seed the microfinance journal books for the active business and retire the
+   * inherited ERP books (Sales / Purchases). Retired books are deactivated,
+   * never deleted — historical entries keep their book reference.
+   */
   const seedDefaults = useCallback(async () => {
-    if (!currentBusiness?.id) return;
-    const { error } = await (supabase as any).rpc(
-      "seed_default_journal_books",
-      { _business_id: currentBusiness.id },
-    );
-    if (error) {
+    if (!currentOrg?.id || !currentBusiness?.id) return;
+    try {
+      const existing = new Set(books.map((book) => book.code));
+      const missing = MF_DEFAULT_BOOKS.filter((book) => !existing.has(book.code));
+
+      if (missing.length > 0) {
+        const { error } = await (supabase as any).from("journal_books").insert(
+          missing.map((book) => ({
+            organization_id: currentOrg.id,
+            business_id: currentBusiness.id,
+            ...book,
+          })),
+        );
+        if (error) throw error;
+      }
+
+      const retired = books.filter(
+        (book) =>
+          book.is_active &&
+          (RETIRED_JOURNAL_TYPES.includes(book.journal_type as string) ||
+            ["SAL", "PUR"].includes(book.code)),
+      );
+      for (const book of retired) {
+        const { error } = await (supabase as any)
+          .from("journal_books")
+          .update({ is_active: false })
+          .eq("id", book.id);
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Journal books updated",
+        description:
+          retired.length > 0
+            ? `${missing.length} created, ${retired.length} retired.`
+            : `${missing.length} created.`,
+      });
+      await fetchBooks();
+    } catch (error) {
       toast({
         title: "Could not seed journal books",
         description: normalizeError(error).message,
         variant: "destructive",
       });
-      return;
     }
-    toast({ title: "Default journal books created" });
-    await fetchBooks();
-  }, [currentBusiness?.id, fetchBooks, toast]);
+  }, [currentOrg?.id, currentBusiness?.id, books, fetchBooks, toast]);
+
 
   const createBook = useCallback(
     async (book: {
