@@ -173,3 +173,13 @@ residue re-verified from the codebase.
 ### 2026-09-04 — statements & settlement: lending Client Statement; receipts
 project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` writer.
 ### 2026-09-04 — sales pricing engine removed; report catalogue microfinance-only.
+
+
+
+THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
+===================================================
+
+
+Supabase (`Smart Grow Empowerment`) is already connected — no reconnection needed.
+
+M5 step 2 is done and verified: the whole supplier-billing/vendor chain (17 tables, 3 views, ~80 routines) is gone from the database, retained banking/payments tables were cleanly detached, the two live bank trigger guards were rewritten, dead ERP screens/tests/realtime handlers deleted — typecheck clean, app returns 200, plan updated. Next up per plan: dropping CRM `contacts`, then projects/cost layers/backorders, before the FX purge.
