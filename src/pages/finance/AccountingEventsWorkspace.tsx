@@ -396,7 +396,7 @@ function EventDrawer({
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{producerLabel(event.producer, event.producer_doc_type)}</span>
             <span className="text-muted-foreground">·</span>
-            <span>{headline}</span>
+            <span>{`${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`}</span>
             {stateBadge(event.state)}
           </DialogTitle>
         </DialogHeader>
