@@ -85,20 +85,27 @@ adjustment, card clearing, customer deposits, customer credit, sales revenue,
 remained. Typecheck clean, `GET /` → 200.
 
 ### M5 — Dead ERP table groups (IN PROGRESS: sales chain DONE, purchasing chain DONE)
-One migration per group, FK-ordered, code references deleted in the same step:
-sales chain (invoices, credit notes, estimates, proforma, customer
-credits/statements, dunning, AR disputes) → purchasing chain (bills, bill
-payments/matching, vendor credits/refunds/statements) → CRM `contacts` (with
-`ContactPreviewDrawer` and the AR/AP open-items helpers/tests) → projects → cost
-layers → backorders/carriers. Inert welded groups stay. Verify object counts after
-each migration.
+One migration per group, FK-ordered, code references deleted in the same step.
+Remaining order, cheapest-and-safest first:
+1. `cost_layers` + lineage/consumptions, `backorders`, `carriers` — 1 code
+   reference each, no shared surface. One migration, one code sweep.
+2. `projects` (+ `analytic_*` project bindings if orphaned) — 9 references, all
+   app-catalogue / permission / query-key lists. Delete the catalogue entries.
+3. `payments` / `payment_allocations` — ERP customer receipts; nothing in the
+   lending flow writes them. Confirm `useGovernedEntityOptions`,
+   `useClearableRecordedPayments`, `useFiscalPeriodDetail` first, then drop.
+4. `contacts` — LAST, because it is welded into shared surfaces: journal-entry
+   counterparty (`JournalLineRow`, `financeJournalEntry` snapshot), command
+   palette (`providers/customers.ts`, `buildIndex`), `entityResolver`,
+   `contactHierarchy`/`contactAddresses`, studio entity catalogue, dashboard
+   composition, permissions. Decision required before executing: either point
+   journal counterparty at `mf_clients` or drop the counterparty field entirely.
+Inert welded groups stay. Verify object counts after each migration.
 
-### M6 — FX surface purge (code only)
-Delete `useFxRevaluation`/`useFxExposure`, their call sites in `ClosePeriodSheet`
-and `FinanceAccountingControls`, and `fx-tenant-isolation.test.ts`. Keep
-`exchange_rates` and currency plumbing — documents and GL depend on it.
+### M6 — FX surface purge — DONE (verified 2026-09-04, zero references remain)
 
 ### M7 — Orphan function purge
+
 Drop PL/pgSQL functions whose referenced relations no longer exist, in
 dependency-checked batches per group. Never touch `mf_*`. Confirm no trigger on a
 live table depends on a function before dropping it.
