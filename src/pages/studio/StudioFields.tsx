@@ -26,15 +26,15 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import {
   Users,
-  Package,
+  UsersRound,
   FileSpreadsheet,
   FileText,
-  ShoppingCart,
-  Briefcase,
+  Banknote,
+  HandCoins,
   Receipt,
   DollarSign,
   UserCheck,
-  RefreshCw,
+  PhoneCall,
   Search,
   ShieldAlert,
   Layers,
@@ -42,75 +42,24 @@ import {
   LayoutPanelTop,
   type LucideIcon,
 } from "lucide-react";
+import {
+  ENTITY_GROUPS,
+  FINANCIAL_ENTITY_TYPES,
+  DOCUMENT_ENTITY_TYPES,
+} from "@/lib/studio/entities";
 
 const ENTITY_ICONS: Record<EntityType, LucideIcon> = {
-  contact: Users,
-  product: Package,
-  invoice: FileSpreadsheet,
-  estimate: FileText,
-  sales_order: ShoppingCart,
-  purchase_order: ShoppingCart,
-  project: Briefcase,
-  crm_lead: Users,
-  expense: DollarSign,
-  bill: Receipt,
+  mf_client: Users,
+  mf_group: UsersRound,
+  mf_loan_application: FileText,
+  mf_loan: FileSpreadsheet,
+  mf_disbursement: Banknote,
+  mf_repayment: Receipt,
+  mf_collection_activity: PhoneCall,
+  mf_loan_product: HandCoins,
   employee: UserCheck,
-  credit_note: Receipt,
-  payment: DollarSign,
-  delivery_note: Package,
-  sales_return: ShoppingCart,
-  proforma_invoice: FileText,
-  recurring_invoice: RefreshCw,
-  stock_adjustment: Package,
+  expense: DollarSign,
 };
-
-interface EntityGroup {
-  label: string;
-  entities: EntityType[];
-}
-
-const ENTITY_GROUPS: EntityGroup[] = [
-  { label: "CRM", entities: ["contact", "crm_lead"] },
-  {
-    label: "Sales",
-    entities: [
-      "estimate",
-      "proforma_invoice",
-      "sales_order",
-      "invoice",
-      "recurring_invoice",
-      "delivery_note",
-      "sales_return",
-      "credit_note",
-    ],
-  },
-  {
-    label: "Purchasing",
-    entities: ["purchase_order", "bill", "expense", "payment"],
-  },
-  { label: "Inventory", entities: ["product", "stock_adjustment"] },
-  { label: "Operations", entities: ["project", "employee"] },
-];
-
-const FINANCIAL_ENTITY_TYPES = new Set<EntityType>([
-  "invoice",
-  "estimate",
-  "bill",
-  "expense",
-  "credit_note",
-  "payment",
-  "proforma_invoice",
-  "recurring_invoice",
-]);
-
-const DOCUMENT_ENTITY_TYPES = new Set<EntityType>([
-  "invoice",
-  "estimate",
-  "sales_order",
-  "purchase_order",
-  "bill",
-  "expense",
-]);
 
 type WorkbenchView = "catalog" | "document";
 
