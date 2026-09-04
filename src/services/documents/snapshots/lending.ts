@@ -55,6 +55,7 @@ interface LoanContext {
   officerName: string | null;
   balances: Row | null;
   schedule: Row[];
+  disbursement: Row | null;
 }
 
 async function loadLoanContext(
@@ -75,8 +76,16 @@ async function loadLoanContext(
   }
   const l = loan as Row;
 
-  const [clientRes, productRes, businessRes, branchRes, officerRes, balRes, schedRes] =
-    await Promise.all([
+  const [
+    clientRes,
+    productRes,
+    businessRes,
+    branchRes,
+    officerRes,
+    balRes,
+    schedRes,
+    disbRes,
+  ] = await Promise.all([
       l["client_id"]
         ? db.from("mf_clients").select("*").eq("id", l["client_id"] as string).maybeSingle()
         : Promise.resolve({ data: null }),
@@ -108,6 +117,12 @@ async function loadLoanContext(
         .select("*")
         .eq("loan_id", loanId)
         .order("installment_no", { ascending: true }),
+      db
+        .from("mf_loan_disbursements")
+        .select("*")
+        .eq("loan_id", loanId)
+        .is("reversed_at", null)
+        .maybeSingle(),
     ]);
 
   const officer = (officerRes?.data ?? null) as Row | null;
@@ -121,6 +136,7 @@ async function loadLoanContext(
     officerName: officer ? (str(officer["full_name"]) ?? str(officer["email"])) : null,
     balances: (balRes?.data ?? null) as Row | null,
     schedule: ((schedRes?.data ?? []) as Row[]),
+    disbursement: (disbRes?.data ?? null) as Row | null,
   };
 }
 
@@ -164,6 +180,12 @@ function termsBlock(ctx: LoanContext): Record<string, unknown> {
     penalty_rate: num(l["penalty_rate"]),
     penalty_basis: str(l["penalty_basis"]),
     fees: (l["fees"] as unknown) ?? null,
+    // Actual disbursement economics, server-recorded (never computed here).
+    fees_deducted: ctx.disbursement ? num(ctx.disbursement["fees_deducted"]) : null,
+    net_amount: ctx.disbursement ? num(ctx.disbursement["net_amount"]) : null,
+    fee_breakdown: (ctx.disbursement?.["fee_breakdown"] as unknown) ?? null,
+    disbursement_method: ctx.disbursement ? str(ctx.disbursement["method"]) : null,
+    disbursement_reference: ctx.disbursement ? str(ctx.disbursement["reference"]) : null,
     expected_disbursement_date: str(l["expected_disbursement_date"]),
     first_installment_date: str(l["first_installment_date"]),
     disbursed_at: str(l["disbursed_at"]),
