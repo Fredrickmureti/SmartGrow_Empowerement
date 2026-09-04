@@ -300,24 +300,30 @@ export default function AccountingEventsWorkspace() {
                     </TableCell>
                     <TableCell>{stateBadge(r.state)}</TableCell>
                     <TableCell className="text-xs">
-                      {health?.dead_at ? (
-                        <Badge variant="destructive">Dead-lettered</Badge>
-                      ) : (health?.attempts ?? 0) > 0 ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <AlertTriangle className="h-3 w-3" /> {health!.attempts} attempts
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-xs">
                       {r.journal_entry_id
                         ? <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Journal posted</Badge>
+                        : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Button size="sm" variant="secondary" onClick={() => setSelected(r)}>
+                        Review <ArrowRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
           </Table>
         </CardContent>
       </Card>
 
+      <EventDrawer
+        event={selected}
+        onClose={() => setSelected(null)}
+        currency={baseCurrency}
+      />
     </div>
+
   );
 }
 
