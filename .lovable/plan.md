@@ -99,16 +99,24 @@ bank reconciliation; penalty accrual raises charges and they show on the loan.
 ======================THIS WAS THE LAST MESSAG FROM THE AGENT BEFORE IT RUN OUT OF TIME=================
 
 
+Here's where things stand.
 
-This session I verified the previous agent's claims against the codebase and closed the loose ends it listed:
+Verified this session (against the live DB and code, not the previous agent's claims):
+- Officer data scope (M9.4) is genuinely in place: `mf_clients`, `mf_groups`, `mf_loan_applications`, `mf_loans`, `mf_repayments`, `mf_loan_schedule`, `mf_loan_charges` all read through `mf_officer_in_scope` / `mf_loan_in_scope`, and every `mf_*` view is `security_invoker`, so reports inherit the same scope.
+- Found and fixed a real regression: a later rewrite of `mf_post_event` had silently dropped the `loan_written_off` branch, so write-offs were recording an event but posting nothing to the ledger.
 
-- Verified: the penalty work (`mf_loan_charges`, `mf_loan_penalty_status`, `mf_accrue_penalties`, policy-ordered allocation in `mf_record_repayment`) genuinely exists in migrations and is wired into `useMfCollections`.
-- Penalties surfaced: `useMfLoanSchedule` now also reads the server view `mf_loan_penalty_status`, and the loan schedule dialog shows a "Penalty due" column per installment plus a charged/paid/outstanding charges list. No penalty math in React.
-- Branding: `BrandedLoader` now reads "Smart Grow Empowerment" with a growth mark instead of the AccrualFlow "A" logo.
-- Plan discipline: `.lovable/plan.md` rewritten clean (pasted prompt noise removed) with M9.1–M9.3 recorded as complete; `roadmap.md` updated to match.
+Shipped (migration applied, linter unchanged at the inherited 2021 baseline — no new findings):
+- Write-off accounting restored in `mf_post_event`.
+- New `mf_reverse_disbursement(disbursement_id, reason)`: row-locked, owner/admin/branch-manager only, reason required, refused if any non-reversed receipt or open charge exists or if the loan settled a predecessor; reverses the original journal via `reverse_journal_entry_atomic`, restores the schedule shift, returns the loan to `pending_disbursement` and the application to `approved`.
+- `mf_reverse_repayment` now takes `FOR UPDATE` (no concurrent double reversal).
+- `mf_group_members` reads now follow the group's officer scope.
+- UI wiring: `reverseDisbursement` mutation in `useMfLoans`, a "Reverse disbursement" action in `LoanLifecycleDialog`, and the button on active loans in `LoansPage`.
 
-Remaining, in order, for the next session: M9.4 officer data scope across clients/loans/repayments/reports, M9.5 reversal and duplicate-prevention checks on disbursement and repayment, M9.6 the deferred inherited linter posture, plus your signed-in preview verification pass (the sandbox can't authenticate against the external Supabase project). I also did not run a build/typecheck after the last edits — worth confirming the build log is clean before continuing.
-
+Remaining (next session, in order):
+1. Run the build/typecheck — the last three file edits (hook + dialog + page) were written but not yet compiled; the reversal RPC also needs to appear in the regenerated Supabase types.
+2. Update `.lovable/plan.md`: M9.4 verified complete, M9.5 complete except the typecheck gate, and record the write-off posting regression as fixed.
+3. M9.6 — the deferred inherited linter posture (~2,021 pre-existing findings).
+4. Your signed-in preview verification pass (the sandbox can't authenticate against the external Supabase project): write off one loan and confirm the journal now posts, and reverse one disbursement.
 
 
 =============
