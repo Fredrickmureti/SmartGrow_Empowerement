@@ -1,12 +1,11 @@
 /**
  * ReconcileTransactionSheet — enterprise side-rail replacement for the
  * legacy `ReconcileTransactionDialog` modal. Presents the same match
- * surface (Invoices / Bills / Expenses / Journal) inside the shared
+ * surface (Recorded / Expenses / Journal) inside the shared
  * `DetailSheet` primitive from `@/design-system` so users never lose
  * page context while matching a bank transaction.
  *
  * Behaviour ported verbatim from the legacy dialog:
- *  - Multi-select allocation for invoices and bills
  *  - Amount-matched expense picker (RadioGroup)
  *  - Manual / Create Journal Entry against a chosen offset account
  *  - Same `onReconcile` contract, unchanged permission gates
@@ -32,8 +31,6 @@ import {
   FooterActionBar,
   ActionBar,
 } from "@/design-system";
-import { useInvoices } from "@/hooks/useInvoices";
-import { useBills } from "@/hooks/useBills";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
@@ -105,8 +102,6 @@ export function ReconcileTransactionSheet({
 }: ReconcileTransactionSheetProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMatch, setSelectedMatch] = useState<{ type: string; id: string } | null>(null);
-  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
-  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [selectedRecordedId, setSelectedRecordedId] = useState<string | null>(null);
   const [chosenCandidateIndex, setChosenCandidateIndex] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -116,8 +111,6 @@ export function ReconcileTransactionSheet({
   const [abnormalAcknowledged, setAbnormalAcknowledged] = useState(false);
   const [activeTab, setActiveTab] = useState<string | null>(null);
 
-  const { invoices } = useInvoices();
-  const { bills } = useBills();
   const { expenses } = useExpenses();
   const { accounts: glAccounts } = useAccounts();
   const { accounts: bankAccounts } = useBankAccounts();
@@ -225,23 +218,7 @@ export function ReconcileTransactionSheet({
         ) ?? null
       : null;
 
-  const matchingInvoices =
-    invoices?.filter((inv) => {
-      const remaining = inv.total - (inv.amount_paid || 0);
-      const matchesSearch =
-        inv.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        inv.contact?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesSearch && remaining > 0;
-    }) || [];
 
-  const matchingBills =
-    bills?.filter((bill) => {
-      const remaining = bill.total - (bill.amount_paid || 0);
-      const matchesSearch =
-        bill.bill_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        bill.vendor?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesSearch && remaining > 0;
-    }) || [];
 
   const matchingExpenses =
     expenses?.filter((exp) => {
@@ -250,60 +227,13 @@ export function ReconcileTransactionSheet({
       return matchesSearch && matchesAmount;
     }) || [];
 
-  const selectedInvoiceTotal = matchingInvoices
 
-    .filter((inv) => selectedInvoiceIds.includes(inv.id))
-    .reduce((sum, inv) => sum + Math.min(inv.total - (inv.amount_paid || 0), transactionAmount), 0);
 
-  const selectedBillTotal = matchingBills
-    .filter((b) => selectedBillIds.includes(b.id))
-    .reduce((sum, b) => sum + Math.min(b.total - (b.amount_paid || 0), transactionAmount), 0);
 
-  /**
-   * Spread the bank line across the chosen documents, oldest first, never
-   * beyond what each still owes and never beyond the line itself. If the
-   * documents do not add up to the line, the seam refuses the match — the
-   * client does not paper over the difference.
-   */
-  const allocationsFor = (
-    docs: Array<{ id: string; total: number; amount_paid?: number | null }>,
-    ids: string[],
-    kind: "invoice" | "bill",
-  ) => {
-    let remainingLine = transactionAmount;
-    return docs
-      .filter((d) => ids.includes(d.id))
-      .map((d) => {
-        const open = d.total - (d.amount_paid || 0);
-        const amount = Math.min(open, remainingLine);
-        remainingLine -= amount;
-        return { document_type: kind, document_id: d.id, amount };
-      })
-      .filter((a) => a.amount > 0);
-  };
 
-  const toggleInvoiceSelection = (invoiceId: string) => {
-    setSelectedInvoiceIds((prev) =>
-      prev.includes(invoiceId) ? prev.filter((id) => id !== invoiceId) : [...prev, invoiceId],
-    );
-    setSelectedMatch(null);
-    setChosenCandidateIndex(null);
-    setSelectedRecordedId(null);
-  };
-
-  const toggleBillSelection = (billId: string) => {
-    setSelectedBillIds((prev) =>
-      prev.includes(billId) ? prev.filter((id) => id !== billId) : [...prev, billId],
-    );
-    setSelectedMatch(null);
-    setChosenCandidateIndex(null);
-    setSelectedRecordedId(null);
-  };
 
   const toggleRecordedSelection = (id: string) => {
     setSelectedRecordedId((prev) => (prev === id ? null : id));
-    setSelectedInvoiceIds([]);
-    setSelectedBillIds([]);
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
   };
@@ -318,8 +248,6 @@ export function ReconcileTransactionSheet({
 
   const close = () => {
     onOpenChange(false);
-    setSelectedInvoiceIds([]);
-    setSelectedBillIds([]);
     setSelectedRecordedId(null);
     setSelectedMatch(null);
     setChosenCandidateIndex(null);
@@ -380,21 +308,6 @@ export function ReconcileTransactionSheet({
       return;
     }
 
-    if (selectedInvoiceIds.length > 0) {
-      await submit({
-        reconciled_type: "invoice",
-        allocations: allocationsFor(matchingInvoices, selectedInvoiceIds, "invoice"),
-      });
-      return;
-    }
-
-    if (selectedBillIds.length > 0) {
-      await submit({
-        reconciled_type: "bill",
-        allocations: allocationsFor(matchingBills, selectedBillIds, "bill"),
-      });
-      return;
-    }
 
     if (selectedMatch?.type === "manual") {
       if (!offsetAccountId || isHoldingOffset) return;
@@ -418,9 +331,7 @@ export function ReconcileTransactionSheet({
   const hasSelection =
     chosenCandidateIndex !== null ||
     selectedMatch ||
-    selectedRecordedId !== null ||
-    selectedInvoiceIds.length > 0 ||
-    selectedBillIds.length > 0;
+    selectedRecordedId !== null;
   const isManualIncomplete =
     selectedMatch?.type === "manual" &&
     (!offsetAccountId ||
@@ -434,12 +345,7 @@ export function ReconcileTransactionSheet({
    * operator learns it here rather than from a raw error after pressing
    * Reconcile.
    */
-  const documentsBalanceLine =
-    selectedInvoiceIds.length > 0
-      ? Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
-      : selectedBillIds.length > 0
-        ? Math.abs(selectedBillTotal - transactionAmount) < 0.01
-        : true;
+  const documentsBalanceLine = true;
 
   return (
     <DetailSheet
@@ -545,8 +451,6 @@ export function ReconcileTransactionSheet({
                         type="button"
                         onClick={() => {
                           setChosenCandidateIndex(isChosen ? null : idx);
-                          setSelectedInvoiceIds([]);
-                          setSelectedBillIds([]);
                           setSelectedMatch(null);
                         }}
                         className={cn(
@@ -662,7 +566,7 @@ export function ReconcileTransactionSheet({
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search invoices, bills, or expenses…"
+            placeholder="Search recorded payments or expenses…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -670,21 +574,13 @@ export function ReconcileTransactionSheet({
         </div>
 
         <Tabs
-          value={activeTab ?? (isCredit ? "invoices" : "bills")}
+          value={activeTab ?? (isCredit ? "recorded" : "expenses")}
           onValueChange={setActiveTab}
         >
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="recorded" className="gap-1.5">
               <Banknote className="h-3.5 w-3.5" />
               Recorded
-            </TabsTrigger>
-            <TabsTrigger value="invoices" disabled={!isCredit} className="gap-1.5">
-              <FileText className="h-3.5 w-3.5" />
-              Invoices
-            </TabsTrigger>
-            <TabsTrigger value="bills" disabled={isCredit} className="gap-1.5">
-              <Receipt className="h-3.5 w-3.5" />
-              Bills
             </TabsTrigger>
             <TabsTrigger value="expenses" disabled={isCredit} className="gap-1.5">
               <CreditCard className="h-3.5 w-3.5" />
@@ -761,180 +657,7 @@ export function ReconcileTransactionSheet({
             )}
           </TabsContent>
 
-          <TabsContent value="invoices" className="mt-4">
-            {clearableCandidates.length > 0 && (
-              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                <p className="text-xs text-muted-foreground">
-                  A receipt of {formatTxn(transactionAmount)} is already recorded for this amount.
-                  Settling an invoice here records the money a second time — check the{" "}
-                  <button
-                    type="button"
-                    className="font-medium underline"
-                    onClick={() => setActiveTab("recorded")}
-                  >
-                    Recorded
-                  </button>{" "}
-                  tab first.
-                </p>
-              </div>
-            )}
-            <p className="mb-3 text-xs text-muted-foreground">
-              The selected invoices must add up to {formatTxn(transactionAmount)} — the bank line is
-              settled in full or not at all.
-            </p>
-            {selectedInvoiceIds.length > 0 && (
-              <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
-                <span className="text-xs font-medium">
-                  {selectedInvoiceIds.length} selected • Total: {formatTxn(selectedInvoiceTotal)}
-                </span>
-                <Badge
-                  variant={Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
-                  className="text-xs"
-                >
-                  {Math.abs(selectedInvoiceTotal - transactionAmount) < 0.01
-                    ? "Exact match"
-                    : `Diff: ${formatTxn(transactionAmount - selectedInvoiceTotal)}`}
-                </Badge>
-              </div>
-            )}
-            {matchingInvoices.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No matching invoices found</p>
-            ) : (
-              <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
-                {matchingInvoices.map((invoice) => {
-                  const remaining = invoice.total - (invoice.amount_paid || 0);
-                  const sameCurrency = currencyMatches((invoice as any).currency);
-                  const isExactMatch =
-                    sameCurrency && Math.abs(remaining - transactionAmount) < 0.01;
-                  const isSelected = selectedInvoiceIds.includes(invoice.id);
-                  return (
-                    <Label
-                      key={invoice.id}
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg border p-3",
-                        sameCurrency
-                          ? "cursor-pointer hover:bg-muted/50"
-                          : "cursor-not-allowed opacity-60",
-                        isSelected && "border-primary bg-primary/5",
-                      )}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (!sameCurrency) return;
-                        toggleInvoiceSelection(invoice.id);
-                      }}
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Checkbox checked={isSelected} disabled={!sameCurrency} />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">{invoice.invoice_number}</span>
-                            {isExactMatch && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                                Exact
-                              </Badge>
-                            )}
-                            {!sameCurrency && (
-                              <Badge variant="outline" className="text-xs">
-                                {(invoice as any).currency ?? "No currency"} — cannot settle a{" "}
-                                {txnCurrency ?? "—"} line
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {invoice.contact?.name} • Due {formatDate(invoice.due_date)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">
-                          {formatDocumentAmount(remaining, (invoice as any).currency)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Outstanding</p>
-                      </div>
-                    </Label>
-                  );
-                })}
 
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="bills" className="mt-4">
-            {selectedBillIds.length > 0 && (
-              <div className="mb-3 flex items-center justify-between rounded-md border bg-primary/5 p-2">
-                <span className="text-xs font-medium">
-                  {selectedBillIds.length} selected • Total: {formatTxn(selectedBillTotal)}
-                </span>
-                <Badge
-                  variant={Math.abs(selectedBillTotal - transactionAmount) < 0.01 ? "default" : "secondary"}
-                  className="text-xs"
-                >
-                  {Math.abs(selectedBillTotal - transactionAmount) < 0.01
-                    ? "Exact match"
-                    : `Diff: ${formatTxn(transactionAmount - selectedBillTotal)}`}
-                </Badge>
-              </div>
-            )}
-            {matchingBills.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No matching bills found</p>
-            ) : (
-              <div className="max-h-[45vh] space-y-2 overflow-y-auto pr-1">
-                {matchingBills.map((bill) => {
-                  const remaining = bill.total - (bill.amount_paid || 0);
-                  const sameCurrency = currencyMatches((bill as any).currency);
-                  const isExactMatch =
-                    sameCurrency && Math.abs(remaining - transactionAmount) < 0.01;
-                  const isSelected = selectedBillIds.includes(bill.id);
-                  return (
-                    <Label
-                      key={bill.id}
-                      className={cn(
-                        "flex items-center justify-between gap-3 rounded-lg border p-3",
-                        sameCurrency
-                          ? "cursor-pointer hover:bg-muted/50"
-                          : "cursor-not-allowed opacity-60",
-                        isSelected && "border-primary bg-primary/5",
-                      )}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (!sameCurrency) return;
-                        toggleBillSelection(bill.id);
-                      }}
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <Checkbox checked={isSelected} disabled={!sameCurrency} />
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">{bill.bill_number}</span>
-                            {isExactMatch && (
-                              <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                                Exact
-                              </Badge>
-                            )}
-                            {!sameCurrency && (
-                              <Badge variant="outline" className="text-xs">
-                                {(bill as any).currency ?? "No currency"} — cannot settle a{" "}
-                                {txnCurrency ?? "—"} line
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {bill.vendor?.name} • Due {formatDate(bill.due_date)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-sm font-medium tabular-nums">
-                          {formatDocumentAmount(remaining, (bill as any).currency)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">Outstanding</p>
-                      </div>
-                    </Label>
-                  );
-                })}
-              </div>
-            )}
           </TabsContent>
 
           <TabsContent value="expenses" className="mt-4">
