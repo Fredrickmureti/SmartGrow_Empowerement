@@ -29,11 +29,18 @@ import { useBranches } from "@/hooks/useBranches";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
 import {
   MF_CLIENT_STATUSES,
+  MF_KYC_COLUMN,
   nextClientNumber,
+  removeKycImage,
+  uploadKycImage,
   type MfClient,
   type MfClientInput,
   type MfClientStatus,
+  type MfKycKind,
 } from "@/hooks/useMfClients";
+import { toast } from "sonner";
+import { Separator } from "@/components/ui/separator";
+import { KycCaptureField, type KycPending } from "./KycCaptureField";
 
 const UNASSIGNED = "__unassigned__";
 
@@ -42,7 +49,7 @@ interface ClientFormDialogProps {
   onOpenChange: (open: boolean) => void;
   client: MfClient | null;
   existingClients: Array<{ client_number: string }>;
-  onCreate: (input: MfClientInput) => Promise<void>;
+  onCreate: (input: MfClientInput) => Promise<MfClient>;
   onUpdate: (id: string, patch: Partial<MfClientInput>) => Promise<void>;
 }
 
@@ -101,10 +108,15 @@ export function ClientFormDialog({
   const { branches } = useBranches();
   const { members } = useOrgMembers();
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [images, setImages] = useState<Partial<Record<MfKycKind, KycPending>>>({});
   const [saving, setSaving] = useState(false);
+
+  const setImage = (kind: MfKycKind) => (next: KycPending) =>
+    setImages((prev) => ({ ...prev, [kind]: next }));
 
   useEffect(() => {
     if (!open) return;
+    setImages({});
     if (client) {
       setForm({
         client_number: client.client_number,
@@ -168,12 +180,35 @@ export function ClientFormDialog({
         status: form.status,
         notes: orNull(form.notes),
       };
-      if (client) {
-        await onUpdate(client.id, payload);
-      } else {
-        await onCreate(payload);
+      const saved = client
+        ? { id: client.id, business_id: client.business_id }
+        : await onCreate(payload);
+      if (client) await onUpdate(client.id, payload);
+
+      // KYC images: upload new captures, clear removed ones, then patch paths.
+      const pathPatch: Partial<MfClientInput> = {};
+      for (const [kind, pending] of Object.entries(images) as [MfKycKind, KycPending][]) {
+        if (pending === undefined) continue;
+        const column = MF_KYC_COLUMN[kind] as keyof MfClientInput;
+        const stored = client?.[MF_KYC_COLUMN[kind]] as string | null | undefined;
+        if (pending === null) {
+          if (stored) await removeKycImage(stored).catch(() => undefined);
+          (pathPatch as Record<string, unknown>)[column] = null;
+        } else {
+          (pathPatch as Record<string, unknown>)[column] = await uploadKycImage(
+            saved.business_id,
+            saved.id,
+            kind,
+            pending,
+          );
+        }
+      }
+      if (Object.keys(pathPatch).length > 0) {
+        await onUpdate(saved.id, pathPatch);
       }
       onOpenChange(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not save the client's photos");
     } finally {
       setSaving(false);
     }
@@ -190,31 +225,65 @@ export function ClientFormDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="grid gap-4 sm:grid-cols-[9rem_1fr]">
+          <KycCaptureField
+            label="Client photo"
+            hint="Passport-style photo"
+            frame="portrait"
+            storedPath={client?.photo_path ?? null}
+            pending={images.photo}
+            onChange={setImage("photo")}
+          />
+          <div className="grid content-start gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="client_number">Client number</Label>
+              <Input
+                id="client_number"
+                value={form.client_number}
+                onChange={(e) => set("client_number", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="full_name">Full name</Label>
+              <Input
+                id="full_name"
+                value={form.full_name}
+                onChange={(e) => set("full_name", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="national_id">National ID</Label>
+              <Input
+                id="national_id"
+                value={form.national_id}
+                onChange={(e) => set("national_id", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="client_number">Client number</Label>
-            <Input
-              id="client_number"
-              value={form.client_number}
-              onChange={(e) => set("client_number", e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="full_name">Full name</Label>
-            <Input
-              id="full_name"
-              value={form.full_name}
-              onChange={(e) => set("full_name", e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="national_id">National ID</Label>
-            <Input
-              id="national_id"
-              value={form.national_id}
-              onChange={(e) => set("national_id", e.target.value)}
-            />
-          </div>
+          <KycCaptureField
+            label="ID card — front"
+            hint="Front side of the national ID"
+            frame="card"
+            storedPath={client?.id_front_path ?? null}
+            pending={images.id_front}
+            onChange={setImage("id_front")}
+          />
+          <KycCaptureField
+            label="ID card — back"
+            hint="Back side of the national ID"
+            frame="card"
+            storedPath={client?.id_back_path ?? null}
+            pending={images.id_back}
+            onChange={setImage("id_back")}
+          />
+        </div>
+
+        <Separator />
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="date_of_birth">Date of birth</Label>
             <Input
@@ -303,6 +372,26 @@ export function ClientFormDialog({
               id="next_of_kin_phone"
               value={form.next_of_kin_phone}
               onChange={(e) => set("next_of_kin_phone", e.target.value)}
+            />
+          </div>
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+            <KycCaptureField
+              label="Kin ID — front"
+              optional
+              hint="Front of the next of kin's ID"
+              frame="card"
+              storedPath={client?.kin_id_front_path ?? null}
+              pending={images.kin_id_front}
+              onChange={setImage("kin_id_front")}
+            />
+            <KycCaptureField
+              label="Kin ID — back"
+              optional
+              hint="Back of the next of kin's ID"
+              frame="card"
+              storedPath={client?.kin_id_back_path ?? null}
+              pending={images.kin_id_back}
+              onChange={setImage("kin_id_back")}
             />
           </div>
           <div className="space-y-1.5">
