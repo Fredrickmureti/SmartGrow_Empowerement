@@ -177,8 +177,6 @@ export default function FiscalPeriodDetail() {
     { label: "Profit & Loss", icon: TrendingUp, href: `/finance/reports/financial?report=pl&date_from=${period.start_date}&date_to=${period.end_date}` },
     { label: "Balance Sheet", icon: DollarSign, href: `/finance/reports/financial?report=bs&date_to=${period.end_date}` },
     { label: "Cash Flow", icon: Wallet, href: `/finance/reports/cash-flow?date_from=${period.start_date}&date_to=${period.end_date}` },
-    { label: "AR Aging", icon: FileText, href: `/finance/reports/aging?type=receivable&as_of=${period.end_date}` },
-    { label: "AP Aging", icon: Receipt, href: `/finance/reports/aging?type=payable&as_of=${period.end_date}` },
     { label: "Journal Report", icon: BookOpen, href: `/finance/reports/journal-report?date_from=${period.start_date}&date_to=${period.end_date}` },
   ];
 
@@ -539,9 +537,6 @@ export default function FiscalPeriodDetail() {
                       {formatCurrency(subledger.arOverdue)}
                     </span>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/finance/reports/aging?type=receivable&as_of=${period.end_date}`)}>
-                    View AR Aging <ExternalLink className="h-3 w-3 ml-1" />
-                  </Button>
                 </CardContent>
               </Card>
 
@@ -567,9 +562,6 @@ export default function FiscalPeriodDetail() {
                       {formatCurrency(subledger.apOverdue)}
                     </span>
                   </div>
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/finance/reports/aging?type=payable&as_of=${period.end_date}`)}>
-                    View AP Aging <ExternalLink className="h-3 w-3 ml-1" />
-                  </Button>
                 </CardContent>
               </Card>
             </div>

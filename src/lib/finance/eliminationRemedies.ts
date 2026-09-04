@@ -121,7 +121,7 @@ export function remedyLink(
     case "run_member_fx_revaluation":
       // The member named in the message owns the unrecognised difference; the
       // revaluation screen is scoped by the company switcher.
-      return `/finance/reports/fx-revaluation`;
+      return null;
     case "review_intercompany":
       return `/finance/reports/intercompany`;
     case "review_intercompany_partners":
