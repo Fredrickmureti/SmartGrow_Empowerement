@@ -52,7 +52,6 @@ const FinancialReports = lazy(() => import("@/pages/reports/FinancialReports"));
 const TrialBalance = lazy(() => import("@/pages/reports/TrialBalance"));
 const GeneralLedger = lazy(() => import("@/pages/reports/GeneralLedger"));
 const ManagementReports = lazy(() => import("@/pages/reports/ManagementReports"));
-const Reports = lazy(() => import("@/pages/Reports"));
 const JournalReport = lazy(() => import("@/pages/reports/JournalReport"));
 // Analytic accounting reports (Phase 5 consumers).
 
