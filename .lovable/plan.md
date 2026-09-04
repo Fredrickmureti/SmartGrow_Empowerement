@@ -115,6 +115,33 @@ server-side data, company-info injection, shared PDF path. No new engine.
 - Update this file after each milestone; keep it short and factual.
 
 ## Progress log (latest first)
+### 2026-09-04 — M5 step 1 DONE: sales/AR chain dropped from the database.
+Dropped tables: invoices, invoice_items, invoice_additional_costs, credit_notes,
+credit_note_items, credit_note_applications, estimates, estimate_items,
+estimate_additional_costs, estimate_status_events, proforma_invoices,
+proforma_invoice_items, customer_credit_balances, customer_credit_movements,
+customer_refunds, customer_statements, customer_statement_send_jobs,
+dunning_levels, ar_disputes, ar_promises_to_pay. Dropped views:
+finance_ar_open_items, finance_ar_net_position(_by_currency),
+finance_open_items_tieout, finance_ar_customer_credit, customer_credit_tieout,
+customer_ledger_entries, ar_subledger_entries, v_invoice_creditable_qty,
+v_sales_return_settlement, v_sales_returnable_qty. Detached retained tables by
+dropping their invoice/estimate/credit-note FK columns (payments,
+payment_allocations, mpesa_c2b_transactions, transactions, delivery_notes,
+sales_orders, sales_returns, sales_return_items, recurring_invoice_runs) — none
+of those columns were read by app code.
+Also removed the dead `bill_payment` bank-match kind from
+`useBankMatchCandidates` (left over from the supplier-clearing branch deletion).
+Post-state: 299 public tables, 44 views. Typecheck clean, `GET /` → 200.
+Next in M5: purchasing chain (bills, bill_items, bill_payments +
+allocations/matching/reversal events, vendor credits/refunds/statements and the
+vendor_* views), then CRM `contacts`, projects, cost layers,
+backorders/carriers, then `payments`/`payment_allocations` (ERP customer
+receipts — nothing in the microfinance flow writes them; confirm the three
+remaining readers first: `useGovernedEntityOptions`,
+`useClearableRecordedPayments`, `useFiscalPeriodDetail`).
+Linter note: the 2,011 findings are inherited AccrualFlow posture, not caused by
+this migration. They stay deferred to M8, scoped to retained schema only.
 ### 2026-09-04 — M4 closed: `useDefaultAccounts` trimmed to institution roles;
 all ERP mapping getters removed with zero remaining callers.
 ### 2026-09-04 — journal books + default-account config retargeted; orphaned
@@ -127,30 +154,5 @@ residue re-verified from the codebase.
 project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` writer.
 ### 2026-09-04 — sales pricing engine removed; report catalogue microfinance-only.
 
-
-
-THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
-===================================================
-
-
-
-I'll start by checking what actually exists — the plan file, the codebase, and the connected database state — before deciding anything.
-
-Paused before the database change landed — here's exactly where things stand.
-
-Backend connection: your app is already wired to the `Smart Grow Empowerment` project (`xwxqunklduknceoryrha`); nothing needed connecting.
-
-Verified this session (no assumptions carried over):
-- 31 `mf_*` lending tables live, lending app in place, report catalogue microfinance-only.
-- 19 dead ERP table groups still in the database; M5 is genuinely where the previous engineer stopped.
-- Zero live app code reads any of those ERP tables — only edge-function branches that run for ERP document types.
-
-Code changes made (M5 steps 1–2, build was green before the DB step):
-- Deleted orphaned sales/AR code: `ContactPreviewDrawer`, `services/finance/openItems.ts`, `aging.ts`, `createCreditNote.ts`, `useAgingReport.ts`, and the two AR/AP tests; trimmed three architecture tests accordingly.
-- `useClearableRecordedPayments` + `ReconcileTransactionSheet`: removed the supplier bill-payment clearing branch (money-out now reconciles via Expenses / account offset / transfer). This was the only blocker to dropping the purchasing chain.
-
-Migration attempt failed (not applied): Postgres rejected the migration with `cannot drop column invoice_id of table payment_allocations because other objects depend on it` — the ERP views `finance_ar_open_items`, `finance_ar_net_position`, `finance_ar_net_position_by_currency`, `finance_open_items_tieout` sit on that column. The whole migration rolled back; the database is unchanged.
-
-Exact next step (one small fix, then re-run): prepend `DROP VIEW IF EXISTS public.finance_open_items_tieout, public.finance_ar_net_position_by_currency, public.finance_ar_net_position, public.finance_ar_open_items CASCADE;` to the same migration and re-apply. Then verify object counts, run the typecheck, and update `.lovable/plan.md` to record M5 as done and log the decision that `payments`/`payment_allocations` (customer receipts) are the next candidate group since nothing in the microfinance flow writes to them.
 
 After that, M6–M9 in the plan remain untouched as scoped.
