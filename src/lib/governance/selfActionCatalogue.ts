@@ -13,8 +13,6 @@
  */
 
 export type SelfActionEntityType =
-  | "bill"
-  | "bill_payment"
   | "payment"
   | "journal_entry"
   | "expense"
@@ -37,23 +35,7 @@ export interface SelfActionEntry {
 }
 
 export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
-  // Finance — institution payables and cash movements
-  {
-    key: "bill.approve",
-    module: "Finance",
-    label: "Approve own bill",
-    description: "Approve an institution bill recorded by the approver.",
-    entityType: "bill",
-    subjectMode: "actor",
-  },
-  {
-    key: "bill_payment.approve",
-    module: "Finance",
-    label: "Approve own bill payment",
-    description: "Approve a bill payment recorded by the approver.",
-    entityType: "bill_payment",
-    subjectMode: "actor",
-  },
+  // Finance — institution cash movements
   {
     key: "payment.approve",
     module: "Finance",
@@ -126,8 +108,6 @@ export type SelfActionMode = (typeof SELF_ACTION_MODES)[number]["value"];
 
 /** Human label for an entity type — used in picker placeholders and hints. */
 export const ENTITY_TYPE_LABELS: Record<SelfActionEntityType, string> = {
-  bill: "institution bill",
-  bill_payment: "bill payment",
   payment: "payment",
   journal_entry: "journal entry",
   expense: "expense",
@@ -139,8 +119,6 @@ export const ENTITY_TYPE_LABELS: Record<SelfActionEntityType, string> = {
  * Matches the values the database triggers test against in `governance_assert_not_self`.
  */
 export const ENTITY_TYPE_DB_KEY: Record<SelfActionEntityType, string> = {
-  bill: "bill",
-  bill_payment: "bill_payment",
   payment: "payment",
   journal_entry: "journal_entry",
   expense: "expense",

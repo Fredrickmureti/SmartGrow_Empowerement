@@ -515,16 +515,14 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
       const priorNetIncome = priorRevenue - priorExpenses;
       const currentNetIncome = revenue - expenses;
 
-      // AR/AP summaries
-      const arData = arResult.data || [];
-      const arTotal = arData.reduce((s: number, inv: any) => s + (Number(inv.total) || 0), 0);
-      const arOverdueData = arOverdueResult.data || [];
-      const arOverdue = arOverdueData.reduce((s: number, inv: any) => s + (Number(inv.total) || 0), 0);
-      
-      const apData = apResult.data || [];
-      const apTotal = apData.reduce((s: number, b: any) => s + (Number(b.total) || 0), 0);
-      const apOverdueData = apOverdueResult.data || [];
-      const apOverdue = apOverdueData.reduce((s: number, b: any) => s + (Number(b.total) || 0), 0);
+      // Loan portfolio summary — server-derived balances, never recomputed here.
+      const portfolioRows = ((portfolioResult.data as any[]) || []);
+      const portfolioOutstanding = portfolioRows.reduce(
+        (s: number, r: any) => s + (Number(r.total_outstanding) || 0), 0);
+      const portfolioOverdue = portfolioRows.reduce(
+        (s: number, r: any) => s + (Number(r.amount_overdue) || 0), 0);
+      const portfolioOverdueCount = portfolioRows.filter(
+        (r: any) => (Number(r.amount_overdue) || 0) > 0).length;
 
       // Budget comparison — consumed verbatim from the authoritative report.
       // Variance is favourable-positive and already sign-corrected in SQL.
@@ -546,8 +544,6 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
 
       // Close readiness
       const unpostedJE = draftJEResult.count || 0;
-      const draftInv = draftInvoicesResult.count || 0;
-      const draftBill = draftBillsResult.count || 0;
       const unreconciledBank = unreconciledResult.count || 0;
       const depUnposted = depUnpostedResult.count || 0;
       const debitCreditDiff = Math.abs(totalDebits - totalCredits);
@@ -556,8 +552,7 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
       const closeItems: CloseReadinessItem[] = [
         { key: "unposted_je", label: "Unposted Journal Entries", count: unpostedJE, severity: "blocker", resolveLink: `/finance/journal-entries?status=draft` },
         { key: "debit_credit", label: "Debit/Credit Imbalance", count: isBalanced ? 0 : 1, severity: "blocker" },
-        { key: "draft_invoices", label: "Draft Invoices", count: draftInv, severity: "warning", resolveLink: `/finance/invoices?status=draft` },
-        { key: "draft_bills", label: "Draft Bills", count: draftBill, severity: "warning", resolveLink: `/finance/bills?status=draft` },
+        { key: "loans_in_arrears", label: "Loans in Arrears", count: portfolioOverdueCount, severity: "warning", resolveLink: `/lending/collections` },
         { key: "unreconciled_bank", label: "Unreconciled Bank Transactions", count: unreconciledBank, severity: "warning", resolveLink: `/finance/reconciliation` },
         { key: "unposted_dep", label: "Unposted Depreciation", count: depUnposted, severity: "warning", resolveLink: `/finance/fixed-assets` },
       ];
@@ -586,10 +581,8 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         transactionCounts: {
           postedJournalEntries: postedJEResult.count || 0,
           draftJournalEntries: unpostedJE,
-          invoices: invoicesResult.count || 0,
-          draftInvoices: draftInv,
-          bills: billsResult.count || 0,
-          draftBills: draftBill,
+          disbursements: disbursementsResult.count || 0,
+          repayments: repaymentsResult.count || 0,
           payments: paymentsResult.count || 0,
           expenses: expensesResult.count || 0,
         },
@@ -601,13 +594,11 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           allClear: blockers === 0 && warnings === 0,
           healthScore,
         },
-        subledger: {
-          arTotal,
-          apTotal,
-          arOverdue,
-          apOverdue,
-          arCount: arResult.count || 0,
-          apCount: apResult.count || 0,
+        portfolio: {
+          outstanding: portfolioOutstanding,
+          overdue: portfolioOverdue,
+          loanCount: portfolioRows.length,
+          overdueLoanCount: portfolioOverdueCount,
         },
         budgetComparison,
         assetSummary: {
@@ -697,13 +688,12 @@ function emptyDetail(): Omit<FiscalPeriodDetailData, "period"> {
     topAccounts: [],
     transactionCounts: {
       postedJournalEntries: 0, draftJournalEntries: 0,
-      invoices: 0, draftInvoices: 0,
-      bills: 0, draftBills: 0,
+      disbursements: 0, repayments: 0,
       payments: 0, expenses: 0,
     },
     recentEntries: [],
     closeReadiness: { items: [], blockers: 0, warnings: 0, allClear: true, healthScore: 100 },
-    subledger: { arTotal: 0, apTotal: 0, arOverdue: 0, apOverdue: 0, arCount: 0, apCount: 0 },
+    portfolio: { outstanding: 0, overdue: 0, loanCount: 0, overdueLoanCount: 0 },
     budgetComparison: [],
     assetSummary: { additions: 0, disposals: 0, depreciationPosted: 0, depreciationUnposted: 0 },
     priorPeriod: { priorRevenue: 0, priorExpenses: 0, priorNetIncome: 0, revenueChange: 0, expenseChange: 0, netIncomeChange: 0 },
