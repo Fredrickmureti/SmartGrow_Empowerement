@@ -8,7 +8,7 @@
  *
  *   1. Module-aware  — useInstalledApps()
  *   2. Role/perm-aware — usePermissions() + useDashboardScope()
- *   3. Data-aware    — useDashboardStats() / useBankAccounts() emptiness
+ *   3. Data-aware    — useBankAccounts() emptiness
  *
  * Returns flat booleans. Callers render `{flags.showX ? <X /> : null}`,
  * keeping the JSX trivially auditable.
@@ -18,7 +18,6 @@ import { useInstalledApps } from "@/hooks/useInstalledApps";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useDashboardScope } from "@/hooks/useDashboardScope";
 import { useBankAccounts } from "@/hooks/useBankAccounts";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
@@ -105,7 +104,7 @@ export interface DashboardComposition {
   // Data-state signals
   isNewTenant: boolean;
   setupGaps: Array<
-    "bank" | "customers" | "invoices" | "products" | "coa" | "employees"
+    "bank" | "customers" | "products" | "coa" | "employees"
   >;
 
   /** Role preset derived from permissions. */
@@ -123,7 +122,6 @@ export function useDashboardComposition(): DashboardComposition {
   const perms = usePermissions();
   const scope = useDashboardScope();
   const { accounts: bankAccounts, isLoading: bankLoading } = useBankAccounts();
-  const { stats } = useDashboardStats();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
 
@@ -172,13 +170,11 @@ export function useDashboardComposition(): DashboardComposition {
 
     const activeAccounts = (bankAccounts ?? []).filter((a: any) => a.is_active);
     const hasAnyBank = activeAccounts.length > 0;
-    const hasAnyInvoices = (stats?.outstandingCount ?? 0) > 0 || (stats?.totalRevenue ?? 0) > 0;
 
     const setupGaps: DashboardComposition["setupGaps"] = [];
     if (hasFinance && !bankLoading && !hasAnyBank) setupGaps.push("bank");
     if (hasFinance && (coaCount ?? 1) === 0) setupGaps.push("coa");
     if (hasContacts && (customersCount ?? 1) === 0) setupGaps.push("customers");
-    if (hasSales && !hasAnyInvoices) setupGaps.push("invoices");
     if (hasInventory && (productsCount ?? 1) === 0) setupGaps.push("products");
     if (hasHR && (employeesCount ?? 1) === 0) setupGaps.push("employees");
 
@@ -271,7 +267,7 @@ export function useDashboardComposition(): DashboardComposition {
       showPendingApprovals: hasHR || hasFinance || hasPurchases,
       showBranchComparison: scope.kind === "all_branches" && scope.isConsolidatedAuthorized,
       showExecutive: scope.isExecutiveAuthorized,
-      showAIInsights: hasAnyInvoices || hasAnyBank,
+      showAIInsights: hasAnyBank,
       showPayrollSummary: hasHR && (employeesCount ?? 0) > 0,
       showUpcomingDeadlines: hasSales || hasPurchases || hasHR || hasFinance,
 
@@ -281,7 +277,7 @@ export function useDashboardComposition(): DashboardComposition {
       allowsWidget: (id) => allowed.has(id),
     };
   }, [
-    isInstalled, perms, scope, bankAccounts, bankLoading, stats,
+    isInstalled, perms, scope, bankAccounts, bankLoading,
     customersCount, productsCount, coaCount, employeesCount,
   ]);
 }
