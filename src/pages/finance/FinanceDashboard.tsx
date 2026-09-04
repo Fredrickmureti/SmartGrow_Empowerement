@@ -21,22 +21,12 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
 import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
 import { fetchGLTotals, type GLTotals } from "@/services/gl/fetchGLTotals";
-import {
-  fetchARSummary,
-  fetchAPSummary,
-  EMPTY_OPEN_ITEMS_SUMMARY,
-} from "@/services/finance/openItems";
-import { arSummaryKey, apSummaryKey } from "@/hooks/finance/useOpenItemsSummary";
 import { queryKeys } from "@/lib/queryKeys";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from "date-fns";
 
 type PeriodFilter = "month" | "quarter" | "year" | "all";
 
-interface StatusCount {
-  status: string;
-  count: number;
-}
 
 export default function FinanceDashboard() {
   const navigate = useNavigate();
@@ -80,37 +70,6 @@ export default function FinanceDashboard() {
     staleTime: 30_000,
   });
 
-  // Invoice status counts via lightweight RPC (branch-scoped)
-  const { data: invoiceCounts = [], isLoading: invLoading } = useQuery({
-    queryKey: ["invoice-status-counts", orgId, businessId, branchId] as const,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_invoice_status_counts", {
-        _org_id: orgId,
-        _business_id: businessId,
-        _branch_id: branchId,
-      } as any);
-      if (error) throw error;
-      return (data || []) as StatusCount[];
-    },
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
-
-  // Bill status counts via lightweight RPC (branch-scoped)
-  const { data: billCounts = [], isLoading: billsLoading } = useQuery({
-    queryKey: ["bill-status-counts", orgId, businessId, branchId] as const,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_bill_status_counts", {
-        _org_id: orgId,
-        _business_id: businessId,
-        _branch_id: branchId,
-      } as any);
-      if (error) throw error;
-      return (data || []) as StatusCount[];
-    },
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
 
   // JE status counts — branch-scoped lightweight head-only count queries
   const { data: jeCounts = { draft: 0, posted: 0, total: 0 }, isLoading: jeLoading } = useQuery({
@@ -147,48 +106,20 @@ export default function FinanceDashboard() {
     staleTime: 30_000,
   });
 
-  // Canonical AR/AP — GL-gated open items (same engine as the AR/AP
-  // workspaces, ageing report and control-account reconciliation).
-  const { data: arSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: arLoading } = useQuery({
-    queryKey: arSummaryKey(orgId, businessId, branchId),
-    queryFn: () => fetchARSummary(orgId, businessId, branchId),
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
-  const { data: apSummary = EMPTY_OPEN_ITEMS_SUMMARY, isLoading: apLoading } = useQuery({
-    queryKey: apSummaryKey(orgId, businessId, branchId),
-    queryFn: () => fetchAPSummary(orgId, businessId, branchId),
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
-
-  const isLoading = invLoading || billsLoading || bankLoading || jeLoading || glLoading || arLoading || apLoading;
-
+  const isLoading = bankLoading || jeLoading || glLoading;
 
   // Query keys for RefreshButton (branch-scoped)
   const refreshKeys = useMemo(() => [
     [...queryKeys.glTotals.range(orgId, businessId, dateFrom, dateTo), branchId] as const,
-    ["invoice-status-counts", orgId, businessId, branchId] as const,
-    ["bill-status-counts", orgId, businessId, branchId] as const,
     ["je-status-counts", orgId, businessId, branchId] as const,
     ['bank-accounts', orgId] as const,
-    arSummaryKey(orgId, businessId, branchId),
-    apSummaryKey(orgId, businessId, branchId),
   ], [orgId, businessId, branchId, dateFrom, dateTo]);
 
   const periodRevenue = glData.revenue;
   const periodExpenses = glData.expenses;
   const netPL = glData.netProfit;
 
-  // Helper to get count from status counts array
-  const getCount = (counts: StatusCount[], ...statuses: string[]) =>
-    counts.filter(c => statuses.includes(c.status)).reduce((s, c) => s + c.count, 0);
 
-  // Document-pipeline counts (operational, NOT accounting).
-  const draftInvoiceCount = getCount(invoiceCounts, "draft");
-  const overdueInvoiceCount = getCount(invoiceCounts, "overdue");
-  const draftBillCount = getCount(billCounts, "draft");
-  const overdueBillCount = getCount(billCounts, "overdue");
 
 
   // Bank stats

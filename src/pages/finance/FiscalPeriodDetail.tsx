@@ -333,10 +333,9 @@ export default function FiscalPeriodDetail() {
                   {[
                     { label: "Posted JEs", value: transactionCounts.postedJournalEntries, icon: BookOpen, link: `/finance/journal-entries?dateFrom=${period.start_date}&dateTo=${period.end_date}&status=posted` },
                     { label: "Draft JEs", value: transactionCounts.draftJournalEntries, icon: BookOpen, variant: "warning" as const, link: `/finance/journal-entries?status=draft` },
-                    { label: "Invoices", value: transactionCounts.invoices, icon: FileText, link: `/finance/invoices` },
-                    { label: "Draft Invoices", value: transactionCounts.draftInvoices, icon: FileText, variant: "warning" as const },
                     { label: "Bills", value: transactionCounts.bills, icon: Receipt, link: `/finance/bills` },
                     { label: "Draft Bills", value: transactionCounts.draftBills, icon: Receipt, variant: "warning" as const },
+
                     { label: "Payments", value: transactionCounts.payments, icon: CreditCard, link: `/finance/payments` },
                     { label: "Expenses", value: transactionCounts.expenses, icon: Wallet, link: `/finance/expenses` },
                   ].map((item) => (
@@ -524,7 +523,7 @@ export default function FiscalPeriodDetail() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Open Invoices</span>
+                    <span className="text-sm">Open Items</span>
                     <span className="font-semibold text-sm">{subledger.arCount}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
