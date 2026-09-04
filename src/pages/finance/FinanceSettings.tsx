@@ -28,7 +28,6 @@ import { AccountingIntegrityCard } from "@/components/finance/AccountingIntegrit
 import { FinanceAccountingControls } from "@/components/finance/FinanceAccountingControls";
 import { DefaultAccountsConfig } from "@/components/finance/DefaultAccountsConfig";
 import { BranchReadOnlyBanner } from "@/components/finance/BranchReadOnlyBanner";
-import { ConsolidationGroupsSettings } from "@/components/settings/ConsolidationGroupsSettings";
 import {
   Collapsible,
   CollapsibleContent,
@@ -196,16 +195,6 @@ export default function FinanceSettings() {
         >
           <DefaultAccountsConfig />
         </SettingsSection>
-
-        {/* Consolidation group structure (Brick 1). Configuration only. */}
-        <SettingsSection
-          id="consolidation"
-          title="Consolidation groups"
-          description="Group structure, group chart of accounts and member account mapping."
-        >
-          <ConsolidationGroupsSettings />
-        </SettingsSection>
-
 
         {/* Only after the company context has settled — a company that is
             still loading is NOT "no company selected". */}
