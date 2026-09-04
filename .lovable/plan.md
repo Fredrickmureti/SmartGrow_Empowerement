@@ -69,12 +69,24 @@ Remove the leftovers the catalogue work left behind:
   resolve to a routed page whose data source is `mf_*`, GL, banking, fixed assets
   or audit. Anything else is deleted, not adapted.
 
-### M3 — Statements & settlement retargeting completion
-Confirm (and finish where partial) that the reused settlement engine speaks
+### M3 — Statements & settlement retargeting completion — DONE 2026-09-04
+Verified: the reused settlement engine speaks
 microfinance: statements are **client/loan statements**, not customer invoices;
 receipts cite loan + installment allocation; the settlement path used by
-repayments is the shared engine, not a lending-local copy. No sales vocabulary in
-labels, templates or report titles.
+repayments is the shared engine, not a lending-local copy.
+
+Findings: statements are the lending **Client Statement** report
+(`src/apps/lending/reports/ClientStatementReport.tsx`); no customer-statement
+surface is routed. Receipts project loan, schedule and
+`mf_repayment_allocations` (installment_no + component) via
+`src/services/documents/snapshots/lending.ts`, computing nothing client-side.
+Every repayment write goes through one server RPC, `mf_record_repayment`
+(reversal via `mf_reverse_repayment`) — there is no lending-local settlement
+copy. Residual Customer/Vendor Credits + Customer Statements route comments in
+`src/apps/finance/routes.tsx` removed; finance and lending navs contain no
+sales vocabulary. Typecheck clean.
+
+### Next: M4 — dead ERP table groups.
 
 ### M4 — Dead ERP table groups (DB slimming, continued)
 One migration per group, FK-ordered, code references deleted in the same step:
