@@ -20,9 +20,9 @@ describe("parseQuery", () => {
   });
 
   it("scopes to actions on `>` prefix", () => {
-    const p = parseQuery("> create invoice");
+    const p = parseQuery("> create loan");
     expect(p.kindScope).toBe("action");
-    expect(p.text).toBe("create invoice");
+    expect(p.text).toBe("create loan");
   });
 
   it("scopes to records on `#` prefix", () => {
@@ -51,10 +51,10 @@ describe("parseQuery", () => {
   });
 
   it("does not hint when the alias has no tail", () => {
-    const p = parseQuery("invoice");
+    const p = parseQuery("client");
     expect(p.kindScope).toBeNull();
     expect(p.providerScope).toBeNull();
-    expect(p.text).toBe("invoice");
+    expect(p.text).toBe("client");
   });
 
   it("ignores unknown leading words", () => {
