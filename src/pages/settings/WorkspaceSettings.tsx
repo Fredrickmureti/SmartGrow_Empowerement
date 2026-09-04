@@ -56,11 +56,9 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 
-import { OrgDataResetTool } from "@/components/settings/OrgDataResetTool";
 import { SelfActionPolicy } from "@/components/settings/SelfActionPolicy";
 import { GovernanceModeCard } from "@/components/settings/GovernanceModeCard";
 import { BlockedAttemptsQueue } from "@/components/settings/BlockedAttemptsQueue";
-import { ResetWorkspaceDialog } from "@/components/settings/ResetWorkspaceDialog";
 import { BrandedLoader } from "@/components/common/BrandedLoader";
 import { ThemeSettings } from "@/components/settings/ThemeSettings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -435,8 +433,6 @@ export default function WorkspaceSettings() {
             </Card>
 
 
-            <OrgDataResetTool />
-            <ResetWorkspaceDialog />
           </TabsContent>
         </Tabs>
       </div>
