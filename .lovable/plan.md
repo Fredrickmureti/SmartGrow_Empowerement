@@ -137,20 +137,13 @@ protection. Nothing in the domain blocks on it; one fix per migration.
 ==========THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
 
 
+M9.7 (loan fees) is complete and typechecks clean: product versions publish real fees, the disburse dialog previews server-computed fee lines and net cash, loan document snapshots carry `fees_deducted`/`net_amount`/`fee_breakdown`, and the Disbursements report shows principal, fees and net.
 
-I paused mid-way through the fee UI work. Here's where things stand:
-
-Done in this pass
-- `src/hooks/useMfLoanProducts.ts`: `MfProductFee` now uses the canonical server field names (`name`, `basis`, `value`, `collection`) that `mf_compute_loan_fees` reads, plus label/option constants for the editor.
-- `src/apps/lending/products/ProductVersionDialog.tsx`: fee imports, a `FeeDraft` type, `fees` in form state / `EMPTY` / `NEW_FEE`, and seeding of existing fees from the version in force.
-
-Still open (M9.7 UI)
-1. Product version dialog: fee validation (name required, value ≥ 0), publish real `fees` instead of `fees: []` (line ~197), and the fee editor rows in the form (name, basis, value, collection, add/remove).
-2. `DisburseDialog.tsx`: show gross principal, fee lines and net cash payable using a server fee preview (`mf_compute_loan_fees`), no client math.
-3. Disbursement/receipt documents: surface `fees_deducted`, `net_amount`, `fee_breakdown` in `src/services/documents/snapshots/lending.ts` (there is no separate disbursement-confirmation document kind — the loan agreement/statement prints carry it).
-4. Types/hook exposure for the new disbursement columns.
-
-No migration is pending, and the intermediate edits are safe to build on — the dialog still publishes an empty fee list until step 1 lands, so no product carries a fee yet.
+Remaining for M10 (report catalogue cleanup), not yet started:
+- Remove the FX report family from `reportsNav.ts` and the three `fx-*` entries from `ReportRegistry.ts`, plus their routes in `src/apps/finance/routes.tsx`, the `FxRevaluationReport` page and the `useFxRevaluation`/`useFxExposure`/`useFxRealized` hooks (database FX objects stay untouched).
+- Drop the dead `hr`/`sales`/`purchases`/`inventory`/`pos`/`projects`/`crm` domains and the unused `inventory`/`tax`/`budget` category classifications and path-prefix maps.
+- Register the four built-but-unregistered lending reports (`officer-collections`, `par-aging`, `product-performance`, `client-exposure`) and add a lending family to the reports nav.
+- Update `src/test/architecture/reporting-workspace.test.ts` and `reporting-isolation-matrix.test.ts` to the new domain/category set, then re-run typecheck and tests.
 
 
 =============
