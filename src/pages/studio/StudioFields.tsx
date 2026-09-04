@@ -79,7 +79,7 @@ export default function StudioFields() {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (isEntityType(stored ?? undefined)) return stored as EntityType;
     }
-    return "contact";
+    return "mf_client";
   }, [paramEntity]);
 
   const [selectedEntity, setSelectedEntity] = useState<EntityType>(initialEntity);
