@@ -123,6 +123,17 @@ server-side data, company-info injection, shared PDF path. No new engine.
 
 ## Progress log (latest first)
 
+### 2026-09-04 — fiscal-period close tooling retargeted to lending (finished the
+half-done pass that had left the tree failing typecheck). `useFiscalPeriodDetail`
+now counts disbursements (`mf_loan_disbursements`, non-reversed) and repayments
+(`mf_repayments`) instead of invoices/bills, and its AR/AP subledger block is
+replaced by a `portfolio` summary read from the server-derived `mf_loan_balances`
+view (outstanding, overdue, loan count, loans in arrears). Close-readiness flags
+loans in arrears instead of draft invoices/bills. `FiscalPeriodDetail.tsx`
+Subledgers tab is now a Portfolio tab; Transaction Activity shows
+Disbursements / Repayments linking into `/lending`. Typecheck clean, preview 200.
+Pre-existing architecture-test failures (13, all ERP-era guards) are unchanged and
+drop out with M4/M7.
 ### 2026-09-04 — M3 closed (see above). Next: M4 sales-chain migration.
 ### 2026-09-04 — plan reworked; report catalogue already microfinance-only
 (23 entries; categories lending, statutory, cash_bank, audit, management,
