@@ -98,7 +98,8 @@ export function GroupSheetDialog({
   // Pre-fill each line with the contractual amount due now, arrears first.
   useEffect(() => {
     if (rows.length === 0) {
-      setAmounts({});
+      // Skip the update when already empty so a no-op doesn't retrigger the loop.
+      setAmounts((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
     setAmounts(
