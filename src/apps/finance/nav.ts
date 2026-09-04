@@ -1,9 +1,8 @@
 /**
  * Finance workspace navigation — drives the PlatformShell sidebar.
  *
- * Operations = day-to-day workflow: loan receivables, institution payables,
- *               journals, and the cash/bank/mobile-money accounts lending
- *               disburses from and collects into.
+ * Operations = day-to-day workflow: journals and the cash/bank/mobile-money
+ *               accounts lending disburses from and collects into.
  * Insights   = the report center and statutory/management reports.
  * Setup      = chart of accounts, periods, budgets, assets, settings.
  */
@@ -37,8 +36,6 @@ export const FINANCE_NAV: WorkspaceNav = {
       label: "Operations",
       items: [
         { to: "/finance/dashboard", label: "Overview", icon: LayoutGrid, end: true },
-        { to: "/finance/receivables", label: "Loan receivables", icon: Receipt },
-        { to: "/finance/payables", label: "Institution payables", icon: FileText },
         { to: "/finance/journal-entries", label: "Journal entries", icon: BookOpen },
         { to: "/finance/banking", label: "Cash & bank accounts", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },

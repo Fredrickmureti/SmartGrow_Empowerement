@@ -292,70 +292,6 @@ export default function FinanceDashboard() {
           accountant/executive-only. */}
       {(composition.allowsWidget("finance.journals") || composition.allowsWidget("finance.bankBalances")) && (
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        {composition.allowsWidget("finance.journals") && (<>
-        {/* Customer Invoices Card */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-blue-500" onClick={() => navigate("/finance/receivables")}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Customer Invoices</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{formatCurrency(arSummary.totalResidual)}</div>
-            <p className="text-xs text-muted-foreground">
-              {arSummary.openDocumentCount} open · Source: General Ledger
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {draftInvoiceCount > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <Clock className="h-3 w-3 mr-1" />{draftInvoiceCount} draft
-                </Badge>
-              )}
-              {overdueInvoiceCount > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertCircle className="h-3 w-3 mr-1" />{overdueInvoiceCount} overdue
-                </Badge>
-              )}
-              {arSummary.unpostedDocumentCount > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertCircle className="h-3 w-3 mr-1" />{arSummary.unpostedDocumentCount} unposted
-                </Badge>
-              )}
-            </div>
-
-          </CardContent>
-        </Card>
-
-        {/* Vendor Bills Card */}
-        <Card className="cursor-pointer hover:shadow-md transition-shadow border-l-4 border-l-orange-500" onClick={() => navigate("/finance/payables")}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Vendor Bills</CardTitle>
-              <Receipt className="h-4 w-4 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-2xl font-bold text-primary">{formatCurrency(apSummary.totalResidual)}</div>
-            <p className="text-xs text-muted-foreground">
-              {apSummary.openDocumentCount} open · Source: General Ledger
-            </p>
-
-            <div className="flex flex-wrap gap-1.5">
-              {draftBillCount > 0 && (
-                <Badge variant="outline" className="text-xs">
-                  <Clock className="h-3 w-3 mr-1" />{draftBillCount} draft
-                </Badge>
-              )}
-              {overdueBillCount > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  <AlertCircle className="h-3 w-3 mr-1" />{overdueBillCount} overdue
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-        </>)}
 
         {composition.allowsWidget("finance.bankBalances") && (
         /* Bank Card — visible to operations too. */
@@ -414,12 +350,6 @@ export default function FinanceDashboard() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/finance/receivables")}>
-              <Wallet className="h-3 w-3 mr-1" /> Receive Payment <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate("/finance/payables")}>
-              <CreditCard className="h-3 w-3 mr-1" /> Pay Bill <ArrowRight className="h-3 w-3 ml-1" />
-            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate("/finance/business-transactions/new?type=owner_investment")}>
               <PiggyBank className="h-3 w-3 mr-1" /> Owner Investment
             </Button>
