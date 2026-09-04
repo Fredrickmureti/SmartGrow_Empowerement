@@ -58,18 +58,18 @@ Known residue (scoped into milestones below, not open questions):
 
 ## Milestones — one at a time, verified before the next
 
-### M1 — Owner verification pass (next)
+### M1 — Owner verification pass (open, runs in parallel)
 The sandbox cannot mint a session against the external Supabase project, so the
 owner confirms in the preview: `/lending` and children open; dashboard KPIs and PAR
 render; one lending report, one client statement, one repayment receipt and one
-disbursement confirmation render through the shared document engine. Anything
-broken here is fixed before M2.
+disbursement confirmation render through the shared document engine.
 
-### M2 — FX surface purge (code only, ~1 pass)
-Delete the FX hooks, their remaining call sites and the FX-only architecture test;
-keep `exchange_rates` and currency plumbing (documents + GL depend on it). Period
-close and accounting controls keep their non-FX behaviour. Confirm no registry
-entry, nav item or search result mentions FX. Typecheck.
+### M2 — Report catalogue retargeting — DONE
+Registry is microfinance-only (23 entries): lending, statutory, cash_bank, audit,
+management, fixed_assets. FX, aged AR/AP, inventory, HR, POS families removed from
+the catalogue, nav and search. FX *code* purge is tracked as M7.
+
+
 
 ### M3 — Money-in/money-out retargeting — DONE (2026-09-04)
 Verified from the codebase: the home launcher (`QuickStats`) and `pages/Dashboard.tsx`
