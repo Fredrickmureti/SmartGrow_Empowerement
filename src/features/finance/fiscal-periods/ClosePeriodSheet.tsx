@@ -1,7 +1,7 @@
 /**
  * ClosePeriodSheet — confirmation surface for locking a fiscal period.
  * Replaces the inline `<Dialog>` on `FiscalPeriods.tsx`; runs the same
- * readiness query (unposted JEs + draft invoices in range) and calls
+ * readiness query (unposted journal entries in range) and calls
  * the same `close_fiscal_period` RPC via `useFiscalPeriods`.
  */
 import { useQuery } from "@tanstack/react-query";
