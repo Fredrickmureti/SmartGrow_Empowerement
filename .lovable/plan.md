@@ -68,50 +68,20 @@ mapping (Lending → Configuration → Accounting), no account UUIDs in code.
 
 ## Milestones remaining, in order
 
-### M9.7 — Loan fees, UI completion (next)
-1. Fee editor in the product version dialog: name, percent/flat, value,
-   deducted-at-disbursement vs added-to-first-installment; publish real `fees`.
-2. Disbursement dialog: gross principal, fee lines, net cash payable, before
-   confirm.
-3. Disbursement confirmation document + repayment receipt: show fee breakdown
-   and net amount (existing document engine, no new renderer).
-4. Types/hook updates for the new disbursement columns
-   (`fees_deducted`, `net_amount`, `fee_breakdown`).
-No new DB migration expected; no client-side fee math.
+### M9.7 — Loan fees — DONE (verified 2026-09-04)
+Fee editor publishes real `fees` on product versions; disbursement dialog shows
+gross / fee lines / net cash; disbursement carries `fees_deducted`,
+`net_amount`, `fee_breakdown`; documents show the fee breakdown. No client-side
+fee math.
 
-### M10 — Reporting catalogue is microfinance-only
-Verified orphans in the shared registry/nav:
-- **FX family is ERP forex, not microfinance.** `REPORT_FAMILIES` key `fx`
-  (`src/services/reports/reportsNav.ts`) plus registry ids `fx-revaluation`,
-  `fx-exposure`, `fx-realized`, their routes in `src/apps/finance/routes.tsx`,
-  pages `src/pages/reports/FxRevaluationReport.tsx`,
-  `FxExposureReport.tsx` and the `useFx*` report hooks → remove from the
-  catalogue, nav and routes. Leave `fx_*` DB objects and the period-close
-  reference in `ClosePeriodSheet.tsx` untouched (single-currency institution;
-  do not touch accounting).
-- **Dead classification surface.** `ReportCategory` still carries `inventory`;
-  `ReportDomain` still carries `hr, sales, purchases, inventory, pos, projects,
-  crm`; `DOMAIN_BY_CATEGORY` maps receivables→sales, payables→purchases,
-  inventory→inventory; `DOMAIN_BY_PATH_PREFIX` still lists `/hr/reports`,
-  `/pos/reports`, `/projects-app/reports`, `/crm/reports`; `paths.inventory`
-  dual-mount and `REPORT_DOMAIN_LABELS` carry the same ERP names → reduce to
-  `finance` + `lending` and delete the ERP entries and labels.
-- **Four lending reports are unregistered** (invisible to the command palette,
-  Report Center, favorites and access logging): `officer-collections`,
-  `par-aging`, `product-performance`, `client-exposure` — routed in
-  `src/apps/lending/nav.ts` but absent from `REPORT_REGISTRY`. Register them
-  with `domain: "lending"`, `permission: "viewLendingReports"`.
-- Add a `lending` report family (portfolio, arrears/PAR, collections,
-  disbursements, client statement, officer & branch collections, PAR aging,
-  product performance, client exposure) so `/reports` shows the microfinance
-  catalogue, not a finance-only one.
-- Re-point `aged-receivables` / `aged-payables`: keep only if they read
-  retained finance data; otherwise drop from the catalogue in the same pass.
-- Update the architecture tests that assert the old categories/domains
-  (`src/test/architecture/reports-routing-parity.test.ts`,
-  `reporting-isolation-matrix.test.ts`,
-  `cash-banking-category-coherence.test.ts`).
-UI/registry only — no DB migration, no page rewrites.
+### M10 — Reporting catalogue is microfinance-only — DONE (verified 2026-09-04)
+FX family and ERP domains/categories removed from the registry, nav and routes;
+the four lending reports registered under `domain: "lending"`; `/reports` shows
+the lending catalogue. DB objects untouched.
+
+### M10.5 — ERP copy sweep — DONE (2026-09-04)
+Auth surfaces retargeted: login hero (was "Invoicing, inventory, payroll and
+point of sale") and signup company step now use microfinance language.
 
 ### M11 — Owner verification pass (preview only)
 Authenticated checks cannot run from the sandbox (external Supabase). Sign in
