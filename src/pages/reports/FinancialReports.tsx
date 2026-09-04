@@ -26,7 +26,6 @@ import { format, startOfYear, endOfMonth, subYears, startOfMonth, startOfQuarter
 import { useFinancialReport, type FinancialReportAccount } from "@/hooks/useFinancialReport";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useInvoiceIntegrityCheck } from "@/hooks/useInvoiceValidation";
 import { ReportPageLayout } from "@/components/reports/ReportPageLayout";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { ReportFilters } from "@/components/reports/ReportFilters";
@@ -186,8 +185,6 @@ function FinancialReportsInner() {
 
   const { baseCurrency, isReady: currencyReady } = useCurrency();
   const { currentOrg } = useOrganization();
-  const { data: integrityReport } = useInvoiceIntegrityCheck();
-
   const comparison = getComparisonDates(comparisonMode, dateFrom, dateTo);
   const showComparison = comparisonMode !== "none";
 
@@ -646,42 +643,6 @@ function FinancialReportsInner() {
         dateFrom={activeTab === "pnl" ? dateFrom : undefined}
         dateTo={dateTo}
       />
-
-      {/* Data Integrity Warnings */}
-      {integrityReport?.hasIssues && (
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-              <div className="space-y-2">
-                <h3 className="font-semibold text-destructive">Data Integrity Issues Detected</h3>
-                <p className="text-sm text-muted-foreground">
-                  {integrityReport.issueCount} issue{integrityReport.issueCount !== 1 ? 's' : ''} found 
-                  affecting {fmt(integrityReport.totalAffectedAmount)} in invoice data. 
-                  These issues may impact report accuracy.
-                </p>
-                <details className="text-sm">
-                  <summary className="cursor-pointer text-destructive hover:underline">
-                    View Issues ({integrityReport.issueCount})
-                  </summary>
-                  <div className="mt-2 space-y-1 ml-4">
-                    {integrityReport.issues.slice(0, 5).map((issue, index) => (
-                      <div key={index} className="text-xs text-muted-foreground">
-                        • {issue.description}
-                      </div>
-                    ))}
-                    {integrityReport.issues.length > 5 && (
-                      <div className="text-xs text-muted-foreground italic">
-                        ...and {integrityReport.issues.length - 5} more issues
-                      </div>
-                    )}
-                  </div>
-                </details>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
