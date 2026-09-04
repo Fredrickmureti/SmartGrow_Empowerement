@@ -21,22 +21,12 @@ import { FinanceScopeBadge } from "@/components/finance/FinanceScopeBadge";
 import { useDashboardComposition } from "@/hooks/useDashboardComposition";
 import { DashboardSetupGuide } from "@/components/dashboard/DashboardSetupGuide";
 import { fetchGLTotals, type GLTotals } from "@/services/gl/fetchGLTotals";
-import {
-  fetchARSummary,
-  fetchAPSummary,
-  EMPTY_OPEN_ITEMS_SUMMARY,
-} from "@/services/finance/openItems";
-import { arSummaryKey, apSummaryKey } from "@/hooks/finance/useOpenItemsSummary";
 import { queryKeys } from "@/lib/queryKeys";
 import { RefreshButton } from "@/components/ui/RefreshButton";
 import { startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from "date-fns";
 
 type PeriodFilter = "month" | "quarter" | "year" | "all";
 
-interface StatusCount {
-  status: string;
-  count: number;
-}
 
 export default function FinanceDashboard() {
   const navigate = useNavigate();
