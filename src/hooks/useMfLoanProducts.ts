@@ -62,15 +62,37 @@ export const MF_PENALTY_BASES: MfPenaltyBasis[] = [
   "outstanding_balance",
 ];
 
-/** A product fee as configured on a version. Charged by the C6 engine. */
+/**
+ * A product fee as configured on a version. Field names mirror exactly what
+ * `mf_compute_loan_fees` reads, so the server resolves the amounts and the
+ * browser never computes a fee.
+ */
 export interface MfProductFee {
   name: string;
-  /** Percentage of the disbursed principal, or a flat amount. */
+  /** Percentage of the loan principal, or a flat amount. */
   basis: "percent_of_principal" | "fixed";
   value: number;
-  /** When the fee is charged. */
-  timing: "on_disbursement" | "on_first_installment";
+  /** How the fee is collected. */
+  collection: "deducted_from_disbursement" | "added_to_first_installment";
 }
+
+export const MF_FEE_BASES: MfProductFee["basis"][] = ["percent_of_principal", "fixed"];
+
+export const MF_FEE_BASIS_LABELS: Record<MfProductFee["basis"], string> = {
+  percent_of_principal: "% of principal",
+  fixed: "Flat amount",
+};
+
+export const MF_FEE_COLLECTIONS: MfProductFee["collection"][] = [
+  "deducted_from_disbursement",
+  "added_to_first_installment",
+];
+
+export const MF_FEE_COLLECTION_LABELS: Record<MfProductFee["collection"], string> = {
+  deducted_from_disbursement: "Deducted from disbursement",
+  added_to_first_installment: "Added to first installment",
+};
+
 
 /** Eligibility rules evaluated at application time (C5). */
 export interface MfProductEligibility {
