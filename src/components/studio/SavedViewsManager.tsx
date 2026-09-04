@@ -75,25 +75,18 @@ const VIEW_TYPE_ICONS: Record<ViewType, React.ReactNode> = {
 };
 
 const ENTITY_ICONS: Record<EntityType, React.ReactNode> = {
-  contact: <Users className="h-4 w-4" />,
-  product: <Package className="h-4 w-4" />,
-  invoice: <FileSpreadsheet className="h-4 w-4" />,
-  estimate: <FileText className="h-4 w-4" />,
-  sales_order: <ShoppingCart className="h-4 w-4" />,
-  purchase_order: <ShoppingCart className="h-4 w-4" />,
-  project: <Briefcase className="h-4 w-4" />,
-  crm_lead: <Users className="h-4 w-4" />,
-  expense: <DollarSign className="h-4 w-4" />,
-  bill: <Receipt className="h-4 w-4" />,
+  mf_client: <Users className="h-4 w-4" />,
+  mf_group: <Users className="h-4 w-4" />,
+  mf_loan_application: <FileText className="h-4 w-4" />,
+  mf_loan: <FileSpreadsheet className="h-4 w-4" />,
+  mf_disbursement: <DollarSign className="h-4 w-4" />,
+  mf_repayment: <Receipt className="h-4 w-4" />,
+  mf_collection_activity: <RefreshCw className="h-4 w-4" />,
+  mf_loan_product: <Package className="h-4 w-4" />,
   employee: <Users className="h-4 w-4" />,
-  credit_note: <Receipt className="h-4 w-4" />,
-  payment: <DollarSign className="h-4 w-4" />,
-  delivery_note: <Package className="h-4 w-4" />,
-  sales_return: <ShoppingCart className="h-4 w-4" />,
-  proforma_invoice: <FileText className="h-4 w-4" />,
-  recurring_invoice: <RefreshCw className="h-4 w-4" />,
-  stock_adjustment: <Package className="h-4 w-4" />,
+  expense: <DollarSign className="h-4 w-4" />,
 };
+
 
 function getDefaultConfigForType(viewType: ViewType): ViewConfig {
   switch (viewType) {
