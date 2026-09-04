@@ -315,59 +315,6 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
       };
     }
 
-    case "credit_note": {
-      // @ts-ignore
-      const { data, error } = await supabase
-        .from("credit_notes")
-        .select("*, contact:contacts(id, name)")
-        .eq("id", sourceId)
-        .single();
-      if (error || !data) throw new Error("Credit note not found");
-      return {
-        type: "credit_note",
-        title: `Credit Note #${data.credit_note_number}`,
-        subtitle: data.contact?.name,
-        status: data.status,
-        amount: data.total,
-        currency: data.currency,
-        date: data.issue_date,
-        details: [
-          { icon: Calendar, label: "Date", value: format(new Date(data.issue_date), "MMM d, yyyy") },
-          { icon: Building2, label: "Customer", value: data.contact?.name || "—" },
-          { icon: Hash, label: "Credit Note #", value: data.credit_note_number },
-          { icon: Tag, label: "Reason", value: data.reason || "—" },
-        ],
-        navigateTo: `/finance/customer-credits?id=${sourceId}`,
-      };
-    }
-
-    case "credit_application": {
-      // Credit applications don't have their own table - look up the journal entry
-      // @ts-ignore
-      const { data, error } = await supabase
-        .from("journal_entries")
-        .select("*")
-        .eq("source_type", "credit_application")
-        .eq("source_id", sourceId)
-        .maybeSingle();
-      
-      const je = data;
-      return {
-        type: "credit_application",
-        title: `Credit Application`,
-        subtitle: je?.reference || "",
-        status: "applied",
-        amount: 0,
-        date: je?.entry_date || new Date().toISOString(),
-        details: [
-          { icon: Calendar, label: "Date", value: je?.entry_date ? format(new Date(je.entry_date), "MMM d, yyyy") : "—" },
-          { icon: Hash, label: "Journal Entry", value: je?.entry_number || "—" },
-          { icon: FileText, label: "Description", value: je?.description || "—" },
-          { icon: Tag, label: "Reference", value: je?.reference || "—" },
-        ],
-        navigateTo: `/finance/customer-credits?id=${sourceId}`,
-      };
-    }
 
     case "migration": {
       // Migration Opening Balance — look up the journal entry directly
