@@ -31,7 +31,6 @@ const APP_PREFIXES: Array<[string, string]> = [
   ["/accounting", "accounting"],
   ["/finance", "accounting"],
   ["/reports", "reports"],
-  ["/projects", "projects"],
   ["/crm", "crm"],
   ["/contacts", "contacts"],
   ["/settings", "settings"],

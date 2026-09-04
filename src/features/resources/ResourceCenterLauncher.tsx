@@ -56,8 +56,6 @@ function inferAppFromPath(pathname: string): string | null {
     hr: "hr",
     employees: "employees",
     me: "me",
-    projects: "projects",
-    "projects-app": "projects",
     crm: "crm",
     reports: "reports",
     settings: "platform",

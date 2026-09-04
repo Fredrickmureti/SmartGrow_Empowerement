@@ -48,13 +48,6 @@ export type Permission =
   | "viewAttendance"       // View attendance records (HR/manager)
   | "manageAttendance"     // Edit/correct attendance records
   | "manageWorkSchedule"   // Configure working hours and schedules
-  // ERP Permissions - Projects
-  | "viewProjects"         // View projects and tasks
-  | "manageProjects"       // Create/edit projects, assign team
-  | "logTime"              // Log time against tasks
-  | "manageProjectFinancials"  // View/edit project costs, revenues, profitability; bill timesheets/milestones
-  | "approveProjectTimesheets" // Approve timesheets logged on projects
-  | "manageProjectConfig"      // Edit project templates, stages, billing rules
   // ERP Permissions - HR/Employee (Employees app)
   | "viewDirectory"        // View lightweight employee directory (name, photo, dept, title only)
   | "viewEmployees"        // Full employee admin access (HR Officer/Admin only)
@@ -262,13 +255,7 @@ const INTERNAL_BASE_PERMISSIONS: RolePermissionMap = {
   viewTimesheets: true,
   approveTimesheets: false,
   viewTeamTimesheets: false,
-  viewProjects: false,
-  manageProjects: false,
-  logTime: true,
   viewDirectory: true,
-  manageProjectFinancials: false,
-  approveProjectTimesheets: false,
-  manageProjectConfig: false,
   viewEmployees: false,
   manageEmployees: false,
   manageDepartments: false,
@@ -348,13 +335,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
     viewTimesheets: true,
     approveTimesheets: true,
     viewTeamTimesheets: true,
-    // ERP Permissions - Projects
-    viewProjects: true,
-    manageProjects: true,
-    logTime: true,
-    manageProjectFinancials: true,
-    approveProjectTimesheets: true,
-    manageProjectConfig: true,
     // ERP Permissions - HR
     viewDirectory: true,
     viewEmployees: true,
@@ -438,13 +418,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
     viewTimesheets: true,
     approveTimesheets: true,
     viewTeamTimesheets: true,
-    // ERP Permissions - Projects
-    viewProjects: true,
-    manageProjects: true,
-    logTime: true,
-    manageProjectFinancials: true,
-    approveProjectTimesheets: true,
-    manageProjectConfig: true,
     // ERP Permissions - HR
     viewDirectory: true,
     viewEmployees: true,
@@ -528,13 +501,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
     viewTimesheets: true,
     approveTimesheets: true,
     viewTeamTimesheets: true,
-    // ERP Permissions - Projects
-    viewProjects: true,
-    manageProjects: true,
-    logTime: true,
-    manageProjectFinancials: true,
-    approveProjectTimesheets: true,
-    manageProjectConfig: true,
     // ERP Permissions - HR
     viewDirectory: true,
     viewEmployees: true,
@@ -623,12 +589,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
     viewTimesheets: true,
     approveTimesheets: false,
     viewTeamTimesheets: false,
-    viewProjects: false,
-    manageProjects: false,
-    logTime: true,
-    manageProjectFinancials: false,
-    approveProjectTimesheets: false,
-    manageProjectConfig: false,
     viewDirectory: false,
     viewEmployees: false,
     manageEmployees: false,
@@ -717,7 +677,6 @@ export const PERMISSION_MODULES = [
   "recruitment",
   "timesheets",  // deprecated alias for attendance — kept for back-compat
   "hr",          // deprecated alias for employees — kept for back-compat
-  "projects",
   "payroll",
   "pos",
   "lending",
@@ -739,7 +698,6 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   recruitment: "Recruitment",
   timesheets: "Timesheets (legacy)",
   hr: "HR / Employees (legacy)",
-  projects: "Projects",
   payroll: "Payroll",
   pos: "Point of Sale",
   lending: "Lending (Microfinance)",
@@ -805,7 +763,6 @@ const MODULE_PERMISSION_MAP: Record<PermissionModule, {
   timesheets: { read: ["viewTimesheets", "viewTeamTimesheets", "viewAttendance"], create: ["manageAttendance", "manageWorkSchedule"], write: ["manageAttendance", "manageWorkSchedule"], delete: ["manageAttendance"], approve: ["approveTimesheets"] },
   // Deprecated: `hr` resolves to the same set as `employees`
   hr:         { read: ["viewDirectory", "viewEmployees", "viewEmployeePrivate", "viewEmployeePayroll"], create: ["manageEmployees", "manageDepartments", "manageEmployeeDocuments", "manageJobPositions", "manageWorkLocations"], write: ["manageEmployees", "manageDepartments", "manageEmployeeDocuments", "manageJobPositions", "manageWorkLocations"], delete: ["manageEmployees", "manageJobPositions", "manageWorkLocations"] },
-  projects:   { read: ["viewProjects"],   create: ["manageProjects", "logTime"], write: ["manageProjects"], delete: ["manageProjects"], approve: ["manageProjects"] },
   // Payroll app — granular SoD: create/run, approve, post-GL, pay (disburse), export are SEPARATE.
   // `managePayroll` is intentionally kept as a setup-only key (templates, mappings) NOT mapped
   // into any granular operation here — action surfaces must check the specific granular permission.
@@ -891,7 +848,7 @@ export function resolveEffectivePermissions(
     "voidTransactions","manageShifts","manageCashDrawer","applyDiscounts","viewPOSReports",
     "viewLeave","manageLeaveTypes","approveLeave","approveLeaveLevel2","viewTeamLeave","viewTimesheets",
     "approveTimesheets","viewTeamTimesheets","viewAttendance","manageAttendance",
-    "manageWorkSchedule","viewProjects","manageProjects","logTime","viewDirectory",
+    "manageWorkSchedule","viewDirectory",
     "viewEmployees","manageEmployees","manageEmployeeDocuments","manageDepartments",
     "viewEmployeePrivate","viewEmployeePayroll","manageJobPositions","manageWorkLocations",
     "viewPayroll","managePayroll","runPayroll","approvePayroll","postPayrollGL","payPayroll",

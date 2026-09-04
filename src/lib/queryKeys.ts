@@ -124,18 +124,6 @@ export const queryKeys = {
       ['leave-requests-pending', orgId] as const,
   },
   
-  // ========== Projects ==========
-  projects: {
-    all: (orgId: string) => ['projects', orgId] as const,
-    list: (orgId: string, businessId?: string | null) => 
-      ['projects', orgId, businessId] as const,
-    detail: (orgId: string, projectId: string) =>
-      ['project', orgId, projectId] as const,
-    stages: (projectId: string) =>
-      ['project-stages', projectId] as const,
-    milestones: (projectId: string) =>
-      ['project-milestones', projectId] as const,
-  },
   
   // ========== POS Transactions/Sales ==========
   sales: {

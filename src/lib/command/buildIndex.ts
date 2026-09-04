@@ -125,7 +125,7 @@ function buildActionEntries(): CommandEntry[] {
     // Map action category → most likely owning app for context boost.
     const appByCategory: Record<string, string> = {
       sales: "sales", purchases: "purchases", inventory: "inventory",
-      accounting: "finance", hr: "hr", projects: "projects",
+      accounting: "finance", hr: "hr",
       crm: "crm", contacts: "contacts",
     };
     const url = a.queryParams ? `${a.path}?${a.queryParams}` : a.path;
