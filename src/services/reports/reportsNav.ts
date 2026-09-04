@@ -28,9 +28,8 @@
 import {
   FileText,
   BookOpen,
-  Users,
   Wallet,
-  Coins,
+  HandCoins,
   Target,
   ShieldCheck,
   BarChart3,
@@ -51,6 +50,22 @@ export interface ReportFamily {
 /** The finance report catalogue, grouped by accounting family. */
 export const REPORT_FAMILIES: ReportFamily[] = [
   {
+    key: "lending",
+    label: "Lending & portfolio",
+    icon: HandCoins,
+    reportIds: [
+      "loan-portfolio",
+      "loan-arrears",
+      "par-aging",
+      "loan-collections",
+      "officer-collections",
+      "loan-disbursements",
+      "product-performance",
+      "client-exposure",
+      "client-statement",
+    ],
+  },
+  {
     key: "statements",
     label: "Financial statements",
     icon: FileText,
@@ -63,22 +78,10 @@ export const REPORT_FAMILIES: ReportFamily[] = [
     reportIds: ["trial-balance", "general-ledger", "journal-report"],
   },
   {
-    key: "subledgers",
-    label: "Receivables & payables",
-    icon: Users,
-    reportIds: ["aged-receivables", "aged-payables"],
-  },
-  {
     key: "cash",
     label: "Cash & banking",
     icon: Wallet,
     reportIds: ["cash-flow", "bank-reconciliation-report"],
-  },
-  {
-    key: "fx",
-    label: "Currency & FX",
-    icon: Coins,
-    reportIds: ["fx-revaluation", "fx-exposure", "fx-realized"],
   },
   {
     key: "planning",
@@ -105,6 +108,7 @@ export const REPORT_FAMILIES: ReportFamily[] = [
   },
 
 ];
+
 
 /** Finance-owned reports: routed under `/finance/reports/…`. */
 export function getFinanceReportDefinitions(): ReportDefinition[] {

@@ -21,15 +21,10 @@ import type { Permission } from "@/lib/permissions";
 export type ReportCategory =
   | "statutory"
   | "management"
-  | "receivables"
-  | "payables"
+  | "lending"
   | "cash_bank"
-  | "tax"
-  | "budget"
   | "fixed_assets"
-  | "inventory"
-  | "audit"
-  | "intelligence";
+  | "audit";
 
 /**
  * Reporting domains. A domain is the workspace a report belongs to — the set
@@ -37,24 +32,10 @@ export type ReportCategory =
  */
 export type ReportDomain =
   | "finance"
-  | "hr"
-  | "sales"
-  | "purchases"
-  | "inventory"
-  | "pos"
-  | "projects"
-  | "crm"
   | "lending";
 
 export const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   finance: "Finance",
-  hr: "People",
-  sales: "Sales",
-  purchases: "Purchases",
-  inventory: "Inventory",
-  pos: "Point of sale",
-  projects: "Projects",
-  crm: "CRM",
   lending: "Lending",
 };
 
@@ -110,30 +91,20 @@ export interface ReportDefinition {
 
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   statutory: "Financial Statements",
+  lending: "Lending & Portfolio",
   management: "Management & Analytics",
-  receivables: "Receivables",
-  payables: "Payables",
   cash_bank: "Cash & Banking",
-  tax: "Tax & Compliance",
-  budget: "Budget & Planning",
   fixed_assets: "Fixed Assets",
-  inventory: "Inventory & Stock",
   audit: "Audit & Compliance",
-  intelligence: "Business Intelligence",
 };
 
 export const REPORT_CATEGORY_ORDER: ReportCategory[] = [
+  "lending",
   "statutory",
-  "receivables",
-  "payables",
   "cash_bank",
   "audit",
-  "tax",
   "management",
-  "budget",
   "fixed_assets",
-  "inventory",
-  "intelligence",
 ];
 
 export const REPORT_REGISTRY: ReportDefinition[] = [
@@ -227,12 +198,12 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["cash", "flow", "cf", "operating", "investing", "financing"],
   },
 
-  // ─── Receivables ───
+  // ─── Lending & portfolio ───
   {
     id: "loan-portfolio",
     name: "Loan Portfolio",
     description: "Outstanding principal, interest and fees per loan",
-    category: "management",
+    category: "lending",
     path: "/lending/reports/portfolio",
     icon: HandCoins,
     permission: "viewReports",
@@ -244,7 +215,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     id: "loan-arrears",
     name: "Arrears & PAR",
     description: "Overdue installments, aging buckets and portfolio at risk",
-    category: "management",
+    category: "lending",
     path: "/lending/reports/arrears",
     icon: Clock,
     permission: "viewReports",
@@ -256,7 +227,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     id: "loan-collections",
     name: "Collections",
     description: "Repayments received in the selected period",
-    category: "management",
+    category: "lending",
     path: "/lending/reports/collections",
     icon: Wallet,
     permission: "viewReports",
@@ -268,7 +239,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     id: "loan-disbursements",
     name: "Disbursements",
     description: "Loans disbursed in the selected period",
-    category: "management",
+    category: "lending",
     path: "/lending/reports/disbursements",
     icon: Landmark,
     permission: "viewReports",
@@ -280,7 +251,7 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     id: "client-statement",
     name: "Client statement",
     description: "Disbursements and repayments for one client across all their loans",
-    category: "management",
+    category: "lending",
     path: "/lending/reports/client-statement",
     icon: Receipt,
     permission: "viewReports",
@@ -289,31 +260,53 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     keywords: ["client statement", "statement", "account", "client", "history", "lending"],
   },
   {
-    id: "aged-receivables",
-    name: "Aged Receivables",
-    description: "Outstanding customer invoices by age bucket",
-    category: "receivables",
-    path: "/finance/reports/aging?type=receivable",
-    icon: Clock,
-    requiredFeature: "reports_financial",
+    id: "officer-collections",
+    name: "Officer & branch collections",
+    description: "Collections performance by loan officer and branch",
+    category: "lending",
+    path: "/lending/reports/officer-collections",
+    icon: Wallet,
     permission: "viewReports",
-    reportType: "aging-receivable",
-    keywords: ["aged receivables", "ar aging", "ar", "overdue customers", "collections", "receivables"],
+    reportType: "officer-collections",
+    domain: "lending",
+    keywords: ["officer", "branch", "collections", "performance", "lending"],
   },
   {
-    id: "aged-payables",
-    name: "Aged Payables",
-    description: "Outstanding vendor bills by age bucket",
-    category: "payables",
-    path: "/finance/reports/aging?type=payable",
+    id: "par-aging",
+    name: "PAR aging",
+    description: "Portfolio at risk by days-past-due bucket",
+    category: "lending",
+    path: "/lending/reports/par-aging",
     icon: Clock,
-    requiredFeature: "reports_financial",
     permission: "viewReports",
-    reportType: "aging-payable",
-    keywords: ["aged payables", "ap aging", "ap", "overdue vendors", "payments due", "payables"],
+    reportType: "par-aging",
+    domain: "lending",
+    keywords: ["par", "aging", "dpd", "risk", "arrears", "lending"],
   },
-
-  // ─── Tax & Compliance ───
+  {
+    id: "product-performance",
+    name: "Product performance",
+    description: "Disbursement, yield and arrears by loan product",
+    category: "lending",
+    path: "/lending/reports/product-performance",
+    icon: BarChart3,
+    permission: "viewReports",
+    reportType: "product-performance",
+    domain: "lending",
+    keywords: ["product", "performance", "yield", "loan product", "lending"],
+  },
+  {
+    id: "client-exposure",
+    name: "Client exposure",
+    description: "Total outstanding exposure per client across loans",
+    category: "lending",
+    path: "/lending/reports/client-exposure",
+    icon: Users,
+    permission: "viewReports",
+    reportType: "client-exposure",
+    domain: "lending",
+    keywords: ["client", "exposure", "outstanding", "concentration", "lending"],
+  },
 
   // ─── Audit ───
   {
@@ -366,42 +359,6 @@ export const REPORT_REGISTRY: ReportDefinition[] = [
     permission: "viewReports",
     reportType: "bank-reconciliation",
     keywords: ["bank", "reconciliation", "statement", "matched", "unmatched", "drift"],
-  },
-  {
-    id: "fx-revaluation",
-    name: "FX Revaluation",
-    description: "Unrealized gain/loss on foreign-currency monetary balances",
-    category: "statutory",
-    path: "/finance/reports/fx-revaluation",
-    icon: TrendingUp,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "fx-revaluation",
-    keywords: ["fx", "foreign exchange", "revaluation", "unrealized", "gain", "loss", "currency"],
-  },
-  {
-    id: "fx-exposure",
-    name: "FX Exposure",
-    description: "Open foreign-currency balances with the rate used and its source",
-    category: "statutory",
-    path: "/finance/reports/fx-exposure",
-    icon: TrendingUp,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "fx-exposure",
-    keywords: ["fx", "exposure", "foreign exchange", "currency", "receivable", "payable", "unrealized"],
-  },
-  {
-    id: "fx-realized",
-    name: "Realized FX Gain/Loss",
-    description: "Gains and losses posted when foreign-currency documents were settled",
-    category: "statutory",
-    path: "/finance/reports/fx-realized",
-    icon: TrendingUp,
-    requiredFeature: "reports_financial",
-    permission: "viewReports",
-    reportType: "fx-realized",
-    keywords: ["fx", "realized", "gain", "loss", "settlement", "foreign exchange", "currency"],
   },
 
 
@@ -482,32 +439,17 @@ export function getReportsByType(reportType: string): ReportDefinition[] {
 
 /** Path-prefix → domain. Longest prefix wins. */
 const DOMAIN_BY_PATH_PREFIX: Array<[string, ReportDomain]> = [
-  ["/hr/reports", "hr"],
-  ["/pos/reports", "pos"],
-  ["/projects-app/reports", "projects"],
-  ["/crm/reports", "crm"],
   ["/lending/reports", "lending"],
   ["/finance/reports", "finance"],
   ["/reports", "finance"],
 ];
 
-/** Category → domain, used when the path is not decisive. */
-const DOMAIN_BY_CATEGORY: Partial<Record<ReportCategory, ReportDomain>> = {
-  inventory: "inventory",
-  receivables: "sales",
-  payables: "purchases",
-};
-
 /**
- * The domain a report belongs to. Explicit `domain` wins; then a
- * category override for inventory / receivables / payables (those live under
- * the finance routes but belong to their own reporting workspace); then the
- * path prefix; finance is the fallback.
+ * The domain a report belongs to. Explicit `domain` wins, then the path
+ * prefix; finance is the fallback.
  */
 export function getReportDomain(def: ReportDefinition): ReportDomain {
   if (def.domain) return def.domain;
-  const byCategory = DOMAIN_BY_CATEGORY[def.category];
-  if (byCategory) return byCategory;
   const prefix = DOMAIN_BY_PATH_PREFIX
     .filter(([p]) => def.path.startsWith(p))
     .sort((a, b) => b[0].length - a[0].length)[0];
@@ -526,15 +468,18 @@ export function getReportsByDomain(domain: ReportDomain): ReportDefinition[] {
  * routinely open the second to explain the first.
  */
 const REPORT_RELATION_PAIRS: Array<[string, string]> = [
+  ["loan-portfolio", "loan-arrears"],
+  ["loan-portfolio", "loan-collections"],
+  ["loan-arrears", "par-aging"],
+  ["loan-collections", "officer-collections"],
+  ["loan-portfolio", "client-exposure"],
+  ["loan-disbursements", "product-performance"],
   ["trial-balance", "general-ledger"],
   ["trial-balance", "journal-report"],
   ["general-ledger", "journal-report"],
   ["general-ledger", "partner-ledger"],
   ["financial-statements", "trial-balance"],
   ["financial-statements", "cash-flow"],
-  ["aged-receivables", "partner-ledger"],
-  ["aged-payables", "partner-ledger"],
-  ["budget-report", "financial-statements"],
   ["depreciation-report", "financial-statements"],
   ["control-account-reconciliation", "partner-ledger"],
   ["bank-reconciliation-report", "cash-flow"],
