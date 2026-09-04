@@ -47,17 +47,21 @@ Invariants:
 - DB slimming already executed: consolidation, HR extras, retail/POS, warehouse,
   scanner/workstation, sales pricing engine.
 
-Confirmed remaining ERP residue (scoped below, not open questions):
-- Sales/purchase code still live: `fetchARSummary`/`fetchAPSummary`,
+Re-verified 2026-09-04 by grep, previous residue list corrected:
+- Sales/purchase code residue: GONE. `fetchARSummary`, `fetchAPSummary`,
   `confirmInvoiceGL`, `confirmBillGL`, `RecordCustomerPaymentDialog`,
-  `ContactPreviewDrawer`, consumers in `OnboardingChecklist`, `pages/Reports.tsx`.
-- FX hooks/tests still in the tree: `useFxRevaluation`, `useFxExposure`, call sites
-  in `ClosePeriodSheet.tsx`, `FinanceAccountingControls.tsx`,
-  `fx-tenant-isolation.test.ts`, `src/lib/reports/branchScopability.ts`.
-- Dead ERP table groups still in the database (M5).
+  `ContactPreviewDrawer` return zero hits in `src/`.
+- FX surface residue: GONE. `useFxRevaluation`, `useFxExposure` and
+  `fx-tenant-isolation.test.ts` return zero hits. M6 is therefore closed.
+- Still in the database and still referenced by shared code: `contacts`
+  (22 files — journal counterparty, command palette, entity resolver, studio
+  entity catalogue, dashboard composition), `projects` (9 files, all catalogue /
+  permission lists), `cost_layers`, `backorders`, `carriers`, `payments` /
+  `payment_allocations` (9 files).
 - Inert by decision (identifiers welded into shared document/outbox/audit/studio
   metadata; removal costs more than it returns): delivery notes, sales orders,
   sales returns, recurring invoices, eTIMS.
+
 
 ## Milestones — one at a time, verified before the next
 
