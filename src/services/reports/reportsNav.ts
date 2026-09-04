@@ -5,9 +5,8 @@
  * --------------------
  * The Finance sidebar and the standalone `/reports` sidebar each used to carry
  * their own hardcoded list of report links. They drifted from
- * `REPORT_REGISTRY`: FX Revaluation, FX Exposure, Bank reconciliation, the two
- * integrity reconciliations and the stock reports were registered, routed and
- * reachable by search, but invisible in the sidebar.
+ * `REPORT_REGISTRY`: reports were registered, routed and reachable by search,
+ * but invisible in the sidebar.
  *
  * Same rule as ADR-0062 for payroll reports: the navigation is registry-driven.
  * Add a registry row → the link appears. There is no second list to maintain.

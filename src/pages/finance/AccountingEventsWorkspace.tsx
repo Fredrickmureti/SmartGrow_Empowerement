@@ -3,9 +3,8 @@
  * ================================
  *
  * Producer-agnostic operational surface for every accounting-worthy business
- * fact enqueued into `public.accounting_events`. Supersedes the POS-specific
- * "POS Posting Queue" workspace — POS statements now appear here as one
- * producer among many (`producer='pos'`, `producer_doc_type='pos_statement'`).
+ * fact enqueued into `public.accounting_events` — lending disbursements,
+ * repayments, write-offs and other microfinance business events.
  *
  * Contract with the Posting Engine
  * --------------------------------
@@ -13,10 +12,6 @@
  *  - The "Post now" action calls `accounting_post_event(event_id)` — the
  *    single authoritative posting entry-point (B3). Outcome envelope:
  *    { status: 'posted' | 'noop' | 'needs_mapping' | 'invalid' | 'deferred', ... }
- *  - When the producer is POS we additionally surface dispatcher health
- *    (attempts / dead-lettered) and the mapping preview from
- *    `get_pos_statement_posting_preview`, so accountants keep the same
- *    diagnostic depth they had in the legacy queue.
  *
  * State model (mirrors accounting_events.state)
  *  ready | needs_mapping | posting | posted | failed | superseded | cancelled | noop
@@ -80,12 +75,6 @@ interface AccountingEventRow {
   version: number;
 }
 
-interface DispatcherHealth {
-  attempts: number;
-  last_error: string | null;
-  dead_at: string | null;
-  dead_reason: string | null;
-}
 
 // ---------------------------------------------------------------------------
 // Data hooks
@@ -133,132 +122,6 @@ function useAccountingEvents(filter: string) {
   });
 }
 
-/**
- * Enrich POS-producer events with outbox dispatcher health so accountants
- * can distinguish "haven't tried yet" from "dispatcher tried 12 times".
- */
-function useDispatcherHealthForPos(events: AccountingEventRow[]) {
-  const posDocIds = useMemo(
-    () => events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
-      .map((e) => e.producer_doc_id),
-    [events],
-  );
-  return useQuery({
-    queryKey: ["accounting-events-dispatcher-health", posDocIds.sort().join(",")],
-    enabled: posDocIds.length > 0,
-    queryFn: async (): Promise<Map<string, DispatcherHealth>> => {
-      const [{ data: live }, { data: dead }] = await Promise.all([
-        supabase.from("business_event_outbox")
-          .select("source_doc_id, attempts, last_error")
-          .eq("source_doc_type", "pos_statement")
-          .in("source_doc_id", posDocIds),
-        supabase.from("business_event_outbox_dead")
-          .select("source_doc_id, dead_at, dead_reason, last_error")
-          .eq("source_doc_type", "pos_statement")
-          .in("source_doc_id", posDocIds),
-      ]);
-      const out = new Map<string, DispatcherHealth>();
-      for (const r of (live ?? []) as Array<Record<string, unknown>>) {
-        const key = r.source_doc_id as string;
-        const attempts = Number(r.attempts ?? 0);
-        const cur = out.get(key);
-        if (!cur || attempts > cur.attempts) {
-          out.set(key, {
-            attempts,
-            last_error: (r.last_error as string | null) ?? cur?.last_error ?? null,
-            dead_at: cur?.dead_at ?? null,
-            dead_reason: cur?.dead_reason ?? null,
-          });
-        }
-      }
-      for (const r of (dead ?? []) as Array<Record<string, unknown>>) {
-        const key = r.source_doc_id as string;
-        const cur = out.get(key) ?? { attempts: 0, last_error: null, dead_at: null, dead_reason: null };
-        cur.dead_at = r.dead_at as string;
-        cur.dead_reason = (r.dead_reason as string | null) ?? null;
-        cur.last_error = cur.last_error ?? (r.last_error as string | null) ?? null;
-        out.set(key, cur);
-      }
-      return out;
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// POS statement enrichment — replace bare uuids with human labels.
-
-interface PosStatementSummary {
-  statement_number: string;
-  close_kind: string | null;
-  closed_at: string | null;
-  opened_at: string | null;
-  register_name: string | null;
-  shift_number: string | null;
-  cashier_name: string | null;
-  total_sales: number | null;
-  total_transactions: number | null;
-  counted_cash: number | null;
-  expected_cash: number | null;
-  cash_variance: number | null;
-}
-
-function usePosStatementSummaries(events: AccountingEventRow[]) {
-  const posDocIds = useMemo(
-    () => Array.from(new Set(
-      events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
-        .map((e) => e.producer_doc_id),
-    )),
-    [events],
-  );
-  return useQuery({
-    queryKey: ["accounting-events-pos-summaries", posDocIds.sort().join(",")],
-    enabled: posDocIds.length > 0,
-    queryFn: async (): Promise<Map<string, PosStatementSummary>> => {
-      const { data, error } = (await (supabase as any)
-        .from("pos_statements")
-        .select(`
-          id, statement_number, close_kind, opened_at, closed_at,
-          total_sales, total_transactions, counted_cash, expected_cash, cash_variance,
-          closed_by,
-          register:pos_registers!pos_statements_register_id_fkey ( register_name ),
-          shift:pos_shifts!pos_statements_shift_id_fkey ( shift_number )
-        `)
-        .in("id", posDocIds)) as { data: any[] | null; error: any };
-      if (error) throw error;
-      const closedByIds = Array.from(new Set(
-        (data ?? []).map((r) => (r as Record<string, unknown>).closed_by as string | null).filter(Boolean) as string[],
-      ));
-      const nameMap = new Map<string, string>();
-      if (closedByIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .in("id", closedByIds);
-        for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
-          nameMap.set(p.id as string, (p.full_name as string) || (p.email as string) || "");
-        }
-      }
-      const out = new Map<string, PosStatementSummary>();
-      for (const r of (data ?? []) as Array<Record<string, unknown>>) {
-        out.set(r.id as string, {
-          statement_number: (r.statement_number as string) ?? "",
-          close_kind: (r.close_kind as string) ?? null,
-          opened_at: (r.opened_at as string) ?? null,
-          closed_at: (r.closed_at as string) ?? null,
-          register_name: ((r.register as { register_name?: string } | null)?.register_name) ?? null,
-          shift_number: ((r.shift as { shift_number?: string } | null)?.shift_number) ?? null,
-          cashier_name: nameMap.get(r.closed_by as string) ?? null,
-          total_sales: (r.total_sales as number) ?? null,
-          total_transactions: (r.total_transactions as number) ?? null,
-          counted_cash: (r.counted_cash as number) ?? null,
-          expected_cash: (r.expected_cash as number) ?? null,
-          cash_variance: (r.cash_variance as number) ?? null,
-        });
-      }
-      return out;
-    },
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -273,11 +136,11 @@ function fmtMoney(n: number | null | undefined, ccy: string) {
 }
 
 const EVENT_KIND_LABELS: Record<string, string> = {
-  shift_close: "Shift close",
-  drawer_close: "Drawer close",
-  day_close: "Day close",
-  sale: "Sale",
-  refund: "Refund",
+  loan_disbursement: "Loan disbursement",
+  loan_repayment: "Loan repayment",
+  loan_write_off: "Loan write-off",
+  fee_charged: "Fee charged",
+  penalty_charged: "Penalty charged",
 };
 
 function humanizeEventKind(kind: string): string {
@@ -286,7 +149,6 @@ function humanizeEventKind(kind: string): string {
 }
 
 function producerLabel(producer: string, docType: string): string {
-  if (producer === "pos" && docType === "pos_statement") return "POS · Shift close";
   const p = producer.toUpperCase();
   const d = docType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return `${p} · ${d}`;
@@ -330,8 +192,6 @@ export default function AccountingEventsWorkspace() {
   };
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useAccountingEvents(filter);
-  const { data: dispatcherHealth } = useDispatcherHealthForPos(rows);
-  const { data: posSummaries } = usePosStatementSummaries(rows);
   const [selected, setSelected] = useState<AccountingEventRow | null>(null);
 
   const kpis = useMemo(() => {
@@ -346,9 +206,8 @@ export default function AccountingEventsWorkspace() {
     <div className="space-y-4 p-4 md:p-6">
       <PageHeader
         title="Accounting Events"
-        description="Every accounting-worthy business fact — POS shift closes, and (soon) sales invoices, bills, and inventory moves — flows through this workspace. Each row represents one canonical event routed through the unified Posting Engine (accounting_post_event). The legacy POS Posting Queue redirects here."
+        description="Every accounting-worthy business fact — loan disbursements, repayments, write-offs and other microfinance events — flows through this workspace. Each row is one canonical event routed through the unified Posting Engine (accounting_post_event)."
       />
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">{scope.scopeLabel}</div>
         <div className="flex items-center gap-2">
@@ -397,21 +256,20 @@ export default function AccountingEventsWorkspace() {
                 <TableHead>Business date</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>State</TableHead>
-                <TableHead>Dispatcher</TableHead>
                 <TableHead>Journal</TableHead>
                 <TableHead className="w-[120px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={7}>
+                <TableRow><TableCell colSpan={6}>
                   <div className="flex items-center gap-2 py-6 justify-center text-muted-foreground text-sm">
                     <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                   </div>
                 </TableCell></TableRow>
               )}
               {!isLoading && rows.length === 0 && (
-                <TableRow><TableCell colSpan={7}>
+                <TableRow><TableCell colSpan={6}>
                   <div className="flex items-center gap-2 py-6 justify-center text-muted-foreground text-sm">
                     <Sparkles className="h-4 w-4 text-emerald-600" />
                     Nothing in this state — the sub-ledger is quiet.
@@ -419,30 +277,17 @@ export default function AccountingEventsWorkspace() {
                 </TableCell></TableRow>
               )}
               {rows.map((r) => {
-                const health = r.producer === "pos"
-                  ? dispatcherHealth?.get(r.producer_doc_id)
-                  : undefined;
-                const summary = r.producer === "pos"
-                  ? posSummaries?.get(r.producer_doc_id)
-                  : undefined;
-                const primaryLabel = summary?.statement_number
-                  || `#${r.producer_doc_id.slice(0, 8)}`;
-                const secondaryBits = [
-                  humanizeEventKind(r.event_kind),
-                  summary?.register_name,
-                  summary?.cashier_name,
-                ].filter(Boolean) as string[];
+                const primaryLabel = `#${r.producer_doc_id.slice(0, 8)}`;
                 return (
                   <TableRow key={r.id} className={r.state === "needs_mapping" || r.state === "failed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
                     <TableCell className="text-xs">
                       <div className="font-medium">{producerLabel(r.producer, r.producer_doc_type)}</div>
                       <div className="text-xs text-foreground">{primaryLabel}</div>
-                      {secondaryBits.length > 0 && (
-                        <div className="text-[11px] text-muted-foreground">
-                          {secondaryBits.join(" · ")}
-                        </div>
-                      )}
+                      <div className="text-[11px] text-muted-foreground">
+                        {humanizeEventKind(r.event_kind)}
+                      </div>
                     </TableCell>
+
                     <TableCell className="text-xs">
                       {r.business_date
                         ? format(new Date(r.business_date), "yyyy-MM-dd")
@@ -452,17 +297,6 @@ export default function AccountingEventsWorkspace() {
                       {fmtMoney(r.amount, r.currency_code ?? baseCurrency)}
                     </TableCell>
                     <TableCell>{stateBadge(r.state)}</TableCell>
-                    <TableCell className="text-xs">
-                      {health?.dead_at ? (
-                        <Badge variant="destructive">Dead-lettered</Badge>
-                      ) : (health?.attempts ?? 0) > 0 ? (
-                        <Badge variant="destructive" className="gap-1">
-                          <AlertTriangle className="h-3 w-3" /> {health!.attempts} attempts
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
                     <TableCell className="text-xs">
                       {r.journal_entry_id
                         ? <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Journal posted</Badge>
@@ -483,11 +317,11 @@ export default function AccountingEventsWorkspace() {
 
       <EventDrawer
         event={selected}
-        summary={selected && selected.producer === "pos" ? posSummaries?.get(selected.producer_doc_id) : undefined}
         onClose={() => setSelected(null)}
         currency={baseCurrency}
       />
     </div>
+
   );
 }
 
@@ -516,13 +350,13 @@ function Kpi({
 }
 
 function EventDrawer({
-  event, summary, onClose, currency,
+  event, onClose, currency,
 }: {
   event: AccountingEventRow | null;
-  summary?: PosStatementSummary;
   onClose: () => void;
   currency: string;
 }) {
+
   const qc = useQueryClient();
 
   const postNow = useMutation({
@@ -552,8 +386,6 @@ function EventDrawer({
 
   if (!event) return null;
 
-  const headline = summary?.statement_number
-    || `${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -562,39 +394,12 @@ function EventDrawer({
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>{producerLabel(event.producer, event.producer_doc_type)}</span>
             <span className="text-muted-foreground">·</span>
-            <span>{headline}</span>
+            <span>{`${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`}</span>
             {stateBadge(event.state)}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
-          {/* Business summary — what actually happened, in accountant terms. */}
-          {summary && (
-            <div className="rounded-md border bg-muted/30 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
-                Shift close summary
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <Field label="Statement" value={summary.statement_number || "—"} />
-                <Field label="Close kind" value={summary.close_kind ? humanizeEventKind(summary.close_kind) : "—"} />
-                <Field label="Register" value={summary.register_name || "—"} />
-                <Field label="Shift" value={summary.shift_number || "—"} />
-                <Field label="Closed by" value={summary.cashier_name || "—"} />
-                <Field
-                  label="Closed at"
-                  value={summary.closed_at ? format(new Date(summary.closed_at), "yyyy-MM-dd HH:mm") : "—"}
-                />
-                <Field
-                  label="Sales"
-                  value={`${fmtMoney(summary.total_sales, event.currency_code ?? currency)} · ${summary.total_transactions ?? 0} txns`}
-                />
-                <Field
-                  label="Cash variance"
-                  value={fmtMoney(summary.cash_variance, event.currency_code ?? currency)}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Posting lifecycle */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
