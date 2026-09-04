@@ -102,21 +102,30 @@ protection. Nothing in the domain blocks on it; one fix per migration.
 - Update this file after every milestone; factual and short.
 - Every change must serve the microfinance domain or unblock it.
 
+##M13  rework on studio to be microfinance tailored
+
+##THEN GO FULL FOCUS ON MODE ON reports becaus there report pages still pinned on the previous achitectite and its showing works like invoicesm financial statements aree not showing they are showing error loading reports  etc 
+
+
+##M14 work on the AI sider the superadmin can add AI api on the settings 
 
 
 ==========THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
 
+I paused the Studio retarget partway. Here's where things stand.
 
-Pausing here per your choice. Status this turn:
+Done
+- New single source of truth `src/lib/studio/entities.ts`: microfinance `EntityType` union (clients, groups, loan applications, loans, disbursements, repayments, collection activities, loan products, staff, expenses), labels, core-field catalogue, entity groups, reportable/financial/document sets.
+- `src/hooks/useEntityFields.ts` now re-exports the type and labels from that module (ERP union removed).
+- Retargeted: `CoreFieldsManager`, `ViewConfigPanel`, `ReportFieldSelectionManager` (now share the one catalogue), `SavedViewsManager` and `FormLayoutDesigner` entity icons, `ApprovalRulesManager` entity actions + defaults + copy, `AutomationBuilder` financial-model guardrail + default target, `AutomationTemplateGallery` category list.
 
-Done and verified
-- M9.7 (loan fees) and M10 (report catalogue) claims verified against the code — fee editor publishes real fees, disbursement carries `fees_deducted`/`net_amount`/`fee_breakdown`, registry/nav are microfinance-only.
-- Found and fixed a broken dev server (stale Vite cache after a lockfile change — cleared `node_modules/.vite`, restarted). App now boots: `/` and `/lending` correctly redirect to `/login`, which renders with Smart Grow Empowerment branding.
-
-Remaining (small, in order)
-1. Login hero copy in `src/components/auth/AuthLayout.tsx:38` still says "Invoicing, inventory, payroll and point of sale" — ERP marketing text; should be retargeted to microfinance language (one-line edit).
-2. M11 owner verification pass — requires your sign-in in the preview (checklist is in the plan: fee disbursement journal, write-off, reversal, reports, receipts, reconciliation, penalties).
-3. M12 deferred inherited linter posture (deliberately last, one fix per migration).
+Remaining
+1. `src/components/studio/EntityFieldSettings.tsx` — `RELATED_MODEL_OPTIONS`/`RELATED_DISPLAY_FIELDS` still ERP (contacts, products, invoices…), and the document-placement gate at ~line 940 lists ERP entity types with invoice-flavoured section labels.
+2. `src/components/studio/DocumentFieldPlacer.tsx` — section labels ("Customer Details", "After Items") need loan-document wording.
+3. `src/components/studio/ScheduledReportsManager.tsx` — `REPORT_TYPES` still carries Sales/Purchases/POS/HR/Inventory report entries.
+4. `src/data/automationTemplates.ts` — template `category` values and `categoryLabels` still use sales/crm/inventory/purchasing; must match the new category list.
+5. `src/pages/studio/StudioFields.tsx` — should consume `ENTITY_GROUPS` from the new module.
+6. Verification not yet run: `npx tsgo --noEmit -p tsconfig.app.json`, dev-server 200 check, and a preview pass over `/studio/*`. Expect type errors until items 1–5 land, since the `EntityType` union no longer contains the ERP keys.
 
 
 =============
