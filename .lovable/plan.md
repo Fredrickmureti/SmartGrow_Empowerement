@@ -156,3 +156,15 @@ project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` w
 
 
 After that, M6–M9 in the plan remain untouched as scoped.
+
+
+THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
+===================================================
+
+
+
+Where things stand: the supplier-billing group is fully scoped out and ready to remove, but I stopped before making any change.
+
+What I confirmed: nothing in the app still reads the supplier bills, bill payments, matching, or vendor credit/statement records — so removing them is safe from the app side. They are still wired into a handful of shared database routines (bank matching, currency-change checks, reset/reversal helpers) that must be trimmed in the same step, otherwise bank reconciliation and currency settings would break.
+
+What remains: one carefully ordered removal of the supplier billing and vendor credit records plus their exclusive helpers, with the shared bank-matching and currency routines rewritten to drop their supplier branches; then the older contacts, projects, and stock-costing leftovers. Nothing has been changed yet, so the app is exactly as it was.
