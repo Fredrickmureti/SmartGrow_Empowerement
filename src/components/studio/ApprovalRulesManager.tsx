@@ -52,41 +52,43 @@ import {
 } from "lucide-react";
 
 const ENTITY_ACTIONS: Record<string, { value: string; label: string }[]> = {
-  invoice: [
-    { value: "confirm", label: "Confirm Invoice" },
-    { value: "void", label: "Void Invoice" },
-    { value: "send", label: "Send Invoice" },
+  mf_loan_application: [
+    { value: "submit_assessment", label: "Submit Assessment" },
+    { value: "approve", label: "Approve Application" },
+    { value: "reject", label: "Reject Application" },
   ],
-  estimate: [
-    { value: "confirm", label: "Confirm Estimate" },
-    { value: "convert_to_invoice", label: "Convert to Invoice" },
+  mf_loan: [
+    { value: "authorize_disbursement", label: "Authorise Disbursement" },
+    { value: "top_up", label: "Approve Top-Up" },
+    { value: "restructure", label: "Restructure Loan" },
+    { value: "write_off", label: "Write Off Loan" },
   ],
-  sales_order: [
-    { value: "confirm", label: "Confirm Sales Order" },
-    { value: "cancel", label: "Cancel Sales Order" },
+  mf_disbursement: [
+    { value: "release_funds", label: "Release Funds" },
+    { value: "cancel", label: "Cancel Disbursement" },
   ],
-  purchase_order: [
-    { value: "confirm", label: "Confirm Purchase Order" },
-    { value: "cancel", label: "Cancel PO" },
+  mf_repayment: [
+    { value: "reverse", label: "Reverse Repayment" },
+    { value: "waive_charge", label: "Waive Charge" },
   ],
-  bill: [
-    { value: "confirm", label: "Confirm Bill" },
-    { value: "void", label: "Void Bill" },
+  mf_collection_activity: [
+    { value: "escalate", label: "Escalate to Collections" },
+    { value: "close", label: "Close Collection Case" },
+  ],
+  mf_loan_product: [
+    { value: "publish_version", label: "Publish Product Version" },
+    { value: "deactivate", label: "Deactivate Product" },
+  ],
+  mf_client: [
+    { value: "approve_kyc", label: "Approve KYC" },
+    { value: "blacklist", label: "Blacklist Client" },
   ],
   expense: [
     { value: "approve", label: "Approve Expense" },
     { value: "reject", label: "Reject Expense" },
   ],
-  stock_adjustment: [
-    { value: "apply", label: "Apply Stock Adjustment" },
-  ],
-  employee_loan: [
-    { value: "approve", label: "Approve Employee Loan" },
-    { value: "authorize_disbursement", label: "Authorise Loan Disbursement" },
-    { value: "restructure", label: "Restructure Loan" },
-    { value: "write_off", label: "Write Off Loan" },
-  ],
 };
+
 
 
 const THRESHOLD_OPERATORS = [
