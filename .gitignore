@@ -26,3 +26,5 @@ electron/release/
 *.sln
 *.sw?
 dist-desktop/
+
+.vercel
