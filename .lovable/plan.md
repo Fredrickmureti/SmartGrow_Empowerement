@@ -126,3 +126,21 @@ residue re-verified from the codebase.
 ### 2026-09-04 — statements & settlement: lending Client Statement; receipts
 project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` writer.
 ### 2026-09-04 — sales pricing engine removed; report catalogue microfinance-only.
+
+
+
+THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
+===================================================
+I stopped mid-way through M5. Here's where things stand.
+
+Done this session (code, no DB changes):
+- `TransactionPreviewDrawer.tsx`: removed the `invoice`, `invoice_payment`/`payment`, `bill`, `bill_payment`, `credit_note` and `credit_application` preview cases and the `deriveInvoiceFromAllocations` import. Those source types now resolve through the existing generic journal-entry fallback, so legacy GL entries still preview. Typecheck clean.
+
+Remaining for M5 (in order, next session):
+1. Delete now-orphaned sales/AR code: `src/components/contacts/ContactPreviewDrawer.tsx` (no consumers), `src/services/finance/openItems.ts` (`fetchARSummary`/`fetchAPSummary`), `src/hooks/useAgingReport.ts`, and their tests (`ar-aging-point-in-time`, `ap-credit-position-provenance`, `reporting-isolation-matrix` AR/AP assertions, `financial-reports-scope-labeling` aging case).
+2. Retarget `src/hooks/useClearableRecordedPayments.ts`: the money-out branch reads `bill_payments`; it must clear against retained outflow sources (expenses / loan disbursements) before the purchasing tables can be dropped. This is the only real blocker to the purchasing-chain migration and needs a decision on what a supplier-side bank line clears to in the microfinance model.
+3. Then the DB migrations, one FK-ordered group at a time: sales chain → purchasing chain → projects → cost layers → backorders/carriers.
+
+Scope decision I'd log in the plan: keep the `contacts` table. It is still the party record for institutional expenses and manual journal entries (`JournalEntryForm`, `ContactCombobox`, `expenses.vendor_id`), so dropping it costs more than it returns — same treatment as the other inert welded groups.
+
+M6–M9 are untouched.
