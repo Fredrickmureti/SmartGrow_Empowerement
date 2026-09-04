@@ -69,7 +69,7 @@ async function spokenFor(businessId: string): Promise<Set<string>> {
     const allocations = Array.isArray(row.allocations) ? row.allocations : [];
     for (const a of allocations as Array<Record<string, unknown>>) {
       const kind = String(a.document_type ?? "");
-      if (kind === "payment" || kind === "bill_payment") claimed.add(String(a.document_id));
+      if (kind === "payment") claimed.add(String(a.document_id));
     }
   }
   return claimed;
