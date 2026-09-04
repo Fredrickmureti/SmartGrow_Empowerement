@@ -60,37 +60,6 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: null,
     }));
   },
-  bill: async (orgId) => {
-    const { data, error } = await supabase
-      .from("bills")
-      .select("id, bill_number, total, currency, status, created_by")
-      .eq("organization_id", orgId)
-      .in("status", ["draft", "submitted", "pending_approval"] as any)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.bill_number ?? `Bill ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.total, r.currency)} • ${r.status}`,
-      subject_user_id: r.created_by ?? null,
-    }));
-  },
-  bill_payment: async (orgId) => {
-    const { data, error } = await supabase
-      .from("bill_payments")
-      .select("id, reference, amount, created_by")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.reference ?? `Payment ${r.id.slice(0, 8)}`,
-      hint: fmtMoney(r.amount, null),
-      subject_user_id: r.created_by ?? null,
-    }));
-  },
   payment: async (orgId) => {
     const { data, error } = await supabase
       .from("payments")
