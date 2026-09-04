@@ -80,7 +80,7 @@ adjustment, card clearing, customer deposits, customer credit, sales revenue,
 `hasRequiredAccounts` / `hasPaymentAccounts` / `hasBillingAccounts`. No callers
 remained. Typecheck clean, `GET /` → 200.
 
-### M5 — Dead ERP table groups (NEXT, DB slimming)
+### M5 — Dead ERP table groups (IN PROGRESS: sales chain DONE, purchasing chain DONE)
 One migration per group, FK-ordered, code references deleted in the same step:
 sales chain (invoices, credit notes, estimates, proforma, customer
 credits/statements, dunning, AR disputes) → purchasing chain (bills, bill
@@ -115,6 +115,26 @@ server-side data, company-info injection, shared PDF path. No new engine.
 - Update this file after each milestone; keep it short and factual.
 
 ## Progress log (latest first)
+### 2026-09-04 — M5 step 2 DONE: purchasing / vendor-billing chain dropped.
+Dropped tables: bills, bill_items, bill_grn_matches, bill_match_exceptions,
+bill_match_results, bill_match_tolerance_policies, bill_payments,
+bill_payment_allocations, bill_payment_reversal_events, vendor_credit_notes(+items,
+applications), vendor_credit_balances, vendor_credit_movements, vendor_refunds,
+vendor_statements, vendor_statement_send_jobs. Dropped views: vendor_credit_tieout,
+vendor_ledger_entries, vendor_unapplied_advances. Dropped ~80 bill_/vendor_ routines
+(atomics, guards, numbering, AP summaries, PO billed-state sync, reset_module__
+purchases/vendor_returns). Detached retained tables: `payments.bill_id` and
+`bank_reconciliation_matches.matched_bill_payment_id` columns removed, and the two
+live trigger functions (`validate_bank_reconciliation_match_scope`,
+`validate_bank_transaction_accounting_scope`) rewritten without supplier-payment
+branches. Code: deleted `OrgDataResetTool`, `ResetWorkspaceDialog` and their
+`WorkspaceSettings` usage, the vendor-credit/AP-aging architecture tests, and the
+`bills` / `bill_payments` realtime handlers. Typecheck clean, `GET /` → 200.
+Linter count 2,011 → 1,888 — all inherited posture, still deferred to M8.
+Next in M5: CRM `contacts` (with `ContactPreviewDrawer` and remaining AR/AP helpers),
+then projects, cost layers, backorders/carriers, then `payments` /
+`payment_allocations` (confirm readers `useGovernedEntityOptions`,
+`useClearableRecordedPayments`, `useFiscalPeriodDetail` first).
 ### 2026-09-04 — M5 step 1 DONE: sales/AR chain dropped from the database.
 Dropped tables: invoices, invoice_items, invoice_additional_costs, credit_notes,
 credit_note_items, credit_note_applications, estimates, estimate_items,
@@ -153,26 +173,3 @@ residue re-verified from the codebase.
 ### 2026-09-04 — statements & settlement: lending Client Statement; receipts
 project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` writer.
 ### 2026-09-04 — sales pricing engine removed; report catalogue microfinance-only.
-
-
-After that, M6–M9 in the plan remain untouched as scoped.
-
-
-THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
-===================================================
-
-
-
-The migration was not applied. Exact error:
-
-```
-ERROR: 42P13: cannot remove parameter defaults from existing function
-HINT: Use DROP FUNCTION change_business_base_currency(uuid,text,text,boolean) first.
-```
-
-That is a purely mechanical issue: my `CREATE OR REPLACE` for `change_business_base_currency` omitted the default values on `p_reason` / `p_confirm_impacts`. Since the whole migration runs in one transaction, nothing was committed — the database is still in the pre-M5-step-2 state (supplier billing tables and vendor credit tables still present).
-
-Remaining work for M5 step 2 (purchasing/vendor-billing removal):
-1. Re-send the same migration with one fix — `DROP FUNCTION IF EXISTS public.change_business_base_currency(uuid,text,text,boolean);` before its `CREATE`, or re-declare the original defaults.
-2. After it applies, remove the now-dead app surfaces: delete `src/components/settings/OrgDataResetTool.tsx` and `src/components/settings/ResetWorkspaceDialog.tsx` plus their two imports/usages in `src/pages/settings/WorkspaceSettings.tsx`, and drop remaining bill/vendor references in legacy types, permission lists, query keys and architecture tests.
-3. Verify typecheck and a `GET /` 200, then update `.lovable/plan.md` (M5 step 2 complete, next: remaining ERP table groups → M6 FX purge).
