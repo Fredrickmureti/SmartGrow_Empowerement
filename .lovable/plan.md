@@ -131,16 +131,26 @@ project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` w
 
 THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
 ===================================================
-I stopped mid-way through M5. Here's where things stand.
 
-Done this session (code, no DB changes):
-- `TransactionPreviewDrawer.tsx`: removed the `invoice`, `invoice_payment`/`payment`, `bill`, `bill_payment`, `credit_note` and `credit_application` preview cases and the `deriveInvoiceFromAllocations` import. Those source types now resolve through the existing generic journal-entry fallback, so legacy GL entries still preview. Typecheck clean.
 
-Remaining for M5 (in order, next session):
-1. Delete now-orphaned sales/AR code: `src/components/contacts/ContactPreviewDrawer.tsx` (no consumers), `src/services/finance/openItems.ts` (`fetchARSummary`/`fetchAPSummary`), `src/hooks/useAgingReport.ts`, and their tests (`ar-aging-point-in-time`, `ap-credit-position-provenance`, `reporting-isolation-matrix` AR/AP assertions, `financial-reports-scope-labeling` aging case).
-2. Retarget `src/hooks/useClearableRecordedPayments.ts`: the money-out branch reads `bill_payments`; it must clear against retained outflow sources (expenses / loan disbursements) before the purchasing tables can be dropped. This is the only real blocker to the purchasing-chain migration and needs a decision on what a supplier-side bank line clears to in the microfinance model.
-3. Then the DB migrations, one FK-ordered group at a time: sales chain → purchasing chain → projects → cost layers → backorders/carriers.
 
-Scope decision I'd log in the plan: keep the `contacts` table. It is still the party record for institutional expenses and manual journal entries (`JournalEntryForm`, `ContactCombobox`, `expenses.vendor_id`), so dropping it costs more than it returns — same treatment as the other inert welded groups.
+I'll start by checking what actually exists — the plan file, the codebase, and the connected database state — before deciding anything.
 
-M6–M9 are untouched.
+Paused before the database change landed — here's exactly where things stand.
+
+Backend connection: your app is already wired to the `Smart Grow Empowerment` project (`xwxqunklduknceoryrha`); nothing needed connecting.
+
+Verified this session (no assumptions carried over):
+- 31 `mf_*` lending tables live, lending app in place, report catalogue microfinance-only.
+- 19 dead ERP table groups still in the database; M5 is genuinely where the previous engineer stopped.
+- Zero live app code reads any of those ERP tables — only edge-function branches that run for ERP document types.
+
+Code changes made (M5 steps 1–2, build was green before the DB step):
+- Deleted orphaned sales/AR code: `ContactPreviewDrawer`, `services/finance/openItems.ts`, `aging.ts`, `createCreditNote.ts`, `useAgingReport.ts`, and the two AR/AP tests; trimmed three architecture tests accordingly.
+- `useClearableRecordedPayments` + `ReconcileTransactionSheet`: removed the supplier bill-payment clearing branch (money-out now reconciles via Expenses / account offset / transfer). This was the only blocker to dropping the purchasing chain.
+
+Migration attempt failed (not applied): Postgres rejected the migration with `cannot drop column invoice_id of table payment_allocations because other objects depend on it` — the ERP views `finance_ar_open_items`, `finance_ar_net_position`, `finance_ar_net_position_by_currency`, `finance_open_items_tieout` sit on that column. The whole migration rolled back; the database is unchanged.
+
+Exact next step (one small fix, then re-run): prepend `DROP VIEW IF EXISTS public.finance_open_items_tieout, public.finance_ar_net_position_by_currency, public.finance_ar_net_position, public.finance_ar_open_items CASCADE;` to the same migration and re-apply. Then verify object counts, run the typecheck, and update `.lovable/plan.md` to record M5 as done and log the decision that `payments`/`payment_allocations` (customer receipts) are the next candidate group since nothing in the microfinance flow writes to them.
+
+After that, M6–M9 in the plan remain untouched as scoped.
