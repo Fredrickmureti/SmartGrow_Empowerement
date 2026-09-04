@@ -205,6 +205,6 @@ project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` w
 THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT  (Remaining)
 ===================================================
 
-The journal entry screen now picks the person from your microfinance client list instead of the old customer/vendor list, and the printed journal document plus the bank-clearing screen also show client names from that same list.
+Dropped the Projects module: the `projects` table and its dependent triggers/functions (`trg_je_line_to_project_ledger`, `_default_analytic_from_project`, `trg_expense_to_cost`) are gone, along with the now-unused `project_id` columns on journal entry lines, expenses and the legacy sales tables. Code side, I removed all 9 catalogue/permission references — permission keys and module map in `permissions.ts`, `queryKeys.projects`, resource-centre app options, module-app map, command index, AI working context and prompts, studio entity catalogue, and the onboarding app grouping. The route typecheck is clean and `/` returns 200.
 
-Still to do on this clean-up step: rewrite the search-box "clients" results to look in the client list, remove the leftover old contact files and their tests, then run the database step that drops the unused contact tables, and finally check the pages still load.
+Remaining (not done): a broader typecheck across `src/lib` and `src/components` was blocked by a config issue in my scratch tsconfig — worth one verification pass next time before moving to M5 step 3 (`payments`/`payment_allocations`), then the `contacts` decision. The Supabase linter warnings shown are the inherited AccrualFlow posture (M6 hardening), not new.
