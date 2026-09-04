@@ -4,26 +4,10 @@ import { useOrganization } from "./useOrganization";
 import { useBusinesses } from "@/hooks/useBusinesses";
 import { toast } from "sonner";
 
-// Supported entity types
-export type EntityType = 
-  | "contact" 
-  | "product" 
-  | "invoice" 
-  | "estimate"
-  | "sales_order"
-  | "purchase_order"
-  | "project"
-  | "crm_lead"
-  | "expense"
-  | "bill"
-  | "employee"
-  | "credit_note"
-  | "payment"
-  | "delivery_note"
-  | "sales_return"
-  | "proforma_invoice"
-  | "recurring_invoice"
-  | "stock_adjustment";
+// Supported entity types — microfinance domain (see @/lib/studio/entities)
+export type { EntityType } from "@/lib/studio/entities";
+import type { EntityType } from "@/lib/studio/entities";
+
 
 export type FieldType = 
   | "text" 
