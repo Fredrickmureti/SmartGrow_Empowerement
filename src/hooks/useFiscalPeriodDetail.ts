@@ -586,10 +586,8 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         transactionCounts: {
           postedJournalEntries: postedJEResult.count || 0,
           draftJournalEntries: unpostedJE,
-          invoices: invoicesResult.count || 0,
-          draftInvoices: draftInv,
-          bills: billsResult.count || 0,
-          draftBills: draftBill,
+          disbursements: disbursementsResult.count || 0,
+          repayments: repaymentsResult.count || 0,
           payments: paymentsResult.count || 0,
           expenses: expensesResult.count || 0,
         },
