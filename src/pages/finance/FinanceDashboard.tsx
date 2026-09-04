@@ -70,37 +70,6 @@ export default function FinanceDashboard() {
     staleTime: 30_000,
   });
 
-  // Invoice status counts via lightweight RPC (branch-scoped)
-  const { data: invoiceCounts = [], isLoading: invLoading } = useQuery({
-    queryKey: ["invoice-status-counts", orgId, businessId, branchId] as const,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_invoice_status_counts", {
-        _org_id: orgId,
-        _business_id: businessId,
-        _branch_id: branchId,
-      } as any);
-      if (error) throw error;
-      return (data || []) as StatusCount[];
-    },
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
-
-  // Bill status counts via lightweight RPC (branch-scoped)
-  const { data: billCounts = [], isLoading: billsLoading } = useQuery({
-    queryKey: ["bill-status-counts", orgId, businessId, branchId] as const,
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_bill_status_counts", {
-        _org_id: orgId,
-        _business_id: businessId,
-        _branch_id: branchId,
-      } as any);
-      if (error) throw error;
-      return (data || []) as StatusCount[];
-    },
-    enabled: !!orgId,
-    staleTime: 30_000,
-  });
 
   // JE status counts — branch-scoped lightweight head-only count queries
   const { data: jeCounts = { draft: 0, posted: 0, total: 0 }, isLoading: jeLoading } = useQuery({
