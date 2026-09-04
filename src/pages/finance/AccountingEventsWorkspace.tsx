@@ -278,17 +278,18 @@ export default function AccountingEventsWorkspace() {
                   </div>
                 </TableCell></TableRow>
               )}
+              {rows.map((r) => {
+                const primaryLabel = `#${r.producer_doc_id.slice(0, 8)}`;
                 return (
                   <TableRow key={r.id} className={r.state === "needs_mapping" || r.state === "failed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
                     <TableCell className="text-xs">
                       <div className="font-medium">{producerLabel(r.producer, r.producer_doc_type)}</div>
                       <div className="text-xs text-foreground">{primaryLabel}</div>
-                      {secondaryBits.length > 0 && (
-                        <div className="text-[11px] text-muted-foreground">
-                          {secondaryBits.join(" · ")}
-                        </div>
-                      )}
+                      <div className="text-[11px] text-muted-foreground">
+                        {humanizeEventKind(r.event_kind)}
+                      </div>
                     </TableCell>
+
                     <TableCell className="text-xs">
                       {r.business_date
                         ? format(new Date(r.business_date), "yyyy-MM-dd")
