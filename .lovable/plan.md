@@ -126,6 +126,21 @@ server-side data, company-info injection, shared PDF path. No new engine.
 - Update this file after each milestone; keep it short and factual.
 
 ## Progress log (latest first)
+### 2026-09-04 — Plan re-verified against the codebase; M5 step "logistics/costing" DONE.
+Verification corrected two stale claims: the sales/purchase code residue and the
+whole FX surface (`useFxRevaluation`, `useFxExposure`, `fx-tenant-isolation.test.ts`)
+no longer exist — M6 closed with no work.
+Migration dropped: `cost_layers`, `cost_layer_consumptions`, `cost_layer_lineage`,
+`sales_return_cost_allocations`, `backorders`, `carriers`, plus
+`delivery_notes.carrier_id`. Code: removed the `/settings/carriers` nav entry (and
+its unused `Truck` icon) and the `backorders` dashboard widget id and its two role
+slot lists. Typecheck clean, `GET /` → 200 (a 500 seen mid-run was a stale Vite dep
+optimizer state after a lockfile change, cleared by a dev-server restart).
+Noted for later, not actioned: `useDashboardComposition` still carries ERP widget
+ids (`sales.*`, `inventory.*`, `hr.*`, `payroll.*`, `purchases.*`, `lowStock`,
+`creditAlerts`) — one focused sweep, best done with M5 step 3.
+Next: M5 step 2 — drop `projects` and delete its 9 catalogue/permission references.
+
 ### 2026-09-04 — M5 step 2 DONE: purchasing / vendor-billing chain dropped.
 Dropped tables: bills, bill_items, bill_grn_matches, bill_match_exceptions,
 bill_match_results, bill_match_tolerance_policies, bill_payments,
