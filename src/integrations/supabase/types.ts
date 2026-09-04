@@ -34050,6 +34050,7 @@ export type Database = {
       get_general_ledger: {
         Args: {
           _account_ids?: string[]
+          _branch_id?: string
           _business_id?: string
           _date_from: string
           _date_to: string
@@ -34061,16 +34062,26 @@ export type Database = {
           account_id: string
           account_name: string
           account_type: string
+          branch_name: string
           contact_name: string
           credit: number
           debit: number
+          entry_currency: string
           entry_date: string
           entry_number: string
+          entry_status: string
+          exchange_rate: number
+          is_reversal: boolean
           je_description: string
+          journal_book: string
+          journal_entry_id: string
           line_description: string
           line_id: string
           opening_balance: number
+          original_credit: number
+          original_debit: number
           reference: string
+          reversal_of_number: string
           source_id: string
           source_type: string
         }[]
