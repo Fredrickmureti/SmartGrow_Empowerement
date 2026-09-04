@@ -2609,105 +2609,6 @@ export type Database = {
           },
         ]
       }
-      backorders: {
-        Row: {
-          allocated_at: string | null
-          business_id: string | null
-          created_at: string
-          fulfilled_at: string | null
-          id: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_order_id: string
-          sales_order_item_id: string
-          status: string
-        }
-        Insert: {
-          allocated_at?: string | null
-          business_id?: string | null
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          organization_id: string
-          product_id: string
-          quantity?: number
-          sales_order_id: string
-          sales_order_item_id: string
-          status?: string
-        }
-        Update: {
-          allocated_at?: string | null
-          business_id?: string | null
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          organization_id?: string
-          product_id?: string
-          quantity?: number
-          sales_order_id?: string
-          sales_order_item_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "backorders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
-          },
-        ]
-      }
       bank_accounts: {
         Row: {
           access_token_encrypted: string | null
@@ -5022,51 +4923,6 @@ export type Database = {
           },
         ]
       }
-      carriers: {
-        Row: {
-          business_id: string
-          carrier_kind: string
-          contact_email: string | null
-          contact_phone: string | null
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          name: string
-          organization_id: string
-          tracking_url_template: string | null
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          carrier_kind?: string
-          contact_email?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          organization_id: string
-          tracking_url_template?: string | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          carrier_kind?: string
-          contact_email?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          tracking_url_template?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
       collector_assignments: {
         Row: {
           active: boolean
@@ -5622,159 +5478,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      cost_layer_consumptions: {
-        Row: {
-          business_id: string
-          consumed_at: string
-          id: string
-          layer_id: string
-          movement_id: string
-          organization_id: string
-          product_id: string
-          qty_consumed: number
-          unit_cost: number
-        }
-        Insert: {
-          business_id: string
-          consumed_at?: string
-          id?: string
-          layer_id: string
-          movement_id: string
-          organization_id: string
-          product_id: string
-          qty_consumed: number
-          unit_cost: number
-        }
-        Update: {
-          business_id?: string
-          consumed_at?: string
-          id?: string
-          layer_id?: string
-          movement_id?: string
-          organization_id?: string
-          product_id?: string
-          qty_consumed?: number
-          unit_cost?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cost_layer_consumptions_layer_id_fkey"
-            columns: ["layer_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cost_layer_lineage: {
-        Row: {
-          business_id: string
-          child_layer_id: string
-          consumption_id: string | null
-          created_at: string
-          id: string
-          movement_id: string | null
-          organization_id: string
-          parent_layer_id: string
-          qty: number
-        }
-        Insert: {
-          business_id: string
-          child_layer_id: string
-          consumption_id?: string | null
-          created_at?: string
-          id?: string
-          movement_id?: string | null
-          organization_id: string
-          parent_layer_id: string
-          qty: number
-        }
-        Update: {
-          business_id?: string
-          child_layer_id?: string
-          consumption_id?: string | null
-          created_at?: string
-          id?: string
-          movement_id?: string | null
-          organization_id?: string
-          parent_layer_id?: string
-          qty?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "cost_layer_lineage_child_layer_id_fkey"
-            columns: ["child_layer_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cost_layer_lineage_consumption_id_fkey"
-            columns: ["consumption_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layer_consumptions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cost_layer_lineage_parent_layer_id_fkey"
-            columns: ["parent_layer_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      cost_layers: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          lot_number: string | null
-          organization_id: string
-          product_id: string
-          qty_remaining: number
-          qty_total: number
-          received_at: string
-          serial_number: string | null
-          source_movement_id: string
-          source_uom_id: string | null
-          unit_cost: number
-          warehouse_id: string | null
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          lot_number?: string | null
-          organization_id: string
-          product_id: string
-          qty_remaining: number
-          qty_total: number
-          received_at?: string
-          serial_number?: string | null
-          source_movement_id: string
-          source_uom_id?: string | null
-          unit_cost?: number
-          warehouse_id?: string | null
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          lot_number?: string | null
-          organization_id?: string
-          product_id?: string
-          qty_remaining?: number
-          qty_total?: number
-          received_at?: string
-          serial_number?: string | null
-          source_movement_id?: string
-          source_uom_id?: string | null
-          unit_cost?: number
-          warehouse_id?: string | null
-        }
-        Relationships: []
       }
       countries: {
         Row: {
@@ -6493,7 +6196,6 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           cancelled_by: string | null
-          carrier_id: string | null
           contact_id: string | null
           created_at: string
           created_by: string | null
@@ -6538,7 +6240,6 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
-          carrier_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -6583,7 +6284,6 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           cancelled_by?: string | null
-          carrier_id?: string | null
           contact_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -6639,13 +6339,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_carrier_id_fkey"
-            columns: ["carrier_id"]
-            isOneToOne: false
-            referencedRelation: "carriers"
             referencedColumns: ["id"]
           },
           {
@@ -19411,57 +19104,6 @@ export type Database = {
           },
         ]
       }
-      sales_return_cost_allocations: {
-        Row: {
-          basis_id: string
-          business_id: string
-          consumption_id: string
-          created_at: string
-          id: string
-          layer_id: string
-          organization_id: string
-          qty: number
-          unit_cost: number
-        }
-        Insert: {
-          basis_id: string
-          business_id: string
-          consumption_id: string
-          created_at?: string
-          id?: string
-          layer_id: string
-          organization_id: string
-          qty: number
-          unit_cost: number
-        }
-        Update: {
-          basis_id?: string
-          business_id?: string
-          consumption_id?: string
-          created_at?: string
-          id?: string
-          layer_id?: string
-          organization_id?: string
-          qty?: number
-          unit_cost?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_cost_allocations_basis_id_fkey"
-            columns: ["basis_id"]
-            isOneToOne: false
-            referencedRelation: "sales_return_cost_basis"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_allocations_consumption_id_fkey"
-            columns: ["consumption_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layer_consumptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sales_return_cost_basis: {
         Row: {
           business_id: string
@@ -23443,17 +23085,6 @@ export type Database = {
           org_id: string | null
           pending_over_5min: number | null
           stale_running: number | null
-        }
-        Relationships: []
-      }
-      v_cost_layer_basis: {
-        Row: {
-          business_id: string | null
-          fifo_unit_cost: number | null
-          inventory_value: number | null
-          product_id: string | null
-          qty_on_hand: number | null
-          warehouse_id: string | null
         }
         Relationships: []
       }
