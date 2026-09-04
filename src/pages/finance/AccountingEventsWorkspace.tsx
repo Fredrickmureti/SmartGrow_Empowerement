@@ -13,10 +13,6 @@
  *  - The "Post now" action calls `accounting_post_event(event_id)` — the
  *    single authoritative posting entry-point (B3). Outcome envelope:
  *    { status: 'posted' | 'noop' | 'needs_mapping' | 'invalid' | 'deferred', ... }
- *  - When the producer is POS we additionally surface dispatcher health
- *    (attempts / dead-lettered) and the mapping preview from
- *    `get_pos_statement_posting_preview`, so accountants keep the same
- *    diagnostic depth they had in the legacy queue.
  *
  * State model (mirrors accounting_events.state)
  *  ready | needs_mapping | posting | posted | failed | superseded | cancelled | noop
@@ -80,12 +76,6 @@ interface AccountingEventRow {
   version: number;
 }
 
-interface DispatcherHealth {
-  attempts: number;
-  last_error: string | null;
-  dead_at: string | null;
-  dead_reason: string | null;
-}
 
 // ---------------------------------------------------------------------------
 // Data hooks
@@ -133,132 +123,6 @@ function useAccountingEvents(filter: string) {
   });
 }
 
-/**
- * Enrich POS-producer events with outbox dispatcher health so accountants
- * can distinguish "haven't tried yet" from "dispatcher tried 12 times".
- */
-function useDispatcherHealthForPos(events: AccountingEventRow[]) {
-  const posDocIds = useMemo(
-    () => events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
-      .map((e) => e.producer_doc_id),
-    [events],
-  );
-  return useQuery({
-    queryKey: ["accounting-events-dispatcher-health", posDocIds.sort().join(",")],
-    enabled: posDocIds.length > 0,
-    queryFn: async (): Promise<Map<string, DispatcherHealth>> => {
-      const [{ data: live }, { data: dead }] = await Promise.all([
-        supabase.from("business_event_outbox")
-          .select("source_doc_id, attempts, last_error")
-          .eq("source_doc_type", "pos_statement")
-          .in("source_doc_id", posDocIds),
-        supabase.from("business_event_outbox_dead")
-          .select("source_doc_id, dead_at, dead_reason, last_error")
-          .eq("source_doc_type", "pos_statement")
-          .in("source_doc_id", posDocIds),
-      ]);
-      const out = new Map<string, DispatcherHealth>();
-      for (const r of (live ?? []) as Array<Record<string, unknown>>) {
-        const key = r.source_doc_id as string;
-        const attempts = Number(r.attempts ?? 0);
-        const cur = out.get(key);
-        if (!cur || attempts > cur.attempts) {
-          out.set(key, {
-            attempts,
-            last_error: (r.last_error as string | null) ?? cur?.last_error ?? null,
-            dead_at: cur?.dead_at ?? null,
-            dead_reason: cur?.dead_reason ?? null,
-          });
-        }
-      }
-      for (const r of (dead ?? []) as Array<Record<string, unknown>>) {
-        const key = r.source_doc_id as string;
-        const cur = out.get(key) ?? { attempts: 0, last_error: null, dead_at: null, dead_reason: null };
-        cur.dead_at = r.dead_at as string;
-        cur.dead_reason = (r.dead_reason as string | null) ?? null;
-        cur.last_error = cur.last_error ?? (r.last_error as string | null) ?? null;
-        out.set(key, cur);
-      }
-      return out;
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// POS statement enrichment — replace bare uuids with human labels.
-
-interface PosStatementSummary {
-  statement_number: string;
-  close_kind: string | null;
-  closed_at: string | null;
-  opened_at: string | null;
-  register_name: string | null;
-  shift_number: string | null;
-  cashier_name: string | null;
-  total_sales: number | null;
-  total_transactions: number | null;
-  counted_cash: number | null;
-  expected_cash: number | null;
-  cash_variance: number | null;
-}
-
-function usePosStatementSummaries(events: AccountingEventRow[]) {
-  const posDocIds = useMemo(
-    () => Array.from(new Set(
-      events.filter((e) => e.producer === "pos" && e.producer_doc_type === "pos_statement")
-        .map((e) => e.producer_doc_id),
-    )),
-    [events],
-  );
-  return useQuery({
-    queryKey: ["accounting-events-pos-summaries", posDocIds.sort().join(",")],
-    enabled: posDocIds.length > 0,
-    queryFn: async (): Promise<Map<string, PosStatementSummary>> => {
-      const { data, error } = (await (supabase as any)
-        .from("pos_statements")
-        .select(`
-          id, statement_number, close_kind, opened_at, closed_at,
-          total_sales, total_transactions, counted_cash, expected_cash, cash_variance,
-          closed_by,
-          register:pos_registers!pos_statements_register_id_fkey ( register_name ),
-          shift:pos_shifts!pos_statements_shift_id_fkey ( shift_number )
-        `)
-        .in("id", posDocIds)) as { data: any[] | null; error: any };
-      if (error) throw error;
-      const closedByIds = Array.from(new Set(
-        (data ?? []).map((r) => (r as Record<string, unknown>).closed_by as string | null).filter(Boolean) as string[],
-      ));
-      const nameMap = new Map<string, string>();
-      if (closedByIds.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .in("id", closedByIds);
-        for (const p of (profs ?? []) as Array<Record<string, unknown>>) {
-          nameMap.set(p.id as string, (p.full_name as string) || (p.email as string) || "");
-        }
-      }
-      const out = new Map<string, PosStatementSummary>();
-      for (const r of (data ?? []) as Array<Record<string, unknown>>) {
-        out.set(r.id as string, {
-          statement_number: (r.statement_number as string) ?? "",
-          close_kind: (r.close_kind as string) ?? null,
-          opened_at: (r.opened_at as string) ?? null,
-          closed_at: (r.closed_at as string) ?? null,
-          register_name: ((r.register as { register_name?: string } | null)?.register_name) ?? null,
-          shift_number: ((r.shift as { shift_number?: string } | null)?.shift_number) ?? null,
-          cashier_name: nameMap.get(r.closed_by as string) ?? null,
-          total_sales: (r.total_sales as number) ?? null,
-          total_transactions: (r.total_transactions as number) ?? null,
-          counted_cash: (r.counted_cash as number) ?? null,
-          expected_cash: (r.expected_cash as number) ?? null,
-          cash_variance: (r.cash_variance as number) ?? null,
-        });
-      }
-      return out;
-    },
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -330,8 +194,6 @@ export default function AccountingEventsWorkspace() {
   };
 
   const { data: rows = [], isLoading, error, refetch, isFetching } = useAccountingEvents(filter);
-  const { data: dispatcherHealth } = useDispatcherHealthForPos(rows);
-  const { data: posSummaries } = usePosStatementSummaries(rows);
   const [selected, setSelected] = useState<AccountingEventRow | null>(null);
 
   const kpis = useMemo(() => {
@@ -348,7 +210,6 @@ export default function AccountingEventsWorkspace() {
         title="Accounting Events"
         description="Every accounting-worthy business fact — POS shift closes, and (soon) sales invoices, bills, and inventory moves — flows through this workspace. Each row represents one canonical event routed through the unified Posting Engine (accounting_post_event). The legacy POS Posting Queue redirects here."
       />
-
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">{scope.scopeLabel}</div>
         <div className="flex items-center gap-2">
@@ -397,7 +258,6 @@ export default function AccountingEventsWorkspace() {
                 <TableHead>Business date</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>State</TableHead>
-                <TableHead>Dispatcher</TableHead>
                 <TableHead>Journal</TableHead>
                 <TableHead className="w-[120px]" />
               </TableRow>
@@ -418,20 +278,6 @@ export default function AccountingEventsWorkspace() {
                   </div>
                 </TableCell></TableRow>
               )}
-              {rows.map((r) => {
-                const health = r.producer === "pos"
-                  ? dispatcherHealth?.get(r.producer_doc_id)
-                  : undefined;
-                const summary = r.producer === "pos"
-                  ? posSummaries?.get(r.producer_doc_id)
-                  : undefined;
-                const primaryLabel = summary?.statement_number
-                  || `#${r.producer_doc_id.slice(0, 8)}`;
-                const secondaryBits = [
-                  humanizeEventKind(r.event_kind),
-                  summary?.register_name,
-                  summary?.cashier_name,
-                ].filter(Boolean) as string[];
                 return (
                   <TableRow key={r.id} className={r.state === "needs_mapping" || r.state === "failed" ? "bg-amber-50/40 dark:bg-amber-950/10" : ""}>
                     <TableCell className="text-xs">
@@ -466,27 +312,10 @@ export default function AccountingEventsWorkspace() {
                     <TableCell className="text-xs">
                       {r.journal_entry_id
                         ? <Badge variant="outline" className="border-emerald-500 text-emerald-700 dark:text-emerald-400">Journal posted</Badge>
-                        : <span className="text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="secondary" onClick={() => setSelected(r)}>
-                        Review <ArrowRight className="h-3 w-3 ml-1" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
           </Table>
         </CardContent>
       </Card>
 
-      <EventDrawer
-        event={selected}
-        summary={selected && selected.producer === "pos" ? posSummaries?.get(selected.producer_doc_id) : undefined}
-        onClose={() => setSelected(null)}
-        currency={baseCurrency}
-      />
     </div>
   );
 }
@@ -516,10 +345,6 @@ function Kpi({
 }
 
 function EventDrawer({
-  event, summary, onClose, currency,
-}: {
-  event: AccountingEventRow | null;
-  summary?: PosStatementSummary;
   onClose: () => void;
   currency: string;
 }) {
@@ -552,8 +377,6 @@ function EventDrawer({
 
   if (!event) return null;
 
-  const headline = summary?.statement_number
-    || `${humanizeEventKind(event.event_kind)} #${event.producer_doc_id.slice(0, 8)}`;
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -568,33 +391,6 @@ function EventDrawer({
         </DialogHeader>
 
         <div className="space-y-4 text-sm">
-          {/* Business summary — what actually happened, in accountant terms. */}
-          {summary && (
-            <div className="rounded-md border bg-muted/30 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">
-                Shift close summary
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                <Field label="Statement" value={summary.statement_number || "—"} />
-                <Field label="Close kind" value={summary.close_kind ? humanizeEventKind(summary.close_kind) : "—"} />
-                <Field label="Register" value={summary.register_name || "—"} />
-                <Field label="Shift" value={summary.shift_number || "—"} />
-                <Field label="Closed by" value={summary.cashier_name || "—"} />
-                <Field
-                  label="Closed at"
-                  value={summary.closed_at ? format(new Date(summary.closed_at), "yyyy-MM-dd HH:mm") : "—"}
-                />
-                <Field
-                  label="Sales"
-                  value={`${fmtMoney(summary.total_sales, event.currency_code ?? currency)} · ${summary.total_transactions ?? 0} txns`}
-                />
-                <Field
-                  label="Cash variance"
-                  value={fmtMoney(summary.cash_variance, event.currency_code ?? currency)}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Posting lifecycle */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
