@@ -523,7 +523,7 @@ export default function FiscalPeriodDetail() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
-                    <span className="text-sm">Open Invoices</span>
+                    <span className="text-sm">Open Items</span>
                     <span className="font-semibold text-sm">{subledger.arCount}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 rounded-lg bg-muted/50">
