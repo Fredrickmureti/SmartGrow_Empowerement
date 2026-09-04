@@ -12,7 +12,6 @@ import { useEffect, useState } from "react";
 import { DetailRow } from "@/components/common/DetailRow";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { deriveInvoiceFromAllocations } from "@/lib/payments/deriveInvoiceFromAllocations";
 import { DetailSheet } from "@/design-system/primitives/DetailSheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
