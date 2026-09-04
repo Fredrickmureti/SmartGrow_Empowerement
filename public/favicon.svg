@@ -1,14 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Smart Grow Empowerment">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    <linearGradient id="sge" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f6b48" />
+      <stop offset="100%" stop-color="#3fae76" />
     </linearGradient>
   </defs>
-  <!-- Rounded rectangle background -->
-  <rect x="2" y="2" width="28" height="28" rx="6" ry="6" fill="url(#grad)"/>
-  <!-- Letter A stylized as accounting/flow symbol -->
-  <path d="M16 6 L9 24 L12 24 L13.5 20 L18.5 20 L20 24 L23 24 L16 6 Z M14.5 17 L16 12 L17.5 17 L14.5 17 Z" fill="white"/>
-  <!-- Small accent line for "flow" -->
-  <path d="M8 26 L24 26" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+  <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#sge)" />
+  <!-- growth arrow -->
+  <path d="M8 22.5 L14 16.5 L18 20.5 L24.5 13.5"
+        fill="none" stroke="#eaf7ef" stroke-width="2.6"
+        stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M19.5 12.5 L25.5 12.5 L25.5 18.5" fill="none" stroke="#eaf7ef"
+        stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <!-- leaf -->
+  <path d="M8.5 12.8 C8.5 9.2 11.4 6.8 15 6.8 C15 10.4 12.1 12.8 8.5 12.8 Z"
+        fill="#a7e8c4" />
 </svg>
