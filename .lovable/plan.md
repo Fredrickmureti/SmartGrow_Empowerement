@@ -137,13 +137,16 @@ protection. Nothing in the domain blocks on it; one fix per migration.
 ==========THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
 
 
-M9.7 (loan fees) is complete and typechecks clean: product versions publish real fees, the disburse dialog previews server-computed fee lines and net cash, loan document snapshots carry `fees_deducted`/`net_amount`/`fee_breakdown`, and the Disbursements report shows principal, fees and net.
+Pausing here per your choice. Status this turn:
 
-Remaining for M10 (report catalogue cleanup), not yet started:
-- Remove the FX report family from `reportsNav.ts` and the three `fx-*` entries from `ReportRegistry.ts`, plus their routes in `src/apps/finance/routes.tsx`, the `FxRevaluationReport` page and the `useFxRevaluation`/`useFxExposure`/`useFxRealized` hooks (database FX objects stay untouched).
-- Drop the dead `hr`/`sales`/`purchases`/`inventory`/`pos`/`projects`/`crm` domains and the unused `inventory`/`tax`/`budget` category classifications and path-prefix maps.
-- Register the four built-but-unregistered lending reports (`officer-collections`, `par-aging`, `product-performance`, `client-exposure`) and add a lending family to the reports nav.
-- Update `src/test/architecture/reporting-workspace.test.ts` and `reporting-isolation-matrix.test.ts` to the new domain/category set, then re-run typecheck and tests.
+Done and verified
+- M9.7 (loan fees) and M10 (report catalogue) claims verified against the code — fee editor publishes real fees, disbursement carries `fees_deducted`/`net_amount`/`fee_breakdown`, registry/nav are microfinance-only.
+- Found and fixed a broken dev server (stale Vite cache after a lockfile change — cleared `node_modules/.vite`, restarted). App now boots: `/` and `/lending` correctly redirect to `/login`, which renders with Smart Grow Empowerment branding.
+
+Remaining (small, in order)
+1. Login hero copy in `src/components/auth/AuthLayout.tsx:38` still says "Invoicing, inventory, payroll and point of sale" — ERP marketing text; should be retargeted to microfinance language (one-line edit).
+2. M11 owner verification pass — requires your sign-in in the preview (checklist is in the plan: fee disbursement journal, write-off, reversal, reports, receipts, reconciliation, penalties).
+3. M12 deferred inherited linter posture (deliberately last, one fix per migration).
 
 
 =============
