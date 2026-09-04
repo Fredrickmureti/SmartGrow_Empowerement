@@ -30,14 +30,15 @@ export function AuthLayout({
               <Link to="/" className="text-2xl font-bold hover:opacity-80 transition-opacity">Smart Grow Empowerment</Link>
             </div>
             <h1 className="text-4xl font-bold mb-3 leading-tight">
-              Every transaction,
+              Every shilling lent,
               <br />
-              posted and balanced.
+              tracked and accounted for.
             </h1>
             <p className="text-base text-primary-foreground/75 max-w-md">
-              Invoicing, inventory, payroll and point of sale — all landing in one
-              double-entry general ledger, in real time.
+              Clients, groups, loans, collections and arrears — every business
+              event posting straight into one double-entry general ledger.
             </p>
+
           </div>
 
           <LedgerShowcase />
