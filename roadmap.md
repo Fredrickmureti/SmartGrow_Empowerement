@@ -12,7 +12,7 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [x] M9.2 — Penalty charges, accrual RPC and policy-ordered allocation.
 - [x] M9.3 — Penalties surfaced on the loan schedule (column + charges list).
 - [x] Branded loader retitled to Smart Grow Empowerment.
-- [ ] M9.4 — Officer data scope across clients, loans, repayments, reports.
-- [ ] M9.5 — Reversal / duplicate-prevention checks on disbursement + repayment.
+- [x] M9.4 — Officer data scope across clients, loans, repayments, reports.
+- [x] M9.5 — Reversal / duplicate-prevention checks on disbursement + repayment (write-off posting regression fixed).
 - [ ] M9.6 — Deferred inherited linter posture.
 - [ ] Owner verification pass in the running app (see plan.md).
