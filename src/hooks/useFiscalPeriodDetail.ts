@@ -601,13 +601,11 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           allClear: blockers === 0 && warnings === 0,
           healthScore,
         },
-        subledger: {
-          arTotal,
-          apTotal,
-          arOverdue,
-          apOverdue,
-          arCount: arResult.count || 0,
-          apCount: apResult.count || 0,
+        portfolio: {
+          outstanding: portfolioOutstanding,
+          overdue: portfolioOverdue,
+          loanCount: portfolioRows.length,
+          overdueLoanCount: portfolioOverdueCount,
         },
         budgetComparison,
         assetSummary: {
