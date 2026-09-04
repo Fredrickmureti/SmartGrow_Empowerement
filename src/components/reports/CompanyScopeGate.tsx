@@ -53,17 +53,6 @@ export function CompanyScopeGate({ children, reportName = "this report" }: Compa
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>
-            Looking for figures across all your companies? That requires intercompany
-            eliminations and currency translation, which live in a dedicated consolidation
-            module.
-          </p>
-          <Button variant="outline" size="sm" onClick={() => navigate("/finance/reports/cross-company")}>
-            <GitMerge className="h-4 w-4 mr-2" />
-            Open Consolidation
-          </Button>
-        </CardContent>
       </Card>
     </div>
   );
