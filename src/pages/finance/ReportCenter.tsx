@@ -43,11 +43,11 @@ function categoryIcon(reports: ReportDefinition[]) {
 
 // Default Quick Access set when the user hasn't favorited anything.
 const DEFAULT_QUICK_ACCESS_IDS = [
-  "profit-and-loss",
-  "balance-sheet",
+  "loan-portfolio",
+  "loan-arrears",
+  "loan-collections",
   "trial-balance",
   "general-ledger",
-  "aged-receivables",
   "cash-flow",
 ];
 
