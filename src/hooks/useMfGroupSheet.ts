@@ -31,6 +31,9 @@ export interface MfGroupSheetRow {
   totalOutstanding: number;
 }
 
+/** Stable fallback — a fresh `[]` per render would retrigger consumers keyed on the array identity. */
+const EMPTY_ROWS: MfGroupSheetRow[] = [];
+
 /** Rows for one group's meeting sheet: one active loan per active member. */
 export function useMfGroupSheet(groupId?: string | null) {
   const { currentBusiness } = useBusinesses();
@@ -127,7 +130,7 @@ export function useMfGroupSheet(groupId?: string | null) {
   });
 
   return {
-    rows: query.data ?? [],
+    rows: query.data ?? EMPTY_ROWS,
     isLoading: query.isLoading,
     error: query.error as Error | null,
   };

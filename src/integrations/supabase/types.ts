@@ -12761,7 +12761,11 @@ export type Database = {
           full_name: string
           gender: string | null
           id: string
+          id_back_path: string | null
+          id_front_path: string | null
           joined_on: string
+          kin_id_back_path: string | null
+          kin_id_front_path: string | null
           loan_officer_id: string | null
           national_id: string | null
           next_of_kin_name: string | null
@@ -12770,6 +12774,7 @@ export type Database = {
           notes: string | null
           occupation: string | null
           phone: string | null
+          photo_path: string | null
           photo_url: string | null
           physical_address: string | null
           status: string
@@ -12789,7 +12794,11 @@ export type Database = {
           full_name: string
           gender?: string | null
           id?: string
+          id_back_path?: string | null
+          id_front_path?: string | null
           joined_on?: string
+          kin_id_back_path?: string | null
+          kin_id_front_path?: string | null
           loan_officer_id?: string | null
           national_id?: string | null
           next_of_kin_name?: string | null
@@ -12798,6 +12807,7 @@ export type Database = {
           notes?: string | null
           occupation?: string | null
           phone?: string | null
+          photo_path?: string | null
           photo_url?: string | null
           physical_address?: string | null
           status?: string
@@ -12817,7 +12827,11 @@ export type Database = {
           full_name?: string
           gender?: string | null
           id?: string
+          id_back_path?: string | null
+          id_front_path?: string | null
           joined_on?: string
+          kin_id_back_path?: string | null
+          kin_id_front_path?: string | null
           loan_officer_id?: string | null
           national_id?: string | null
           next_of_kin_name?: string | null
@@ -12826,6 +12840,7 @@ export type Database = {
           notes?: string | null
           occupation?: string | null
           phone?: string | null
+          photo_path?: string | null
           photo_url?: string | null
           physical_address?: string | null
           status?: string
