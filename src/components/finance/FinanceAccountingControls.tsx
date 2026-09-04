@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BookOpen, Landmark, Loader2, Plus, RefreshCw, Save, TrendingUp } from "lucide-react";
+import { BookOpen, Landmark, Loader2, Plus, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,14 +18,10 @@ import {
   useReconciliationRules,
   type ApplyRulesResult,
 } from "@/hooks/finance/useReconciliationRules";
-import { useFxRevaluation, useFxRevaluationReadiness } from "@/hooks/finance/useFxRevaluation";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ShieldAlert } from "lucide-react";
 import { useFinancePermissions } from "@/hooks/finance/useFinancePermission";
 import { FinanceReadOnlyNotice } from "@/components/finance/FinanceReadOnlyNotice";
 import { normalizeError } from "@/services/resilience";
-import { ExchangeRatePanel } from "@/components/finance/ExchangeRatePanel";
 
 interface AccountOption {
   id: string;
@@ -52,30 +48,22 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
   const { toast } = useToast();
   const journalBooks = useJournalBooks();
   const reconRules = useReconciliationRules();
-  const fx = useFxRevaluation();
   const [lastRuleRun, setLastRuleRun] = useState<ApplyRulesResult | null>(null);
   // One batched, cached round-trip for all three gates. While unresolved we
   // disable inputs but never render a denial banner (tri-state contract).
   const { permissions, isLoading: permLoading } = useFinancePermissions([
     "finance.manage_settings",
-    "finance.manage_je",
     "finance.reconcile_bank",
   ]);
   const canManageSettings = permissions["finance.manage_settings"];
-  const canManageJe = permissions["finance.manage_je"];
   const canReconcile = permissions["finance.reconcile_bank"];
   const journalsReadOnly = !canManageSettings;
   const rulesReadOnly = !(canManageSettings || canReconcile);
-  const fxReadOnly = !canManageJe;
   const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>([]);
   const [isLoadingBanks, setIsLoadingBanks] = useState(false);
   const [journalDraft, setJournalDraft] = useState({ code: "", name: "", journal_type: "general" as JournalType, default_account_id: "", description: "" });
   const [ruleDraft, setRuleDraft] = useState({ name: "", bank_account_id: "", description_pattern: "", amount_sign: "any", counterpart_account_id: "", auto_post: false, description_template: "" });
   const [applyBankAccountId, setApplyBankAccountId] = useState("");
-  const [fxDraft, setFxDraft] = useState({ run_date: new Date().toISOString().slice(0, 10) });
-
-  const { data: readiness } = useFxRevaluationReadiness(fxDraft.run_date);
-  const periodBlocked = !!readiness?.fiscal_period_id && readiness.fiscal_period_status !== "open";
 
   const incomeAccounts = useMemo(() => accounts.filter((account) => account.account_type === "income"), [accounts]);
   const expenseAccounts = useMemo(() => accounts.filter((account) => account.account_type === "expense"), [accounts]);
@@ -136,11 +124,6 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
     toast({ title: "Reconciliation rule saved" });
   };
 
-  const runFx = async () => {
-    await fx.runRevaluation({ run_date: fxDraft.run_date });
-  };
-
-
   const applyRules = async () => {
     if (!applyBankAccountId) return;
     // A refusal is evidence, not an error: show the accountant which lines the
@@ -157,15 +140,14 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
           Accounting Controls
         </CardTitle>
         <CardDescription className="text-xs">
-          Manage journal books, reconciliation rule suggestions, and FX revaluation runs from one accountant workspace.
+          Manage journal books and reconciliation rule suggestions from one accountant workspace.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="journals" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="journals">Journals</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-            <TabsTrigger value="fx">FX</TabsTrigger>
           </TabsList>
 
           <TabsContent value="journals" className="space-y-4">
@@ -296,119 +278,6 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
             </div>
           </TabsContent>
 
-          <TabsContent value="fx" className="space-y-4">
-            <FinanceReadOnlyNotice
-              what="review FX revaluation settings"
-              permission="finance.manage_je"
-              isLoading={permLoading}
-              readOnly={fxReadOnly}
-            />
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Revaluation date</p>
-                <Input type="date" value={fxDraft.run_date} onChange={(event) => setFxDraft((draft) => ({ ...draft, run_date: event.target.value }))} />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Reporting currency</p>
-                <div className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm">
-                  {currentBusiness?.base_currency ?? "—"}
-                </div>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Unrealized gain and loss are posted to the accounts mapped under
-              Settings → Default Accounts (FX Unrealized Gain / Loss). They are resolved
-              server-side so every run hits the same accounts.
-            </p>
-
-            {readiness && (
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">
-                    Period {readiness.fiscal_period_name ?? "—"}
-                  </p>
-                  <Badge variant={readiness.fiscal_period_status === "open" ? "outline" : "secondary"}>
-                    {readiness.fiscal_period_status ?? "no period"}
-                  </Badge>
-                </div>
-                {readiness.foreign_balances.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No foreign-currency monetary balances as of this date.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {readiness.foreign_balances.map((balance) => (
-                      <div key={balance.currency} className="space-y-0.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span>{balance.currency} · {balance.account_count} account(s)</span>
-                          <span className={balance.rate == null ? "text-destructive" : "text-muted-foreground"}>
-                            {balance.foreign_balance} @ {balance.rate ?? "no rate on file"}
-                          </span>
-                        </div>
-                        {/* ADR 0136: a rate shown without its provenance cannot be
-                            audited. Reuse the canonical describe-rate panel. */}
-                        <ExchangeRatePanel
-                          currency={balance.currency}
-                          onDate={fxDraft.run_date}
-                          missingHint="Add an override in Currency settings before revaluing."
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {readiness.missing_rates.length > 0 && (
-                  <Alert variant="destructive">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      No rate on file for {readiness.missing_rates.join(", ")} as of {fxDraft.run_date}. Add an override in Currency settings before revaluing.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {periodBlocked && (
-                  <Alert variant="destructive">
-                    <ShieldAlert className="h-4 w-4" />
-                    <AlertDescription className="text-xs">
-                      This fiscal period is {readiness.fiscal_period_status}. Revaluation can only post into an open period.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </div>
-            )}
-            <Button
-              onClick={runFx}
-              disabled={
-                fx.isRunning ||
-                fxReadOnly ||
-                periodBlocked ||
-                (readiness?.missing_rates.length ?? 0) > 0
-              }
-            >
-
-              {fx.isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
-              Run Revaluation
-            </Button>
-            <div className="space-y-2">
-              {fx.runs.map((run) => (
-                <div key={run.id} className="rounded-md border p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-medium">{run.run_date} · {run.base_currency}</p>
-                      <p className="text-xs text-muted-foreground">Gain {run.total_unrealized_gain} · Loss {run.total_unrealized_loss}</p>
-                      {run.reversed_at && (
-                        <p className="text-xs text-muted-foreground">
-                          Reversed {run.reversed_at.slice(0, 10)}
-                          {run.reversal_journal_entry_id ? " · reversal posted" : ""}
-                        </p>
-                      )}
-                      {run.status === "failed" && run.notes && (
-                        <p className="text-xs text-destructive">{run.notes}</p>
-                      )}
-                    </div>
-                    <Badge variant={run.status === "posted" ? "outline" : run.status === "failed" ? "destructive" : "secondary"}>{run.status}</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
