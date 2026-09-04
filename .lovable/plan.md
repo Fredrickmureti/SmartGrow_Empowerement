@@ -176,10 +176,9 @@ project loan/schedule/`mf_repayment_allocations`; single `mf_record_repayment` w
 
 
 
-THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT
+THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT  (Remaining)
 ===================================================
 
+The journal entry screen now picks the person from your microfinance client list instead of the old customer/vendor list, and the printed journal document plus the bank-clearing screen also show client names from that same list.
 
-Supabase (`Smart Grow Empowerment`) is already connected — no reconnection needed.
-
-M5 step 2 is done and verified: the whole supplier-billing/vendor chain (17 tables, 3 views, ~80 routines) is gone from the database, retained banking/payments tables were cleanly detached, the two live bank trigger guards were rewritten, dead ERP screens/tests/realtime handlers deleted — typecheck clean, app returns 200, plan updated. Next up per plan: dropping CRM `contacts`, then projects/cost layers/backorders, before the FX purge.
+Still to do on this clean-up step: rewrite the search-box "clients" results to look in the client list, remove the leftover old contact files and their tests, then run the database step that drops the unused contact tables, and finally check the pages still load.
