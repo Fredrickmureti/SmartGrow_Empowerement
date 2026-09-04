@@ -21,8 +21,6 @@ const FinanceDashboard = lazy(() => import("@/pages/finance/FinanceDashboard"));
 const AccountRegister = lazy(() => import("@/pages/finance/AccountRegister"));
 const ReportCenter = lazy(() => import("@/pages/finance/ReportCenter"));
 // ContactDetail removed — unified into /contacts-app/profile via ContactRedirect (see route below)
-const AccountsReceivable = lazy(() => import("@/pages/finance/AccountsReceivable"));
-const AccountsPayable = lazy(() => import("@/pages/finance/AccountsPayable"));
 
 // Lazy imports for less frequently accessed pages
 const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
@@ -106,29 +104,7 @@ export function FinanceApp() {
           }
         />
         
-        {/* Accounts Receivable */}
-        <Route
-          path="receivables"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Accounts Receivable">
-                <AccountsReceivable />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
-        {/* Accounts Payable */}
-        <Route
-          path="payables"
-          element={
-            <InstitutionRoute allowReadOnly>
-              <LazyRoute module="Accounts Payable">
-                <AccountsPayable />
-              </LazyRoute>
-            </InstitutionRoute>
-          }
-        />
 
         {/* Customer Credits — apply + refund wizards (list route below). */}
 
