@@ -468,6 +468,12 @@ export function getReportsByDomain(domain: ReportDomain): ReportDefinition[] {
  * routinely open the second to explain the first.
  */
 const REPORT_RELATION_PAIRS: Array<[string, string]> = [
+  ["loan-portfolio", "loan-arrears"],
+  ["loan-portfolio", "loan-collections"],
+  ["loan-arrears", "par-aging"],
+  ["loan-collections", "officer-collections"],
+  ["loan-portfolio", "client-exposure"],
+  ["loan-disbursements", "product-performance"],
   ["trial-balance", "general-ledger"],
   ["trial-balance", "journal-report"],
   ["general-ledger", "journal-report"],

@@ -109,8 +109,9 @@ describe("drill-down isolation", () => {
 
 describe("report taxonomy coverage", () => {
   const FAMILY_IDS = [
-    "aged-receivables",
-    "aged-payables",
+    "loan-portfolio",
+    "loan-arrears",
+    "loan-collections",
   ];
 
   it("registers every report family", () => {
