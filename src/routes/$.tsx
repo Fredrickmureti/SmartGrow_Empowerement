@@ -18,6 +18,7 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { Suspense, lazy, useEffect, useState } from "react";
+import { RouteLoadingFallback } from "@/components/common/RouteLoadingFallback";
 
 const App = lazy(() => import("@/App"));
 
@@ -31,10 +32,12 @@ function CatchAllRoute() {
   return (
     <div id="app-root" suppressHydrationWarning>
       {mounted ? (
-        <Suspense fallback={null}>
+        <Suspense fallback={<RouteLoadingFallback />}>
           <App />
         </Suspense>
-      ) : null}
+      ) : (
+        <RouteLoadingFallback />
+      )}
     </div>
   );
 }
