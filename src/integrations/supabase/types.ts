@@ -16777,6 +16777,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_deprecated: boolean
           is_system: boolean
           name: string
           organization_id: string
@@ -16786,6 +16787,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_deprecated?: boolean
           is_system?: boolean
           name: string
           organization_id: string
@@ -16795,6 +16797,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_deprecated?: boolean
           is_system?: boolean
           name?: string
           organization_id?: string
@@ -24527,6 +24530,14 @@ export type Database = {
         Args: { _break_minutes: number; _end: string; _start: string }
         Returns: number
       }
+      accept_organization_invitation_atomic: {
+        Args: {
+          p_invitation_id: string
+          p_permission_group_ids?: string[]
+          p_user_id: string
+        }
+        Returns: Json
+      }
       accounting_event_for_pos_statement: {
         Args: { p_statement_id: string }
         Returns: string
@@ -25475,6 +25486,10 @@ export type Database = {
       check_subscription_expired: {
         Args: { _org_id: string }
         Returns: boolean
+      }
+      check_user_invite_allowed: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       claim_next_business_event:
         | {
@@ -30733,10 +30748,6 @@ export type Database = {
         Args: { _org_id: string }
         Returns: undefined
       }
-      seed_system_permission_groups: {
-        Args: { _org_id: string }
-        Returns: undefined
-      }
       set_branch_setting: {
         Args: {
           p_branch_id: string
@@ -31219,6 +31230,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      upsert_organization_invitation: {
+        Args: {
+          p_email: string
+          p_employee_id?: string
+          p_expires_days?: number
+          p_invited_by?: string
+          p_organization_id: string
+          p_permission_group_ids?: string[]
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_type?: string
+        }
+        Returns: Json
       }
       upsert_system_account: {
         Args: {

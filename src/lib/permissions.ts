@@ -679,7 +679,19 @@ export const PERMISSION_MODULES = [
   "hr",          // deprecated alias for employees — kept for back-compat
   "payroll",
   "pos",
-  "lending",
+  "lending",     // aggregate lending module — kept for back-compat with existing rules
+  // --- Microfinance modules (Wave 1) ---
+  "clients",
+  "loan_products",
+  "applications",
+  "loans",
+  "repayments",
+  "collections",
+  "accounting",
+  "treasury",
+  "reports",
+  "branches",
+  "audit",
   "settings",
   "team",
 ] as const;
@@ -700,28 +712,49 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   hr: "HR / Employees (legacy)",
   payroll: "Payroll",
   pos: "Point of Sale",
-  lending: "Lending (Microfinance)",
+  lending: "Lending (all areas)",
+  clients: "Clients",
+  loan_products: "Loan Products",
+  applications: "Loan Applications",
+  loans: "Loans",
+  repayments: "Repayments",
+  collections: "Collections & Arrears",
+  accounting: "Accounting",
+  treasury: "Treasury & Banking",
+  reports: "Reports",
+  branches: "Branches",
+  audit: "Audit Trail",
   // sign: retired 2026-05-09
   settings: "Settings",
-  team: "Team & Audit",
+  team: "Team & Access",
 };
+
 
 /**
  * Modules surfaced in the Access Groups admin UI.
  *
- * Microfinance scope only: ERP modules (products, sales, purchases, pos,
- * projects) and the HR/payroll family (employees, leave, attendance,
- * recruitment, payroll, and the deprecated `hr` / `timesheets` aliases) are
- * NOT surfaced. They remain in PERMISSION_MODULES so pre-existing rule rows
- * still resolve, but no new rules can target them.
+ * Microfinance vocabulary only. ERP modules (products, sales, purchases, pos,
+ * recruitment) and the HR/payroll family remain in PERMISSION_MODULES so any
+ * pre-existing rule rows still resolve, but no new rules can target them.
+ * The aggregate `lending` module is likewise deprecated in favour of the
+ * granular lending modules below.
  */
 export const ACTIVE_PERMISSION_MODULES: PermissionModule[] = [
-  "contacts",
-  "financials",
-  "lending",
-  "settings",
+  "clients",
+  "loan_products",
+  "applications",
+  "loans",
+  "repayments",
+  "collections",
+  "accounting",
+  "treasury",
+  "reports",
+  "branches",
   "team",
+  "settings",
+  "audit",
 ];
+
 
 
 /**
@@ -768,6 +801,7 @@ const MODULE_PERMISSION_MAP: Record<PermissionModule, {
   // into any granular operation here — action surfaces must check the specific granular permission.
   payroll:    { read: ["viewPayroll", "viewRemittances"], create: ["runPayroll", "manageEmployeeLoans"], write: ["managePayroll", "manageStatutoryRules", "manageSalaryStructures", "manageRemittances"], delete: ["runPayroll"], approve: ["approvePayroll"], post: ["postPayrollGL"], pay: ["payPayroll"], export: ["exportPayroll"] },
   pos:        { read: ["viewPOS", "viewPOSReports"], create: ["managePOS", "processSales", "manageShifts", "manageCashDrawer", "applyDiscounts"], write: ["managePOS", "processReturns", "voidTransactions"], delete: ["managePOS"] },
+  // Aggregate lending module — deprecated, kept so pre-existing rules resolve.
   lending:    {
     read:   ["viewClients", "viewLoanProducts", "viewApplications", "viewLoans", "viewCollections", "viewLendingReports"],
     create: ["manageClients", "manageApplications"],
@@ -777,9 +811,53 @@ const MODULE_PERMISSION_MAP: Record<PermissionModule, {
     pay:    ["disburseLoans"],
     post:   ["recordRepayments"],
   },
+  // --- Microfinance granular modules (Wave 1) ---
+  clients: {
+    read: ["viewClients"], create: ["manageClients"], write: ["manageClients"], delete: ["manageClients"],
+    export: ["viewLendingReports"],
+  },
+  loan_products: {
+    read: ["viewLoanProducts"], create: ["manageLoanProducts"], write: ["manageLoanProducts", "manageLendingConfig"],
+    delete: ["manageLoanProducts"],
+  },
+  applications: {
+    read: ["viewApplications"], create: ["manageApplications"], write: ["manageApplications"],
+    delete: ["manageApplications"], approve: ["approveApplications"],
+  },
+  loans: {
+    read: ["viewLoans"], create: ["manageLoans"], write: ["manageLoans"], delete: [],
+    pay: ["disburseLoans"], export: ["viewLendingReports"],
+  },
+  repayments: {
+    read: ["viewLoans"], create: ["recordRepayments"], write: ["recordRepayments"], delete: [],
+    post: ["recordRepayments"], export: ["viewLendingReports"],
+  },
+  collections: {
+    read: ["viewCollections"], create: ["manageCollections"], write: ["manageCollections"],
+    delete: ["manageCollections"], export: ["viewLendingReports"],
+  },
+  accounting: {
+    read: ["viewFinancials"], create: ["manageFinancials"], write: ["manageFinancials"],
+    delete: ["manageFinancials"], post: ["postJournalEntry"], export: ["exportFinancials"],
+  },
+  treasury: {
+    read: ["viewFinancials"], create: ["manageFinancials"], write: ["manageFinancials"],
+    delete: [], pay: ["disburseLoans"], export: ["exportFinancials"],
+  },
+  reports: {
+    read: ["viewReports", "viewLendingReports"], create: [], write: [], delete: [],
+    export: ["exportFinancials"],
+  },
+  branches: {
+    read: ["viewFinancials"], create: ["manageBusiness"], write: ["manageBusiness"], delete: ["manageBusiness"],
+  },
+  audit: {
+    read: ["viewAuditLogs"], create: [], write: [], delete: [], export: ["exportFinancials"],
+  },
   // sign: retired 2026-05-09
   settings:   { read: ["editSettings"],   create: ["manageBusiness", "manageOrganization", "manageTaxSettings", "manageCurrency", "managePaymentGateways", "manageEmailSettings"], write: ["manageBusiness", "manageOrganization", "manageTaxSettings"], delete: ["manageBusiness"] },
   team:       { read: ["viewAuditLogs"],  create: ["manageTeam"],      write: ["manageTeam"],      delete: ["manageTeam"] },
+
 };
 
 export interface PermissionGroupRule {
