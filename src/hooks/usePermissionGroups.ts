@@ -201,7 +201,11 @@ export function usePermissionGroups() {
 
   // Assign groups to a member
   const assignGroups = useMutation({
-    mutationFn: async ({ userId, groupIds }: { userId: string; groupIds: string[] }) => {
+    mutationFn: async ({
+      userId,
+      groupIds,
+      branchScope = "assigned",
+    }: { userId: string; groupIds: string[]; branchScope?: BranchScopeMode }) => {
       if (!orgId) throw new Error("No organization selected");
 
       // Guard: block assignment to portal users
@@ -229,7 +233,12 @@ export function usePermissionGroups() {
       if (groupIds.length > 0) {
         const { error } = await supabase
           .from("member_permission_groups")
-          .insert(groupIds.map(gId => ({ organization_id: orgId, user_id: userId, permission_group_id: gId })));
+          .insert(groupIds.map(gId => ({
+            organization_id: orgId,
+            user_id: userId,
+            permission_group_id: gId,
+            branch_scope: branchScope,
+          })));
         if (error) throw error;
       }
     },
