@@ -147,6 +147,11 @@ export default function Team() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<AppRole>("internal");
   const [inviteGroupIds, setInviteGroupIds] = useState<string[]>([]);
+  // Branch scope carried by the invitation (Wave 2). The acceptance RPC turns
+  // these into real branch assignments, so a new user is never branch-less.
+  const [inviteBranchIds, setInviteBranchIds] = useState<string[]>([]);
+  const [invitePrimaryBranchId, setInvitePrimaryBranchId] = useState<string | null>(null);
+  const [inviteBranchScope, setInviteBranchScope] = useState<"all" | "assigned" | "own_portfolio">("assigned");
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string; description: string | null }>>([]);
   const [isInviting, setIsInviting] = useState(false);
   // Per-row inline role change loading.
