@@ -75,6 +75,10 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
         notes: notes.trim() || null,
       });
       onOpenChange(false);
+    } catch {
+      // The refusal is already shown to the user by the mutation's error
+      // handler; swallow it here so nothing lands unhandled in the console
+      // and the dialog stays open with the captured values.
     } finally {
       setSaving(false);
     }
