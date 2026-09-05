@@ -349,6 +349,9 @@ export default function Team() {
         p_user_type: "internal",
         p_permission_group_ids: inviteGroupIds.length > 0 ? inviteGroupIds : null,
         p_invited_by: meRes.user?.id ?? null,
+        p_branch_ids: inviteRole === "internal" && inviteBranchIds.length > 0 ? inviteBranchIds : null,
+        p_primary_branch_id: inviteRole === "internal" ? invitePrimaryBranchId : null,
+        p_branch_scope: inviteRole === "internal" ? inviteBranchScope : "all",
       },
     );
     if (rpcError) throw rpcError;
