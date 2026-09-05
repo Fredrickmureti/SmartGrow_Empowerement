@@ -83,9 +83,13 @@ export function getAccessibleAppIdsFromGroupRules(groupRules: PermissionGroupRul
 export const ALWAYS_ON_PERMISSION_MODULES: ReadonlySet<PermissionModule> = new Set([
   "settings",
   "team",
+  "audit",
+  "branches",
+  "reports",
   "contacts",
   "financials",
 ]);
+
 
 /**
  * Returns true when at least one of the apps mapped to `module` is part of
