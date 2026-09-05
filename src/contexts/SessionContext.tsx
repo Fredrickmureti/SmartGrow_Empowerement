@@ -40,6 +40,16 @@ import type { NormalizedError } from "@/services/resilience/ErrorNormalizer";
 // Types for session data returned by get_user_session_data RPC.
 // Identity fields (base_currency, address, tax_id, email, phone, etc.)
 // are intentionally absent — they live on `businesses`, not on the workspace.
+export type BranchScopeMode = "all" | "assigned" | "own_portfolio";
+
+export interface SessionBranch {
+  id: string;
+  name: string;
+  code: string | null;
+  business_id: string | null;
+  is_headquarters: boolean;
+}
+
 export interface SessionOrganization {
   id: string;
   name: string;
