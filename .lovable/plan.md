@@ -115,12 +115,23 @@ ERP orphan cleanup — whichever the client prioritises.
 
 
 
-=========WHERE THINGS STAND AT==========
-I stopped mid-check, so here's where things stand.
+## Session 2026-09-05 (verification pass)
 
-The payment and settlement work from the last wave is done and verified. In this session I was reviewing leftover cleanup and found one real remaining issue: the invoice-voiding routine still checks for an old, invalid status word ("voided"), so voiding an invoice that already has an accounting entry would fail the same way payments used to. It doesn't affect loan payments, which are working.
-
-Remaining, when you're ready to continue:
-- Correct that invoice-voiding check (a small database change).
-- Tidy the historical entry JE-00023 with missing header totals.
-- Reverse the leftover test receipt RCP-202609-00007 from the Repayments screen while signed in.
+- Confirmed live DB (`xwxqunklduknceoryrha`) has the corrected
+  `post_journal_entry_atomic` — no `'voided'` reference in any of its overloads,
+  nor in `mf_record_repayment` / `mf_reverse_repayment` / `void_journal_entry_atomic`.
+- Dry-run (rolled back) `mf_record_repayment` on LN-000001 as the test admin:
+  KES 1,000 → allocation `principal=1000`, outstanding 10,400 → 9,400,
+  balanced posted journal JE-00026 (1000/1000), receipt `posted`. PASS.
+- Reversed leftover test receipt `RCP-202609-00007` via `mf_reverse_repayment`:
+  status `reversed`, LN-000001 outstanding 10,400 → 12,480, correcting entry
+  JE-00026 2,080/2,080 posted. Leftover cleared.
+- `void_invoice_atomic`: cannot be corrected — it references `public.invoices`,
+  which no longer exists (ERP strip). It is a dead orphan; drop it in M7
+  (orphan function purge) rather than patching. Not lending-related.
+- JE-00023 header totals: intentionally left as is. The immutability rule
+  blocks header edits on posted entries and bypassing it is not worth a
+  cosmetic fix; lines (500/500) are the authoritative data.
+- Note: test receipts from the previous wave remain posted on LN-000001
+  (balance 44,920 → 12,480). Reverse them from the Repayments screen if the
+  loan must return to its original state.
