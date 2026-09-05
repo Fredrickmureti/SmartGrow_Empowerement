@@ -95,7 +95,9 @@ serve(async (req: Request) => {
       return acc;
     }, {});
 
-    const resendApiKey = settingsMap.resend_api_key;
+    // Prefer the platform_settings value; fall back to the RESEND_API_KEY
+    // function secret so a deployment can work without a DB row.
+    const resendApiKey = settingsMap.resend_api_key || Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       console.error("[send-email] No Resend API key configured");
       await logEmailSend(supabase, {

@@ -140,7 +140,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: settings } = await supabase
       .from("platform_settings")
       .select("setting_key, setting_value")
-      .in("setting_key", ["resend_api_key", "platform_name", "website_url"]);
+      .in("setting_key", ["platform_name", "website_url"]);
 
     const settingsMap = (settings || []).reduce((acc: Record<string, string>, s) => {
       if (s.setting_value) acc[s.setting_key] = s.setting_value;
@@ -208,13 +208,10 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Transport credentials are owned by `send-email` (ADR 0023); this
+    // function no longer gates on a local copy of the provider key.
 
-    if (!settingsMap.resend_api_key) {
-      return new Response(JSON.stringify({ error: "Email provider not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+
 
     const expiresDate = new Date(invitation.expires_at).toLocaleDateString("en-US", {
       year: "numeric",
