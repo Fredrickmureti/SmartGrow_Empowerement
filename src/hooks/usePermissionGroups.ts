@@ -53,13 +53,18 @@ export interface PermissionGroupWithRules extends PermissionGroup {
   rules: PermissionGroupRule[];
 }
 
+/** Branch dimension of a group grant (Wave 2). */
+export type BranchScopeMode = "all" | "assigned" | "own_portfolio";
+
 export interface MemberPermissionGroup {
   id: string;
   organization_id: string;
   user_id: string;
   permission_group_id: string;
+  branch_scope: BranchScopeMode;
   created_at: string;
 }
+
 
 export function usePermissionGroups() {
   const { currentOrg } = useSession();
