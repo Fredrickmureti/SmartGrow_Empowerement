@@ -90,10 +90,9 @@ procurement or CRM work.
 ==============THIS WAS THE LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT=================
 Here's where things stand.
 
-Here's where things stand on the payment and settlement work.
 
-Verified working (real data, September 2026): a KES 2,080 payment on loan LN-000001 recorded cleanly — receipt RCP-202609-00007, allocation of KES 480 interest and KES 1,600 principal, loan balance dropped to KES 10,400 with no arrears, and a balanced journal entry (JE-00021: cash in KES 2,080, interest income KES 480, loan principal KES 1,600). I also generated the printable payment receipt PDF end to end for that payment — it produced a valid document.
+I've fixed the two remaining faults blocking payment reversal, but the verification run stopped before I could finish it.
 
-Fixed in the app: payment errors now show a readable message instead of "[object Object]", including a clear hint when a month is closed, and a failed save keeps the form open instead of throwing an invisible error.
+What's fixed so far: the accounting safety check that broke when an entry was being voided, and the voiding routine itself, which was creating its correcting entry in a way the "posted entries can't change" rule rejected. A payment of KES 500 on loan LN-000006 was recorded and reversed successfully — the original entry is preserved and marked void, a balanced mirrored correcting entry was created, and the receipt is kept with its reversal reason. Recording the same payment reference twice was correctly refused.
 
-Still outstanding: the invoice-void and payment-void routines (and two reporting helpers) still compare a journal's state against an old value that no longer exists, which will fail if someone voids an invoice or a payment. That needs a database correction, which I hadn't submitted yet. The plan file also still needs the verified results written into it.
+What remains: one leftover test payment (receipt RCP-202609-00009, KES 500 on LN-000006) is still posted and needs reversing now that the fix is in place; then the remaining scenarios — partial, overpayment, multi-installment and arrears payments, group-sheet collections, and the receipt/report checks — plus writing the final results into the plan file.
