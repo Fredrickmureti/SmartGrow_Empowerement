@@ -202,19 +202,19 @@ export default function AccessGroups() {
           <Alert className="border-border bg-muted/50">
             <Info className="h-4 w-4 text-muted-foreground" />
             <AlertDescription className="text-muted-foreground">
-              <strong className="text-foreground">Internal users only.</strong> Access Groups grant granular module permissions (Read/Create/Write/Delete) to internal users. Portal users have fixed self-service access (leave, timesheets, profile) and cannot be assigned to groups. To grant a portal user business permissions, promote them to internal first from the Team page.
+              <strong className="text-foreground">Staff only.</strong> Access Groups grant granular permissions (Read/Create/Write/Delete/Approve/Post/Pay) over lending, accounting and treasury areas. Client portal users have fixed self-service access and cannot be assigned to groups.
             </AlertDescription>
           </Alert>
           {/* System groups are visible (with a System badge) but cannot be edited
-              or deleted. They define the workspace's baseline access (Internal User,
-              Portal User, Payroll Admin, etc.) — admins should be able to SEE what
-              they grant. */}
+              or deleted. They are the standard microfinance job roles
+              (Institution Admin, Branch Manager, Loan Officer, Credit Analyst,
+              Cashier / Teller, Accountant, Auditor). */}
           {groups.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Shield className="h-10 w-10 mx-auto mb-3 opacity-40" />
-              <p>No access groups yet. Create one to assign granular module permissions to internal users.</p>
+              <p>No access groups yet. Create one to assign granular permissions to staff.</p>
               <p className="text-xs mt-1">
-                Examples: "Sales / User", "Accounting / Manager", "Inventory / Full Access"
+                Examples: "Recovery Officer", "Regional Auditor", "Branch Accountant"
               </p>
             </div>
           ) : (
