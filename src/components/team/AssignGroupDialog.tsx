@@ -36,10 +36,10 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Get assignable groups (non-system + Internal Users)
-  const assignableGroups = groups.filter(
-    (g) => !g.is_system || g.name === "Internal Users" || g.name === "Internal User"
-  );
+  // Every live group is assignable: the system groups ARE the microfinance
+  // job roles (Loan Officer, Cashier / Teller, Branch Manager, ...). Only
+  // deprecated groups are hidden from assignment.
+  const assignableGroups = groups.filter((g) => !(g as { is_deprecated?: boolean }).is_deprecated);
 
   // Current group assignments
   const currentGroups = member ? getGroupsForUser(member.user_id) : [];
