@@ -155,12 +155,13 @@ const handler = async (req: Request): Promise<Response> => {
     const roleName = invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1);
     const acceptUrl = `${websiteUrl}/accept-invitation?token=${invitation.token}`;
 
-    // Server-side user count enforcement. The live DB function signature is
-    // `check_user_limit(_org_id uuid)`. Calling it with `p_org_id` makes
-    // PostgREST fail before email dispatch, which is exactly why the UI could
-    // claim a resend while no invitation was delivered.
-    const { data: limitCheck, error: limitError } = await supabase
-      .rpc("check_user_limit", { _org_id: invitation.organization_id });
+    // Server-side seat enforcement. `check_user_limit` no longer exists; the
+    // live surface is `get_effective_user_limit(_org_id)` which returns NULL
+    // when the deployment has no seat cap. `check_user_invite_allowed` is not
+    // usable here because it relies on auth.uid(), which is null for the
+    // service-role client used by this function.
+    const { data: seatLimit, error: limitError } = await supabase
+      .rpc("get_effective_user_limit", { _org_id: invitation.organization_id });
 
     if (limitError) {
       console.error("[send-invitation-email] user limit check failed", {
@@ -180,19 +181,33 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const limit = limitCheck as UserLimitResult;
-    const limitAllowed = typeof limit === "boolean" ? limit : limit?.allowed;
-    if (limitAllowed === false) {
-      return new Response(JSON.stringify({ 
-        error: typeof limit === "object" && limit
-          ? limit.message || limit.reason || "User limit reached for your plan."
-          : "User limit reached for your plan.",
-        accept_url: acceptUrl,
-      }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (typeof seatLimit === "number") {
+      const [{ count: activeCount }, { count: pendingCount }] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("user_id", { count: "exact", head: true })
+          .eq("organization_id", invitation.organization_id)
+          .eq("is_active", true),
+        supabase
+          .from("organization_invitations")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", invitation.organization_id)
+          .is("accepted_at", null)
+          .gt("expires_at", new Date().toISOString()),
+      ]);
+
+      const used = (activeCount ?? 0) + (pendingCount ?? 0);
+      if (used > seatLimit) {
+        return new Response(JSON.stringify({
+          error: `Your plan allows ${seatLimit} users. You currently have ${activeCount ?? 0} member(s) and ${pendingCount ?? 0} pending invitation(s).`,
+          accept_url: acceptUrl,
+        }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
+
 
     if (!settingsMap.resend_api_key) {
       return new Response(JSON.stringify({ error: "Email provider not configured" }), {
