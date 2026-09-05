@@ -679,7 +679,19 @@ export const PERMISSION_MODULES = [
   "hr",          // deprecated alias for employees — kept for back-compat
   "payroll",
   "pos",
-  "lending",
+  "lending",     // aggregate lending module — kept for back-compat with existing rules
+  // --- Microfinance modules (Wave 1) ---
+  "clients",
+  "loan_products",
+  "applications",
+  "loans",
+  "repayments",
+  "collections",
+  "accounting",
+  "treasury",
+  "reports",
+  "branches",
+  "audit",
   "settings",
   "team",
 ] as const;
@@ -700,11 +712,23 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   hr: "HR / Employees (legacy)",
   payroll: "Payroll",
   pos: "Point of Sale",
-  lending: "Lending (Microfinance)",
+  lending: "Lending (all areas)",
+  clients: "Clients",
+  loan_products: "Loan Products",
+  applications: "Loan Applications",
+  loans: "Loans",
+  repayments: "Repayments",
+  collections: "Collections & Arrears",
+  accounting: "Accounting",
+  treasury: "Treasury & Banking",
+  reports: "Reports",
+  branches: "Branches",
+  audit: "Audit Trail",
   // sign: retired 2026-05-09
   settings: "Settings",
-  team: "Team & Audit",
+  team: "Team & Access",
 };
+
 
 /**
  * Modules surfaced in the Access Groups admin UI.
