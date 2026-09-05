@@ -90,18 +90,10 @@ procurement or CRM work.
 ==============THIS WAS THE LAST MESSAGE THE AGENT GAVE BEFORE ITS TIME RUN OUT=================
 Here's where things stand.
 
+Here's where things stand on the payment and settlement work.
 
-Here's where things stand.
+Verified working (real data, September 2026): a KES 2,080 payment on loan LN-000001 recorded cleanly — receipt RCP-202609-00007, allocation of KES 480 interest and KES 1,600 principal, loan balance dropped to KES 10,400 with no arrears, and a balanced journal entry (JE-00021: cash in KES 2,080, interest income KES 480, loan principal KES 1,600). I also generated the printable payment receipt PDF end to end for that payment — it produced a valid document.
 
-Settlement is fixed and now proven across most cases. The accounting-layer fault the previous session found (a status value that doesn't exist in your database) is corrected, and payments now go through end to end.
+Fixed in the app: payment errors now show a readable message instead of "[object Object]", including a clear hint when a month is closed, and a failed save keeps the form open instead of throwing an invisible error.
 
-What I verified today with real payments on real test loans:
-- Overpayment — a 21,000 payment against a 20,800 balance settled every remaining instalment, closed the loan, and parked the extra 200 as a client advance on the balance sheet. The accounting entry balanced exactly.
-- Arrears — I built an overdue test loan (three instalments past due, 15,900 behind, 92 days). A 10,600 payment cleared the two oldest instalments, and the arrears figure recalculated itself down to 5,300 at 31 days. Nothing was flagged by hand — it's all derived from what's owed minus what's been paid.
-- Reversal — the earlier reversed receipt keeps its original record intact, with a matching reversing accounting entry alongside it. History is preserved, not deleted.
-- Reporting — daily collections by officer and branch pick up every receipt, split by cash, mobile money and bank, with the reversed one correctly excluded.
-- Group collections — three members of the same group each paid separately; each payment landed on its own member's loan and each loan kept its own balance. The group is an operational grouping only, exactly as intended.
-
-One thing needs your decision, and it's blocking live use right now: September 2026 was locked in your accounting calendar on 4 September by your admin account. While it's locked, no payment dated in September can be saved — the system is refusing to post into a closed month, which is correct behaviour, not a fault. That's why all my tests are dated 31 August. If the lock was accidental, September needs reopening before your team can record today's collections.
-
-Still outstanding (I ran out of budget before finishing): the receipt document check, and writing all of today's results into the plan file. Everything above is verified; those two remain.
+Still outstanding: the invoice-void and payment-void routines (and two reporting helpers) still compare a journal's state against an old value that no longer exists, which will fail if someone voids an invoice or a payment. That needs a database correction, which I hadn't submitted yet. The plan file also still needs the verified results written into it.
