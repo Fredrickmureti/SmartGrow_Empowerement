@@ -256,6 +256,12 @@ export default function WorkspaceSettings() {
                 </TabsTrigger>
               )}
               {!isPortalUser && permissions.canManageOrganization && (
+                <TabsTrigger value="email-delivery" className="gap-1.5 text-xs sm:text-sm">
+                  <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Email</span>
+                </TabsTrigger>
+              )}
+              {!isPortalUser && permissions.canManageOrganization && (
                 <TabsTrigger value="data" className="gap-1.5 text-xs sm:text-sm">
                   <Database className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Data</span>
