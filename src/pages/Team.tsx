@@ -5,6 +5,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranchAssignments } from "@/hooks/useBranchAssignments";
+import { useBranches } from "@/hooks/useBranches";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,6 +136,7 @@ export default function Team() {
   const { canManageTeam, role: currentUserRole, canManage } = usePermissions();
   const { toast } = useToast();
   const { assignmentsByUser, refetchAll } = useBranchAssignments();
+  const { branches } = useBranches();
   
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
