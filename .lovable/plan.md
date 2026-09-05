@@ -149,12 +149,17 @@ Keep `governance_mode` (solo/standard/strict) and `governance_assert_not_self` f
 
 
 ==============THIS WAS THE LAST MESSAGE IT GAVE BEFORE ITS TIME RUN OUT==============
-I rewrote the permission vocabulary so it's microfinance-only: all the inherited ERP permissions (sales, purchases, products, POS, HR, payroll, leave, attendance, recruitment, e-sign) are gone rather than deprecated, and the Access Group modules are now clients, loan products, applications, loans, repayments, collections, contacts, accounting, treasury, reports, branches, audit, settings and team.
 
-Remaining to finish this cleanup in the governance:
-- Strip leftover ERP references in `usePermissions.ts`, `PermissionGate.tsx` (products/sales/purchases options), `useDashboardComposition.ts` (sales/purchases/inventory/HR flags and widget IDs), `PortalUserRoute.tsx` (leave/timesheets/attendance paths), and `module-app-map.ts`.
-- Delete the obsolete HR permissions test.
-- Run the type check and tests.
-- Apply a database migration that deletes the legacy ERP access groups and their rules instead of leaving them marked deprecated.
 
-Nothing is broken in a way users can see yet, but the app will not type-check until those follow-up edits land.
+I converged the lending security rules onto the access-group model before the pause.
+
+Done this session
+- Added two shared access checks (`mf_can`, `mf_can_scoped`) that resolve a record's institution and branch, then defer to the access-group rules — including "own portfolio only" officers.
+- Rewrote the lending record rules for clients, client groups and membership, loan applications and assessments, loans, repayments and batches, collection visits, loan products and versions, and lending accounting settings. All 19 old job-title-based rules are gone (verified: zero remaining, 38 rules now use the new check).
+- Closed the loophole where simply belonging to the institution granted access to every application; owners and administrators keep full access.
+
+Still open
+- Finance pages have no page-level permission check, and six screens still test for hardcoded admin roles.
+- `PortalUserRoute` still carries leftover permission names from the old system.
+- No dedicated permissions yet for sensitive actions (repayment reversal, write-off, restructuring).
+- `.lovable/plan.md` and `roadmap.md` still show the old, inaccurate status and need updating with the verified findings.
