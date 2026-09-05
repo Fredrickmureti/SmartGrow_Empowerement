@@ -27508,6 +27508,7 @@ export type Database = {
         Returns: number
       }
       get_effective_user_limit: { Args: { _org_id: string }; Returns: number }
+      get_email_provider_settings: { Args: never; Returns: Json }
       get_employee_directory_stats: {
         Args: {
           p_branch_ids?: string[]
@@ -30801,6 +30802,17 @@ export type Database = {
       set_business_active_currency: {
         Args: { p_business_id: string; p_currency: string; p_enabled: boolean }
         Returns: undefined
+      }
+      set_email_provider_settings: {
+        Args: {
+          _clear_api_key?: boolean
+          _platform_admin_reply_to_email?: string
+          _resend_api_key?: string
+          _resend_from_email?: string
+          _resend_from_name?: string
+          _support_reply_to_email?: string
+        }
+        Returns: Json
       }
       set_estimate_status_atomic: {
         Args: {

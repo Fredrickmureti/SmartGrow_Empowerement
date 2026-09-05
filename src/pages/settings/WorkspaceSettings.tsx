@@ -65,6 +65,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EnhancedNotificationSettings } from "@/components/notifications/EnhancedNotificationSettings";
 import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import AccessGroups from "@/pages/settings/AccessGroups";
+import EmailProviderSettings from "@/pages/settings/EmailProviderSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { Link } from "react-router-dom";
 
@@ -256,6 +257,12 @@ export default function WorkspaceSettings() {
                 </TabsTrigger>
               )}
               {!isPortalUser && permissions.canManageOrganization && (
+                <TabsTrigger value="email-delivery" className="gap-1.5 text-xs sm:text-sm">
+                  <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Email</span>
+                </TabsTrigger>
+              )}
+              {!isPortalUser && permissions.canManageOrganization && (
                 <TabsTrigger value="data" className="gap-1.5 text-xs sm:text-sm">
                   <Database className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Data</span>
@@ -402,6 +409,12 @@ export default function WorkspaceSettings() {
               <GovernanceModeCard />
               <SelfActionPolicy />
               <BlockedAttemptsQueue />
+            </TabsContent>
+          )}
+
+          {permissions.canManageOrganization && (
+            <TabsContent value="email-delivery">
+              <EmailProviderSettings />
             </TabsContent>
           )}
 

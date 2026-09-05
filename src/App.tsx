@@ -59,6 +59,7 @@ import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
 const GovernanceSoD = lazy(() => import("./pages/settings/GovernanceSoD"));
+const EmailProviderSettings = lazy(() => import("./pages/settings/EmailProviderSettings"));
 import OnboardingSetup from "./pages/OnboardingSetup";
 import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
@@ -188,6 +189,7 @@ const App = () => (
                             <Route path="/settings/studio" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Studio"><Studio /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/audit-logs" element={<InstitutionRoute allowReadOnly><PortalUserRoute><LazyRoute module="Audit Logs"><AuditLogs /></LazyRoute></PortalUserRoute></InstitutionRoute>} />
                             <Route path="/settings/governance/sod" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><GovernanceSoD /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
+                            <Route path="/settings/email-delivery" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><Suspense fallback={<RouteLoadingFallback />}><EmailProviderSettings /></Suspense></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/diagnostics/branch-null" element={<ProtectedRoute><NonVendorRoute><PortalUserRoute><LazyRoute module="Branch-NULL Diagnostic"><BranchNullDiagnostic /></LazyRoute></PortalUserRoute></NonVendorRoute></ProtectedRoute>} />
                             <Route path="/settings/profile" element={<ProtectedRoute><LazyRoute module="Profile"><UserProfilePage /></LazyRoute></ProtectedRoute>} />
                             <Route path="/notifications" element={<ProtectedRoute><NonVendorRoute><Notifications /></NonVendorRoute></ProtectedRoute>} />
