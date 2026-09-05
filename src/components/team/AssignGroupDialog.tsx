@@ -31,9 +31,16 @@ interface AssignGroupDialogProps {
   member: TeamMember | null;
 }
 
+const SCOPE_OPTIONS: Array<{ value: BranchScopeMode; title: string; blurb: string }> = [
+  { value: "all", title: "All branches", blurb: "Can work in every branch of the institution." },
+  { value: "assigned", title: "Assigned branches only", blurb: "Limited to the branches this member is assigned to." },
+  { value: "own_portfolio", title: "Own portfolio only", blurb: "Assigned branches, and only their own clients and loans." },
+];
+
 export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDialogProps) {
-  const { groups, assignGroups, getGroupsForUser } = usePermissionGroups();
+  const { groups, assignGroups, getGroupsForUser, memberAssignments } = usePermissionGroups();
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [branchScope, setBranchScope] = useState<BranchScopeMode>("assigned");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Every live group is assignable: the system groups ARE the microfinance
@@ -44,12 +51,17 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
   // Current group assignments
   const currentGroups = member ? getGroupsForUser(member.user_id) : [];
   const currentGroupIds = new Set(currentGroups.map((g) => g.id));
+  // Branch scope is stored per grant; the UI edits it as one value per member.
+  const currentScope: BranchScopeMode =
+    (member && memberAssignments.find((a) => a.user_id === member.user_id)?.branch_scope) || "assigned";
 
   useEffect(() => {
     if (open && member) {
       setSelectedGroupIds(new Set(currentGroupIds));
+      setBranchScope(currentScope);
     }
-  }, [open, member, currentGroups.length]);
+  }, [open, member, currentGroups.length, currentScope]);
+
 
   const toggleGroup = (groupId: string) => {
     setSelectedGroupIds((prev) => {
