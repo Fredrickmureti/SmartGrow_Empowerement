@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Shield, Users } from "lucide-react";
-import { usePermissionGroups } from "@/hooks/usePermissionGroups";
+import { usePermissionGroups, type BranchScopeMode } from "@/hooks/usePermissionGroups";
 import { AppRole } from "@/lib/permissions";
 
 interface TeamMember {
