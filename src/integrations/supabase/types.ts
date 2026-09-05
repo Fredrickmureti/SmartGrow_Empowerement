@@ -12525,6 +12525,7 @@ export type Database = {
       }
       member_permission_groups: {
         Row: {
+          branch_scope: Database["public"]["Enums"]["branch_scope_mode"]
           created_at: string
           id: string
           organization_id: string
@@ -12532,6 +12533,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          branch_scope?: Database["public"]["Enums"]["branch_scope_mode"]
           created_at?: string
           id?: string
           organization_id: string
@@ -12539,6 +12541,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          branch_scope?: Database["public"]["Enums"]["branch_scope_mode"]
           created_at?: string
           id?: string
           organization_id?: string
@@ -15394,6 +15397,8 @@ export type Database = {
       organization_invitations: {
         Row: {
           accepted_at: string | null
+          branch_ids: string[]
+          branch_scope: Database["public"]["Enums"]["branch_scope_mode"]
           created_at: string
           email: string
           employee_id: string | null
@@ -15402,12 +15407,15 @@ export type Database = {
           invited_by: string | null
           organization_id: string
           permission_group_ids: string[]
+          primary_branch_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           token: string
           user_type: string
         }
         Insert: {
           accepted_at?: string | null
+          branch_ids?: string[]
+          branch_scope?: Database["public"]["Enums"]["branch_scope_mode"]
           created_at?: string
           email: string
           employee_id?: string | null
@@ -15416,12 +15424,15 @@ export type Database = {
           invited_by?: string | null
           organization_id: string
           permission_group_ids?: string[]
+          primary_branch_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           token?: string
           user_type?: string
         }
         Update: {
           accepted_at?: string | null
+          branch_ids?: string[]
+          branch_scope?: Database["public"]["Enums"]["branch_scope_mode"]
           created_at?: string
           email?: string
           employee_id?: string | null
@@ -15430,6 +15441,7 @@ export type Database = {
           invited_by?: string | null
           organization_id?: string
           permission_group_ids?: string[]
+          primary_branch_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           token?: string
           user_type?: string
@@ -31231,19 +31243,36 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      upsert_organization_invitation: {
-        Args: {
-          p_email: string
-          p_employee_id?: string
-          p_expires_days?: number
-          p_invited_by?: string
-          p_organization_id: string
-          p_permission_group_ids?: string[]
-          p_role: Database["public"]["Enums"]["app_role"]
-          p_user_type?: string
-        }
-        Returns: Json
-      }
+      upsert_organization_invitation:
+        | {
+            Args: {
+              p_email: string
+              p_employee_id?: string
+              p_expires_days?: number
+              p_invited_by?: string
+              p_organization_id: string
+              p_permission_group_ids?: string[]
+              p_role: Database["public"]["Enums"]["app_role"]
+              p_user_type?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_branch_ids?: string[]
+              p_branch_scope?: Database["public"]["Enums"]["branch_scope_mode"]
+              p_email: string
+              p_employee_id?: string
+              p_expires_days?: number
+              p_invited_by?: string
+              p_organization_id: string
+              p_permission_group_ids?: string[]
+              p_primary_branch_id?: string
+              p_role: Database["public"]["Enums"]["app_role"]
+              p_user_type?: string
+            }
+            Returns: Json
+          }
       upsert_system_account: {
         Args: {
           _account_type: string
@@ -31259,9 +31288,19 @@ export type Database = {
         }
         Returns: string
       }
+      user_assigned_branch_ids: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: {
+          branch_id: string
+        }[]
+      }
       user_belongs_to_org:
         | { Args: { _org_id: string; _user_id: string }; Returns: boolean }
         | { Args: { org_id: string }; Returns: boolean }
+      user_branch_scope: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["branch_scope_mode"]
+      }
       user_can_access_branch: {
         Args: { _branch_id: string; _user_id: string }
         Returns: boolean
@@ -31310,6 +31349,16 @@ export type Database = {
             }
             Returns: boolean
           }
+      user_has_module_permission_in_branch: {
+        Args: {
+          _branch_id: string
+          _module: string
+          _operation: string
+          _org_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       user_has_org_access: { Args: { org_id: string }; Returns: boolean }
       user_has_payroll_admin_override: {
         Args: { _org_id: string; _user_id: string }
@@ -31648,6 +31697,7 @@ export type Database = {
         | "cancelled"
         | "submitted"
         | "approved"
+      branch_scope_mode: "all" | "assigned" | "own_portfolio"
       budget_status: "draft" | "active" | "closed"
       bulk_operation_kind:
         | "import_employees"
@@ -32812,6 +32862,7 @@ export const Constants = {
         "submitted",
         "approved",
       ],
+      branch_scope_mode: ["all", "assigned", "own_portfolio"],
       budget_status: ["draft", "active", "closed"],
       bulk_operation_kind: [
         "import_employees",
