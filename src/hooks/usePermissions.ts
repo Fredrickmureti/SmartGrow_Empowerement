@@ -95,55 +95,33 @@ export function usePermissions() {
     canViewReports: checkPerm("viewReports"),
     canViewContacts: checkPerm("viewContacts"),
     canManageContacts: checkPerm("manageContacts"),
-    canViewProducts: checkPerm("viewProducts"),
-    canManageProducts: checkPerm("manageProducts"),
-    canViewSales: checkPerm("viewSales"),
-    canManageSales: checkPerm("manageSales"),
-    canViewPurchases: checkPerm("viewPurchases"),
-    canManagePurchases: checkPerm("managePurchases"),
     canViewAuditLogs: checkPerm("viewAuditLogs"),
-    
-    // Payroll permission checks — granular SoD (Segregation of Duties)
-    // `canManagePayroll` is SETUP-ONLY (templates, mappings, rules). Action surfaces
-    // MUST gate on the specific granular flag below, not on canManagePayroll.
-    canViewPayroll: checkPerm("viewPayroll"),
-    canManagePayroll: checkPerm("managePayroll"),
-    canRunPayroll: checkPerm("runPayroll"),
-    canApprovePayroll: checkPerm("approvePayroll"),
-    canPostPayrollGL: checkPerm("postPayrollGL"),
-    canPayPayroll: checkPerm("payPayroll"),
-    // Granular batch lifecycle aliases — no separate permission keys yet; closing
-    // a batch reuses post-GL authority (same financial impact) and reversal reuses
-    // pay authority (treasury authorises the offsetting cash movement). These can
-    // be promoted to first-class permissions later without touching call sites.
-    canClosePayroll: checkPerm("postPayrollGL"),
-    canReversePayroll: checkPerm("postPayrollGL"),
-    canExportPayroll: checkPerm("exportPayroll"),
-    canViewSalaryDetails: checkPerm("viewSalaryDetails"),
-    
-    // POS permission checks
-    canViewPOS: checkPerm("viewPOS"),
-    canManagePOS: checkPerm("managePOS"),
-    canProcessSales: checkPerm("processSales"),
-    canProcessReturns: checkPerm("processReturns"),
-    canVoidTransactions: checkPerm("voidTransactions"),
-    canManageShifts: checkPerm("manageShifts"),
-    canManageCashDrawer: checkPerm("manageCashDrawer"),
-    canApplyDiscounts: checkPerm("applyDiscounts"),
-    canViewPOSReports: checkPerm("viewPOSReports"),
-    
+
+    // Maker-checker / SoD financial authority
+    canPostJournalEntry: checkPerm("postJournalEntry"),
+    canExportFinancials: checkPerm("exportFinancials"),
+
+    // Lending (microfinance) domain
+    canViewClients: checkPerm("viewClients"),
+    canManageClients: checkPerm("manageClients"),
+    canViewLoanProducts: checkPerm("viewLoanProducts"),
+    canManageLoanProducts: checkPerm("manageLoanProducts"),
+    canViewApplications: checkPerm("viewApplications"),
+    canManageApplications: checkPerm("manageApplications"),
+    canApproveApplications: checkPerm("approveApplications"),
+    canViewLoans: checkPerm("viewLoans"),
+    canManageLoans: checkPerm("manageLoans"),
+    canDisburseLoans: checkPerm("disburseLoans"),
+    canRecordRepayments: checkPerm("recordRepayments"),
+    canViewCollections: checkPerm("viewCollections"),
+    canManageCollections: checkPerm("manageCollections"),
+    canViewLendingReports: checkPerm("viewLendingReports"),
+    canManageLendingConfig: checkPerm("manageLendingConfig"),
+
     // Role check helper
     isViewer: role === "viewer",
     isPortal: role === "portal",
-    
-    // Directory permission
-    canViewDirectory: checkPerm("viewDirectory"),
-    
-    // Sign permissions
-    canViewSign: checkPerm("viewSign"),
-    canManageSign: checkPerm("manageSign"),
-    canDeleteSign: checkPerm("deleteSign"),
-    
+
     // App management (admin-only, Odoo-aligned)
     canManageApps: checkPerm("manageApps"),
   }), [role, effectivePerms]);

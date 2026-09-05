@@ -49,18 +49,33 @@ export function PermissionGate({
  * Hook to check if user can edit (has manage permission for a feature)
  * Returns true if user can edit, false if read-only
  */
-export function useCanEdit(feature: "contacts" | "products" | "sales" | "purchases" | "financials" | "settings" | "team"): boolean {
+export function useCanEdit(
+  feature:
+    | "contacts"
+    | "clients"
+    | "loanProducts"
+    | "applications"
+    | "loans"
+    | "collections"
+    | "financials"
+    | "settings"
+    | "team",
+): boolean {
   const permissions = usePermissions();
 
   switch (feature) {
     case "contacts":
       return permissions.canManageContacts;
-    case "products":
-      return permissions.canManageProducts;
-    case "sales":
-      return permissions.canManageSales;
-    case "purchases":
-      return permissions.canManagePurchases;
+    case "clients":
+      return permissions.canManageClients;
+    case "loanProducts":
+      return permissions.canManageLoanProducts;
+    case "applications":
+      return permissions.canManageApplications;
+    case "loans":
+      return permissions.canManageLoans;
+    case "collections":
+      return permissions.canManageCollections;
     case "financials":
       return permissions.canManageFinancials;
     case "settings":
