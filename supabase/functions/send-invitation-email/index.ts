@@ -140,7 +140,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: settings } = await supabase
       .from("platform_settings")
       .select("setting_key, setting_value")
-      .in("setting_key", ["resend_api_key", "platform_name", "website_url"]);
+      .in("setting_key", ["platform_name", "website_url"]);
 
     const settingsMap = (settings || []).reduce((acc: Record<string, string>, s) => {
       if (s.setting_value) acc[s.setting_key] = s.setting_value;
