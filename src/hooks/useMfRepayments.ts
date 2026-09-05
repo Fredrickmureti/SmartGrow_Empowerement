@@ -82,10 +82,30 @@ export interface MfRepaymentAllocation {
 const REPAYMENT_SELECT =
   "id,business_id,branch_id,batch_id,loan_id,client_id,receipt_number,paid_on,amount,method,reference,status,reversal_reason,reversed_at,notes,created_at";
 
+/**
+ * Supabase refusals arrive as plain objects ({ message, details, hint, code }),
+ * not Error instances, so reading `.message` off an Error alone rendered
+ * "[object Object]" in the toast. Read the message from either shape.
+ */
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const e = error as { message?: unknown; details?: unknown; hint?: unknown };
+    const parts = [e.message, e.details, e.hint].filter(
+      (p): p is string => typeof p === "string" && p.trim().length > 0,
+    );
+    if (parts.length) return parts.join(" — ");
+  }
+  return typeof error === "string" ? error : "";
+}
+
 function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const msg = errorMessage(error);
   if (/row-level security/i.test(msg)) {
     return "You do not have permission to perform this action.";
+  }
+  if (/closed|locked/i.test(msg) && /period/i.test(msg)) {
+    return `${msg} Reopen the accounting month, or date the payment inside an open month.`;
   }
   return msg || fallback;
 }
