@@ -412,6 +412,12 @@ export default function WorkspaceSettings() {
             </TabsContent>
           )}
 
+          {permissions.canManageOrganization && (
+            <TabsContent value="email-delivery">
+              <EmailProviderSettings />
+            </TabsContent>
+          )}
+
           <TabsContent value="data" className="space-y-6">
             <Card className="border-primary/20">
               <CardHeader>
