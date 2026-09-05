@@ -412,6 +412,9 @@ export default function Team() {
     setInviteEmail("");
     setInviteRole("internal");
     setInviteGroupIds([]);
+    setInviteBranchIds([]);
+    setInvitePrimaryBranchId(null);
+    setInviteBranchScope("assigned");
     fetchTeamData();
   };
 
