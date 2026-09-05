@@ -26,78 +26,58 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 /**
  * Dashboard role presets. Derived from the user's permission set —
  * NOT a manual switcher. Drives the per-role widget filter so a
- * cashier doesn't see executive P&L charts and an accountant sees
- * payroll/receivables prominently. See plan: Phase 5.
+ * teller doesn't see executive portfolio charts.
  */
 export type DashboardRole =
   | "executive"
   | "accountant"
   | "operations"
-  | "sales"
+  | "lending"
   | "cashier"
   | "generic";
 
 /**
  * Widget identifiers used by the role-layout filter. Keep names
- * stable — they are referenced from `Dashboard.tsx` to decide
- * whether to render each tile.
+ * stable — they are referenced from dashboards to decide whether to
+ * render each tile.
  */
 export type DashboardWidgetId =
   | "kpi"
-  | "revenueChart"
+  | "portfolioChart"
   | "recentActivity"
   | "bankBalance"
-  | "lowStock"
-  | "creditAlerts"
+  | "arrearsAlerts"
   | "pendingApprovals"
   | "branchComparison"
   | "activityFeed"
-  | "payrollSummary"
   | "upcomingDeadlines"
   | "quickActions"
   | "aiInsights"
-  // Per-app widget IDs — used by FinanceDashboard / SalesDashboard so
-  // a cashier with view permission on finance/sales doesn't see the
-  // full executive surface. Roles outside the allow-list see only
-  // Quick Actions on those pages.
+  // Per-app widget IDs so a teller with read access on Finance/Lending
+  // doesn't see the full executive surface.
   | "finance.kpis"
   | "finance.journals"
   | "finance.bankBalances"
-  | "sales.kpis"
-  | "sales.pipeline"
-  | "sales.aging"
-  | "sales.topCustomers"
-  // Per-app widget IDs for inventory / hr / payroll / purchases so
-  // cashier and sales roles don't see the executive-grade panels on
-  // those module dashboards. Quick Actions still render for all roles.
-  | "inventory.kpis"
-  | "inventory.valuation"
-  | "hr.kpis"
-  | "hr.payrollSummary"
-  | "payroll.kpis"
-  | "purchases.kpis"
-  | "purchases.aging";
+  | "lending.kpis"
+  | "lending.portfolio"
+  | "lending.arrears"
+  | "lending.disbursements";
 
 export interface DashboardComposition {
   // Module + permission gating
-  hasSales: boolean;
-  hasPurchases: boolean;
-  hasInventory: boolean;
   hasFinance: boolean;
-  hasHR: boolean;
+  hasLending: boolean;
+  hasCollections: boolean;
   hasContacts: boolean;
   hasReports: boolean;
 
   // Widget visibility (module + permission + data presence combined)
   showBankBalance: boolean;
-  showLowStock: boolean;
-  showCreditAlerts: boolean;
-  showBackorders: boolean;
+  showArrearsAlerts: boolean;
   showPendingApprovals: boolean;
   showBranchComparison: boolean;
   showExecutive: boolean;
   showAIInsights: boolean;
-  showPayrollSummary: boolean;
   showUpcomingDeadlines: boolean;
 
   // Data-state signals
@@ -110,8 +90,8 @@ export interface DashboardComposition {
   role: DashboardRole;
   /**
    * Widget allow-list for the resolved role. Use
-   * `allowsWidget("payrollSummary")` rather than reading raw flags
-   * so callers don't need to know the role taxonomy.
+   * `allowsWidget("lending.kpis")` rather than reading raw flags so
+   * callers don't need to know the role taxonomy.
    */
   allowsWidget: (id: DashboardWidgetId) => boolean;
 }
@@ -155,10 +135,8 @@ export function useDashboardComposition(): DashboardComposition {
 
   return useMemo<DashboardComposition>(() => {
     const hasFinance = isInstalled("finance") && (perms.canViewFinancials || perms.canManageFinancials);
-    const hasSales = isInstalled("sales") && (perms.canViewSales || perms.canManageSales);
-    const hasPurchases = isInstalled("purchases") && (perms.canViewPurchases || perms.canManagePurchases || perms.canManageFinancials);
-    const hasInventory = isInstalled("inventory") && (perms.canViewProducts || perms.canManageProducts);
-    const hasHR = (isInstalled("hr") || isInstalled("employees")) && (perms.canViewPayroll || perms.canManagePayroll || perms.canRunPayroll || perms.canApprovePayroll || perms.canPostPayrollGL || perms.canPayPayroll);
+    const hasLending = isInstalled("lending") && (perms.canViewLoans || perms.canViewClients || perms.canViewApplications);
+    const hasCollections = isInstalled("lending") && (perms.canViewCollections || perms.canManageCollections);
     const hasContacts = isInstalled("contacts") && (perms.canViewContacts || perms.canManageContacts);
     const hasReports = isInstalled("reports") && perms.canViewReports;
 
@@ -171,19 +149,18 @@ export function useDashboardComposition(): DashboardComposition {
     if ((clientsCount ?? 1) === 0) setupGaps.push("clients");
 
     // Role resolution — derived from current permissions / role
-    // string. `perms.role` is the AppRole stored on user_roles;
-    // we fold legacy roles into the canonical six presets.
+    // string. `perms.role` is the AppRole stored on user_roles.
     const roleStr = (perms as any).role as string | undefined;
     let role: DashboardRole = "generic";
     if (scope.isExecutiveAuthorized || roleStr === "owner" || roleStr === "super_admin") {
       role = "executive";
     } else if (roleStr === "accountant" || (perms.canManageFinancials && perms.canViewReports)) {
       role = "accountant";
-    } else if (roleStr === "cashier") {
+    } else if (roleStr === "cashier" || (perms.canRecordRepayments && !perms.canManageClients)) {
       role = "cashier";
-    } else if (hasSales && !hasFinance && !hasInventory) {
-      role = "sales";
-    } else if (hasInventory || hasPurchases) {
+    } else if (perms.canManageApplications || perms.canManageClients) {
+      role = "lending";
+    } else if (hasCollections) {
       role = "operations";
     }
 
@@ -192,76 +169,58 @@ export function useDashboardComposition(): DashboardComposition {
     // pass. `generic` is the permissive fallback.
     const ALLOW: Record<DashboardRole, Set<DashboardWidgetId>> = {
       executive: new Set([
-        "kpi","revenueChart","recentActivity","bankBalance","branchComparison",
-        "upcomingDeadlines","payrollSummary","quickActions","aiInsights","activityFeed",
+        "kpi","portfolioChart","recentActivity","bankBalance","branchComparison",
+        "upcomingDeadlines","quickActions","aiInsights","activityFeed","arrearsAlerts",
+        "pendingApprovals",
         "finance.kpis","finance.journals","finance.bankBalances",
-        "sales.kpis","sales.pipeline","sales.aging","sales.topCustomers",
-        "inventory.kpis","inventory.valuation",
-        "hr.kpis","hr.payrollSummary","payroll.kpis",
-        "purchases.kpis","purchases.aging",
+        "lending.kpis","lending.portfolio","lending.arrears","lending.disbursements",
       ]),
       accountant: new Set([
-        "kpi","revenueChart","recentActivity","bankBalance","creditAlerts",
-        "pendingApprovals","payrollSummary","upcomingDeadlines","quickActions",
+        "kpi","portfolioChart","recentActivity","bankBalance","arrearsAlerts",
+        "pendingApprovals","upcomingDeadlines","quickActions",
         "activityFeed","aiInsights",
         "finance.kpis","finance.journals","finance.bankBalances",
-        "sales.kpis","sales.pipeline","sales.aging","sales.topCustomers",
-        "inventory.valuation",
-        "hr.payrollSummary","payroll.kpis",
-        "purchases.kpis","purchases.aging",
+        "lending.kpis","lending.portfolio",
       ]),
       operations: new Set([
-        "kpi","recentActivity","lowStock","pendingApprovals",
+        "kpi","recentActivity","arrearsAlerts","pendingApprovals",
         "upcomingDeadlines","quickActions","activityFeed",
         "finance.bankBalances",
-        "sales.pipeline",
-        "inventory.kpis","inventory.valuation",
-        "hr.kpis",
-        "purchases.kpis","purchases.aging",
+        "lending.arrears","lending.portfolio",
       ]),
-      sales: new Set([
-        "kpi","revenueChart","recentActivity","creditAlerts","upcomingDeadlines",
+      lending: new Set([
+        "kpi","recentActivity","arrearsAlerts","upcomingDeadlines",
         "quickActions","activityFeed",
-        "sales.kpis","sales.pipeline","sales.aging","sales.topCustomers",
-        "inventory.kpis",
+        "lending.kpis","lending.portfolio","lending.arrears","lending.disbursements",
       ]),
       cashier: new Set([
         "kpi","recentActivity","quickActions","activityFeed",
-        // Cashier intentionally has no finance.* / sales.* / inventory.* /
-        // hr.* / payroll.* / purchases.* widgets — only Quick Actions
-        // remain visible on those dashboards.
+        // Cashier intentionally has no finance.* / lending.* panels —
+        // only Quick Actions remain visible on those dashboards.
       ]),
       generic: new Set([
-        "kpi","revenueChart","recentActivity","bankBalance","lowStock","creditAlerts",
-        "pendingApprovals","branchComparison","payrollSummary",
+        "kpi","portfolioChart","recentActivity","bankBalance","arrearsAlerts",
+        "pendingApprovals","branchComparison",
         "upcomingDeadlines","quickActions","activityFeed","aiInsights",
         "finance.kpis","finance.journals","finance.bankBalances",
-        "sales.kpis","sales.pipeline","sales.aging","sales.topCustomers",
-        "inventory.kpis","inventory.valuation",
-        "hr.kpis","hr.payrollSummary","payroll.kpis",
-        "purchases.kpis","purchases.aging",
+        "lending.kpis","lending.portfolio","lending.arrears","lending.disbursements",
       ]),
     };
     const allowed = ALLOW[role];
 
     return {
-      hasSales,
-      hasPurchases,
-      hasInventory,
       hasFinance,
-      hasHR,
+      hasLending,
+      hasCollections,
       hasContacts,
       hasReports,
       showBankBalance: hasFinance,
-      showLowStock: hasInventory,
-      showCreditAlerts: hasSales || hasContacts,
-      showBackorders: hasInventory && hasSales,
-      showPendingApprovals: hasHR || hasFinance || hasPurchases,
+      showArrearsAlerts: hasCollections,
+      showPendingApprovals: hasFinance || hasLending,
       showBranchComparison: scope.kind === "all_branches" && scope.isConsolidatedAuthorized,
       showExecutive: scope.isExecutiveAuthorized,
       showAIInsights: hasAnyBank,
-      showPayrollSummary: false,
-      showUpcomingDeadlines: hasSales || hasPurchases || hasHR || hasFinance,
+      showUpcomingDeadlines: hasLending || hasFinance,
 
       isNewTenant: setupGaps.length >= 2,
       setupGaps,

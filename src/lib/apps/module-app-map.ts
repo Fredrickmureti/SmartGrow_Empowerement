@@ -16,12 +16,6 @@ import type { PermissionModule, PermissionGroupRule } from "@/lib/permissions";
  */
 export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
   contacts:      ["contacts"],
-  lending:       ["lending"],
-  financials:    ["finance", "reports"],
-  employees:     ["employees"],
-  settings:      ["platform", "studio"],
-  team:          ["platform"],
-  // Microfinance modules
   clients:       ["lending", "contacts"],
   loan_products: ["lending"],
   applications:  ["lending"],
@@ -33,18 +27,8 @@ export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
   reports:       ["reports"],
   branches:      ["platform"],
   audit:         ["platform"],
-  // Retired domains — the keys remain to satisfy the PermissionModule enum,
-  // but they grant visibility to no app because no such app is registered.
-  products:    [],
-  sales:       [],
-  purchases:   [],
-  leave:       [],
-  attendance:  [],
-  recruitment: [],
-  payroll:     [],
-  hr:          [],
-  timesheets:  [],
-  pos:         [],
+  settings:      ["platform", "studio"],
+  team:          ["platform"],
 };
 
 
@@ -87,7 +71,8 @@ export const ALWAYS_ON_PERMISSION_MODULES: ReadonlySet<PermissionModule> = new S
   "branches",
   "reports",
   "contacts",
-  "financials",
+  "accounting",
+  "treasury",
 ]);
 
 
