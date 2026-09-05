@@ -5,6 +5,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranchAssignments } from "@/hooks/useBranchAssignments";
+import { useBranches } from "@/hooks/useBranches";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,6 +136,7 @@ export default function Team() {
   const { canManageTeam, role: currentUserRole, canManage } = usePermissions();
   const { toast } = useToast();
   const { assignmentsByUser, refetchAll } = useBranchAssignments();
+  const { branches } = useBranches();
   
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -147,6 +149,11 @@ export default function Team() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<AppRole>("internal");
   const [inviteGroupIds, setInviteGroupIds] = useState<string[]>([]);
+  // Branch scope carried by the invitation (Wave 2). The acceptance RPC turns
+  // these into real branch assignments, so a new user is never branch-less.
+  const [inviteBranchIds, setInviteBranchIds] = useState<string[]>([]);
+  const [invitePrimaryBranchId, setInvitePrimaryBranchId] = useState<string | null>(null);
+  const [inviteBranchScope, setInviteBranchScope] = useState<"all" | "assigned" | "own_portfolio">("assigned");
   const [availableGroups, setAvailableGroups] = useState<Array<{ id: string; name: string; description: string | null }>>([]);
   const [isInviting, setIsInviting] = useState(false);
   // Per-row inline role change loading.
@@ -344,6 +351,9 @@ export default function Team() {
         p_user_type: "internal",
         p_permission_group_ids: inviteGroupIds.length > 0 ? inviteGroupIds : null,
         p_invited_by: meRes.user?.id ?? null,
+        p_branch_ids: inviteRole === "internal" && inviteBranchIds.length > 0 ? inviteBranchIds : null,
+        p_primary_branch_id: inviteRole === "internal" ? invitePrimaryBranchId : null,
+        p_branch_scope: inviteRole === "internal" ? inviteBranchScope : "all",
       },
     );
     if (rpcError) throw rpcError;
@@ -404,6 +414,9 @@ export default function Team() {
     setInviteEmail("");
     setInviteRole("internal");
     setInviteGroupIds([]);
+    setInviteBranchIds([]);
+    setInvitePrimaryBranchId(null);
+    setInviteBranchScope("assigned");
     fetchTeamData();
   };
 
@@ -758,6 +771,77 @@ export default function Team() {
                         </p>
                       </div>
                     )}
+                    {inviteRole === "internal" && (
+                      <div className="space-y-2">
+                        <Label>Branch access</Label>
+                        <div className="grid grid-cols-1 gap-2">
+                          {([
+                            { value: "all" as const, title: "All branches", blurb: "Can work in every branch of the institution." },
+                            { value: "assigned" as const, title: "Assigned branches only", blurb: "Can only work in the branches selected below." },
+                            { value: "own_portfolio" as const, title: "Own portfolio only", blurb: "Assigned branches, limited to their own clients and loans." },
+                          ]).map((opt) => (
+                            <button
+                              type="button"
+                              key={opt.value}
+                              onClick={() => setInviteBranchScope(opt.value)}
+                              className={`text-left rounded-md border p-3 transition ${
+                                inviteBranchScope === opt.value
+                                  ? "border-primary ring-2 ring-primary/30"
+                                  : "hover:border-foreground/30"
+                              }`}
+                            >
+                              <p className="font-medium text-sm">{opt.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{opt.blurb}</p>
+                            </button>
+                          ))}
+                        </div>
+                        {inviteBranchScope !== "all" && branches.length > 0 && (
+                          <div className="rounded-md border max-h-48 overflow-y-auto divide-y">
+                            {branches.map((b) => {
+                              const checked = inviteBranchIds.includes(b.id);
+                              return (
+                                <label
+                                  key={b.id}
+                                  className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      setInviteBranchIds((prev) => {
+                                        const next = e.target.checked
+                                          ? [...prev, b.id]
+                                          : prev.filter((id) => id !== b.id);
+                                        if (!e.target.checked && invitePrimaryBranchId === b.id) {
+                                          setInvitePrimaryBranchId(null);
+                                        }
+                                        if (e.target.checked && !invitePrimaryBranchId) {
+                                          setInvitePrimaryBranchId(b.id);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium">{b.name}</p>
+                                    {b.code && (
+                                      <p className="text-xs text-muted-foreground">{b.code}</p>
+                                    )}
+                                  </div>
+                                  {invitePrimaryBranchId === b.id && (
+                                    <Badge variant="secondary">Main branch</Badge>
+                                  )}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Branch access is applied automatically when the invitation is accepted.
+                        </p>
+                      </div>
+                    )}
+
                     <Button type="submit" className="w-full" disabled={isInviting}>
                       {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Send Invitation

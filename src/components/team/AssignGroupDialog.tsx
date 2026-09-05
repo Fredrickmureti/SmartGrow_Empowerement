@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Shield, Users } from "lucide-react";
-import { usePermissionGroups } from "@/hooks/usePermissionGroups";
+import { usePermissionGroups, type BranchScopeMode } from "@/hooks/usePermissionGroups";
 import { AppRole } from "@/lib/permissions";
 
 interface TeamMember {
@@ -31,9 +31,16 @@ interface AssignGroupDialogProps {
   member: TeamMember | null;
 }
 
+const SCOPE_OPTIONS: Array<{ value: BranchScopeMode; title: string; blurb: string }> = [
+  { value: "all", title: "All branches", blurb: "Can work in every branch of the institution." },
+  { value: "assigned", title: "Assigned branches only", blurb: "Limited to the branches this member is assigned to." },
+  { value: "own_portfolio", title: "Own portfolio only", blurb: "Assigned branches, and only their own clients and loans." },
+];
+
 export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDialogProps) {
-  const { groups, assignGroups, getGroupsForUser } = usePermissionGroups();
+  const { groups, assignGroups, getGroupsForUser, memberAssignments } = usePermissionGroups();
   const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+  const [branchScope, setBranchScope] = useState<BranchScopeMode>("assigned");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Every live group is assignable: the system groups ARE the microfinance
@@ -44,12 +51,17 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
   // Current group assignments
   const currentGroups = member ? getGroupsForUser(member.user_id) : [];
   const currentGroupIds = new Set(currentGroups.map((g) => g.id));
+  // Branch scope is stored per grant; the UI edits it as one value per member.
+  const currentScope: BranchScopeMode =
+    (member && memberAssignments.find((a) => a.user_id === member.user_id)?.branch_scope) || "assigned";
 
   useEffect(() => {
     if (open && member) {
       setSelectedGroupIds(new Set(currentGroupIds));
+      setBranchScope(currentScope);
     }
-  }, [open, member, currentGroups.length]);
+  }, [open, member, currentGroups.length, currentScope]);
+
 
   const toggleGroup = (groupId: string) => {
     setSelectedGroupIds((prev) => {
@@ -64,6 +76,7 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
   };
 
   const hasChanges = () => {
+    if (branchScope !== currentScope) return true;
     if (selectedGroupIds.size !== currentGroupIds.size) return true;
     for (const id of selectedGroupIds) {
       if (!currentGroupIds.has(id)) return true;
@@ -78,6 +91,7 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
       await assignGroups.mutateAsync({
         userId: member.user_id,
         groupIds: Array.from(selectedGroupIds),
+        branchScope,
       });
       onOpenChange(false);
     } finally {
@@ -117,6 +131,25 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
               </div>
             </div>
           )}
+
+          <div className="space-y-2">
+            <Label>Branch access</Label>
+            <div className="space-y-2">
+              {SCOPE_OPTIONS.map((opt) => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => setBranchScope(opt.value)}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    branchScope === opt.value ? "border-primary ring-2 ring-primary/30" : "hover:bg-muted/50"
+                  }`}
+                >
+                  <p className="text-sm font-medium">{opt.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.blurb}</p>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Label>Available Groups</Label>

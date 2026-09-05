@@ -40,6 +40,16 @@ import type { NormalizedError } from "@/services/resilience/ErrorNormalizer";
 // Types for session data returned by get_user_session_data RPC.
 // Identity fields (base_currency, address, tax_id, email, phone, etc.)
 // are intentionally absent — they live on `businesses`, not on the workspace.
+export type BranchScopeMode = "all" | "assigned" | "own_portfolio";
+
+export interface SessionBranch {
+  id: string;
+  name: string;
+  code: string | null;
+  business_id: string | null;
+  is_headquarters: boolean;
+}
+
 export interface SessionOrganization {
   id: string;
   name: string;
@@ -71,8 +81,25 @@ export interface SessionOrganization {
     can_create: boolean;
     can_write: boolean;
     can_delete: boolean;
+    can_approve: boolean;
+    can_post: boolean;
+    can_pay: boolean;
+    can_export: boolean;
+    can_close: boolean;
+    can_reverse: boolean;
+    can_admin_override: boolean;
   }>;
+  /**
+   * Branch dimension of authorization (Wave 2).
+   * - `all`: every branch in the organization
+   * - `assigned`: only branches explicitly assigned to the user
+   * - `own_portfolio`: assigned branches, narrowed further to the user's own clients/loans
+   */
+  branch_scope: BranchScopeMode;
+  /** Branches this user may operate in, already filtered by `branch_scope`. */
+  allowed_branches: SessionBranch[];
 }
+
 
 export interface SessionData {
   organizations: SessionOrganization[];
@@ -200,8 +227,38 @@ function normalizePermissionGroupRules(source: unknown) {
       can_create: Boolean(rule?.can_create),
       can_write: Boolean(rule?.can_write),
       can_delete: Boolean(rule?.can_delete),
+      // Segregation-of-duties verbs. These are group-only and MUST survive
+      // normalization — dropping them silently removed approve/post/pay/export
+      // authority from every access group.
+      can_approve: Boolean(rule?.can_approve),
+      can_post: Boolean(rule?.can_post),
+      can_pay: Boolean(rule?.can_pay),
+      can_export: Boolean(rule?.can_export),
+      can_close: Boolean(rule?.can_close),
+      can_reverse: Boolean(rule?.can_reverse),
+      can_admin_override: Boolean(rule?.can_admin_override),
     }))
     .filter((rule) => rule.module.length > 0);
+}
+
+const BRANCH_SCOPE_MODES: BranchScopeMode[] = ["all", "assigned", "own_portfolio"];
+
+function normalizeBranchScope(source: unknown): BranchScopeMode {
+  return BRANCH_SCOPE_MODES.includes(source as BranchScopeMode)
+    ? (source as BranchScopeMode)
+    : "assigned";
+}
+
+function normalizeAllowedBranches(source: unknown): SessionBranch[] {
+  return asArray<Record<string, unknown>>(source)
+    .map((branch) => ({
+      id: String(branch?.id ?? ""),
+      name: String(branch?.name ?? ""),
+      code: (branch?.code as string | null) ?? null,
+      business_id: (branch?.business_id as string | null) ?? null,
+      is_headquarters: Boolean(branch?.is_headquarters),
+    }))
+    .filter((branch) => branch.id.length > 0);
 }
 
 function normalizeOrganizationPayload(org: unknown): SessionOrganization | null {
@@ -224,8 +281,11 @@ function normalizeOrganizationPayload(org: unknown): SessionOrganization | null 
     user_type: ((org.user_type as SessionOrganization["user_type"]) ?? "internal"),
     usage_counters: normalizeUsageCounters(org.usage_counters),
     permission_group_rules: normalizePermissionGroupRules(org.permission_group_rules),
+    branch_scope: normalizeBranchScope(org.branch_scope),
+    allowed_branches: normalizeAllowedBranches(org.allowed_branches),
   };
 }
+
 
 function normalizeSessionPayload(payload: unknown, userId: string): SessionData {
   const safePayload = isRecord(payload) ? payload : {};
