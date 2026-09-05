@@ -59,6 +59,7 @@ import Settings from "./pages/Settings";
 const WorkspaceSettings = lazy(() => import("./pages/settings/WorkspaceSettings"));
 const CompanySettings = lazy(() => import("./pages/settings/CompanySettings"));
 const GovernanceSoD = lazy(() => import("./pages/settings/GovernanceSoD"));
+const EmailProviderSettings = lazy(() => import("./pages/settings/EmailProviderSettings"));
 import OnboardingSetup from "./pages/OnboardingSetup";
 import NotFound from "./pages/NotFound";
 import Notifications from "./pages/Notifications";
