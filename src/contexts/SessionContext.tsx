@@ -71,8 +71,25 @@ export interface SessionOrganization {
     can_create: boolean;
     can_write: boolean;
     can_delete: boolean;
+    can_approve: boolean;
+    can_post: boolean;
+    can_pay: boolean;
+    can_export: boolean;
+    can_close: boolean;
+    can_reverse: boolean;
+    can_admin_override: boolean;
   }>;
+  /**
+   * Branch dimension of authorization (Wave 2).
+   * - `all`: every branch in the organization
+   * - `assigned`: only branches explicitly assigned to the user
+   * - `own_portfolio`: assigned branches, narrowed further to the user's own clients/loans
+   */
+  branch_scope: BranchScopeMode;
+  /** Branches this user may operate in, already filtered by `branch_scope`. */
+  allowed_branches: SessionBranch[];
 }
+
 
 export interface SessionData {
   organizations: SessionOrganization[];
