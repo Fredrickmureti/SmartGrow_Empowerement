@@ -112,3 +112,15 @@ Derived state confirmed from the authoritative views:
 
 Lending arrears/PAR ageing and collection-sheet reporting hardening, or the
 ERP orphan cleanup — whichever the client prioritises.
+
+
+
+=========WHERE THINGS STAND AT==========
+I stopped mid-check, so here's where things stand.
+
+The payment and settlement work from the last wave is done and verified. In this session I was reviewing leftover cleanup and found one real remaining issue: the invoice-voiding routine still checks for an old, invalid status word ("voided"), so voiding an invoice that already has an accounting entry would fail the same way payments used to. It doesn't affect loan payments, which are working.
+
+Remaining, when you're ready to continue:
+- Correct that invoice-voiding check (a small database change).
+- Tidy the historical entry JE-00023 with missing header totals.
+- Reverse the leftover test receipt RCP-202609-00007 from the Repayments screen while signed in.
