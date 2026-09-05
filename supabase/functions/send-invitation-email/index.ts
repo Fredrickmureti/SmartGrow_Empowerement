@@ -208,13 +208,10 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    // Transport credentials are owned by `send-email` (ADR 0023); this
+    // function no longer gates on a local copy of the provider key.
 
-    if (!settingsMap.resend_api_key) {
-      return new Response(JSON.stringify({ error: "Email provider not configured" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+
 
     const expiresDate = new Date(invitation.expires_at).toLocaleDateString("en-US", {
       year: "numeric",
