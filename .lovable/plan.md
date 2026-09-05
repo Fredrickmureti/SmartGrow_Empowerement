@@ -5,6 +5,14 @@ Authoritative execution plan. Backend: external Supabase `xwxqunklduknceoryrha`
 ASA-style branch model: group meetings as the collection point, individual client
 obligors, no joint liability. No multi-tenancy, no client portal, no payroll.
 
+## Current wave
+
+```text
+PAYMENT / SETTLEMENT ENGINE
+Status: INVESTIGATION — engine verified healthy in the database;
+        the reported failure is not yet reproduced.
+```
+
 ## Locked decisions (do not re-litigate)
 
 Reused foundation: document generation engine · auth / PIN / invitation engine ·
@@ -22,40 +30,84 @@ Invariants:
 - Account mapping stays configurable; no account UUIDs in React.
 - One migration = one object group, FK-ordered, verified before the next.
 - Retarget mature engines; never write a second implementation.
-- No work outside microfinance scope: no audits, docs or polish of ERP leftovers.
+- Financial history is append-only: reverse, never delete.
 
-## Verified state (2026-09-04, re-read from codebase + live DB by the new owner)
+## Payment engine — verified findings (2026-09-05, read from live DB + code)
 
-- Apps: `dashboard, finance, lending, platform, reports, studio`. `src/apps/lending`
-  holds clients, groups, products, applications, loans, collections, documents.
-- DB: 275 tables, 37 views, 1,855 functions; 31 `mf_*` tables.
-- Lending domain live end-to-end (clients → groups → versioned products →
-  applications → assessment/approval → loans → disbursement → schedule engine →
-  repayments via single `mf_record_repayment` / `mf_reverse_repayment` → collections
-  → arrears/PAR → top-up / restructure / write-off / closure). Not yet exercised in a
-  signed-in browser by the owner (M1).
-- Report registry microfinance-only; 9 `/lending/reports/*` routes registered.
-- Finance configuration retargeted (journal books, default account roles).
-- Dropped so far: sales/AR chain, purchasing/AP chain, projects, cost layers,
-  backorders, carriers, consolidation, HR extras, retail/POS, warehouse, scanner,
-  sales pricing engine. `projects` confirmed gone from DB and code (comment hits only).
-- Remaining ERP tables in DB: `contacts`, `payments`, `payment_allocations` only.
-  `payments` readers: `useFiscalPeriodDetail`, `useClearableRecordedPayments`,
-  `useGovernedEntityOptions`. `contacts` readers: 8 files (journal counterparty,
-  command palette, entity resolver, studio catalogue, dashboard composition).
-- `useDashboardComposition` still lists 34 ERP widget ids (`sales.*`, `inventory.*`,
-  `payroll.*`, `purchases.*`, `lowStock`, `creditAlerts`); consumers:
-  `FinanceDashboard`, `DashboardSetupGuide`.
-- Typecheck clean. `GET /` → 200. Note: `@tanstack/router-core` resolves to 1.171.x
-  against `react-router` 1.170.32 — dev server serves fine after restart; if a
-  `_getRenderedMatches` SSR error reappears, restart the dev server before debugging.
+Do not repeat these investigations.
 
-## Milestones — one at a time, verified before the next
+- One authoritative entry point: `public.mf_record_repayment(p_loan_id, p_paid_on,
+  p_amount, p_method, p_reference, p_batch_id, p_notes)` — SECURITY DEFINER,
+  `search_path=public`, EXECUTE granted to `authenticated`. Reversal:
+  `mf_reverse_repayment(p_repayment_id, p_reason)`, same posture.
+- Inside one transaction it: locks the loan `FOR UPDATE`; checks
+  `user_has_business_access`; refuses non-`active` loans; refuses a duplicate
+  non-reversed `reference` on the same loan (idempotency guard exists); mints
+  `RCP-YYYYMM-NNNNN` with a unique-violation retry loop; reads the configurable
+  allocation order from `mf_allocation_policy` (default penalty → fee → interest
+  → principal); allocates oldest-installment-first across
+  `mf_loan_installment_status` and `mf_loan_penalty_status`; carries prior
+  `advance` credit; books the excess as `advance`; writes a
+  `repayment_recorded` row to `mf_loan_events`; calls `mf_post_event`; and closes
+  the loan when nothing is outstanding.
+- Schedule stays contractual: `mf_loan_schedule` is untouched by payments;
+  settlement is derived by the `mf_loan_installment_status` /
+  `mf_loan_penalty_status` views from allocations.
+- Accounting is event-driven: `mf_event_postings(loan_event_id, journal_entry_id,
+  posting_kind)` links each event to a journal entry; reversals post
+  `posting_kind='reversal'`, originals are preserved.
+- Frontend calls exactly this RPC — `src/hooks/useMfRepayments.ts`
+  (`record`, `reverse`), consumed by `RecordPaymentDialog`, `RepaymentsPage`,
+  `GroupSheetDialog` (per-member rows inside one batch), `CollectionsPage`,
+  `useMfGroupSheet`. No allocation maths in React.
+- Group model is already correct: `mf_loans.group_id` is operational only; each
+  member holds an individual loan, schedule, repayment and allocation.
+  `mf_repayment_batches` represents the meeting, not a joint obligation.
+- Live data proves the path runs end to end: 5 loans (5 active, 3 group / 2
+  individual), 40 schedule rows, 5 repayments, 13 allocations, 12 event postings
+  including one `reversal`, 12 configured account mappings (cash, bank,
+  mobile_money, interest_income, write_off_expense, suspended_interest, …).
 
-### M1 — Owner verification pass (open; needs the owner signed in to the preview)
-Confirm: `/lending` and children open; dashboard KPIs and PAR render; one lending
-report, one client statement, one repayment receipt and one disbursement
-confirmation render through the shared document engine. Report any failure here.
+### Architecture verdict
+
+```text
+CORRECT AND REUSABLE — no rewrite, no new payment tables.
+```
+
+## Open question — the actual failure
+
+The reported symptom ("a payment cannot be settled") does not reproduce at the
+database level. The remaining candidates are all browser/session-side, and the
+exact error has not been captured yet. Step 1 below captures it before anything
+is changed.
+
+## Milestones
+
+### M0 — Reproduce and fix the settlement failure (this wave, active)
+1. Sign in to the preview as the test administrator and record a payment on an
+   active loan through `RecordPaymentDialog`; capture the exact toast text,
+   console error and the PostgREST response.
+2. Match the captured error to the raise sites already mapped above (permission,
+   loan not active, duplicate reference, missing account mapping, closed fiscal
+   period, RLS on `mf_repayments` / `mf_repayment_allocations` reads).
+3. Repair at the layer that owns the invariant — smallest change, existing
+   objects. No new tables unless the captured error proves the model cannot carry
+   the event.
+4. Re-run the failing case, then the regression suite in M0b.
+
+### M0b — End-to-end proof (run after the fix, signed in, real data)
+Individual borrower and group meeting, each verified through the UI and then
+confirmed in SQL (allocations, installment status, loan balance, arrears/PAR,
+journal entry, receipt document, report visibility):
+A exact installment · B partial · C overpayment (advance credit) · D multi-
+installment · E arrears · F group collection across members · G duplicate
+reference refused · H reversal preserving history.
+Record test data, expected, actual and PASS/FAIL in the log below.
+
+### M1 — Owner verification pass (open)
+`/lending` and children open; dashboard KPIs and PAR render; one lending report,
+one client statement, one repayment receipt, one disbursement confirmation render
+through the shared document engine.
 
 ### M5 — Dead ERP table groups (remaining: 2 steps)
 5a. `payments` / `payment_allocations` — ERP customer receipts; nothing in lending
@@ -64,44 +116,44 @@ confirmation render through the shared document engine. Report any failure here.
     `payments` branch), then one migration drops both tables + FKs
     (`mpesa_c2b_transactions`, `transactions`, bank match columns). Same step:
     sweep the ERP widget ids out of `useDashboardComposition`.
-5b. `contacts` — decision: journal-entry counterparty points at `mf_clients`
-    (optional, nullable); command palette / entity resolver / studio catalogue /
-    dashboard composition drop the contacts provider. Then one migration drops
-    `contacts` + address/hierarchy tables. Verify journal entry create/view after.
+5b. `contacts` — journal-entry counterparty points at `mf_clients` (optional,
+    nullable); command palette / entity resolver / studio catalogue / dashboard
+    composition drop the contacts provider. Then one migration drops `contacts`
+    + address/hierarchy tables. Verify journal entry create/view after.
 
 ### M7 — Orphan function purge
 Drop PL/pgSQL functions whose referenced relations no longer exist, in
-dependency-checked batches. Never touch `mf_*`. Confirm no trigger on a live
-table depends on a function first. Target: functions well under 1,855.
+dependency-checked batches. Never touch `mf_*`.
 
 ### M8 — Linter posture on retained schema only
 SECURITY DEFINER views, function `search_path`, anon EXECUTE revokes,
-leaked-password protection. Findings on dropped tables are ignored.
+leaked-password protection.
 
 ### M9 — Microfinance report completion
-Fill SRD gaps on the existing engine (officer/branch collection performance,
-disbursement register, product performance, aging/DPD bands): server-side data,
-institution-info injection, shared PDF path. No new engine.
+Officer/branch collection performance, disbursement register, product
+performance, aging/DPD bands on the existing engine.
 
 ### M10 — Microfinance documents completion
 Loan agreement, repayment schedule, loan statement, disbursement confirmation,
-collection receipt through the existing document engine. Confirm which already
-exist under `src/apps/lending/documents` before writing any.
+collection receipt through the existing document engine.
 
 Closed: M2 reports, M3 money-in/out, M4 finance config, M6 FX purge, M5 sales /
 purchasing / logistics / projects steps.
 
+## Future cleanup (not this wave)
+Remaining ERP leftovers: `contacts`, `payments`, `payment_allocations`, ERP
+dashboard widget ids.
+
 ## Progress log (latest first)
-### 2026-09-04 — KYC images: private `mf-kyc` bucket (RLS by business folder),
-5 path columns on `mf_clients`, in-app camera capture + upload slots for client
-photo, ID front/back, optional kin ID front/back in `ClientFormDialog`. Owner to
-verify in preview (M1 item).
-### 2026-09-04 — Plan re-verified by new owner. Projects removal confirmed in DB
-and code. Remaining ERP tables reduced to `contacts`, `payments`,
-`payment_allocations`. Dashboard-widget sweep folded into M5a. Milestone M10
-(documents) added so the SRD document list is tracked. Next: M5a.
-### 2026-09-04 — M5 projects DONE: `projects` table, dependent triggers/functions
-and `project_id` columns dropped; 9 catalogue/permission references removed.
-### 2026-09-04 — M5 logistics/costing DONE; M6 closed (zero FX references).
-### 2026-09-04 — M5 purchasing/AP chain DONE. M5 sales/AR chain DONE.
+### 2026-09-05 — Payment engine traced end to end (code + live DB). Verdict:
+CORRECT AND REUSABLE; single authoritative RPC, configurable allocation order,
+derived settlement views, event-driven accounting, existing idempotency guard,
+append-only reversal, group-as-operational-structure already correct. Reported
+settlement failure not reproducible from the database; next step is capturing the
+real browser error before any change.
+### 2026-09-04 — KYC images: private `mf-kyc` bucket, 5 path columns on
+`mf_clients`, camera capture in `ClientFormDialog`.
+### 2026-09-04 — Plan re-verified by new owner; remaining ERP tables reduced.
+### 2026-09-04 — M5 projects DONE; logistics/costing DONE; M6 closed.
+### 2026-09-04 — M5 purchasing/AP and sales/AR chains DONE.
 ### 2026-09-04 — M4 closed; M3 closed; report catalogue microfinance-only.
