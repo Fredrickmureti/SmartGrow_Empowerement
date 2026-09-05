@@ -16777,6 +16777,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          is_deprecated: boolean
           is_system: boolean
           name: string
           organization_id: string
@@ -16786,6 +16787,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_deprecated?: boolean
           is_system?: boolean
           name: string
           organization_id: string
@@ -16795,6 +16797,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          is_deprecated?: boolean
           is_system?: boolean
           name?: string
           organization_id?: string
@@ -30742,10 +30745,6 @@ export type Database = {
         Returns: undefined
       }
       seed_project_permission_groups: {
-        Args: { _org_id: string }
-        Returns: undefined
-      }
-      seed_system_permission_groups: {
         Args: { _org_id: string }
         Returns: undefined
       }
