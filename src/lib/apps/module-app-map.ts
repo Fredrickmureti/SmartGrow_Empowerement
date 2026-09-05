@@ -15,12 +15,24 @@ import type { PermissionModule, PermissionGroupRule } from "@/lib/permissions";
  * A user needs `can_read` on at least one module mapped to an app to see that app.
  */
 export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
-  contacts:    ["contacts"],
-  lending:     ["lending"],
-  financials:  ["finance", "reports"],
-  employees:   ["employees"],
-  settings:    ["platform", "studio"],
-  team:        ["platform"],
+  contacts:      ["contacts"],
+  lending:       ["lending"],
+  financials:    ["finance", "reports"],
+  employees:     ["employees"],
+  settings:      ["platform", "studio"],
+  team:          ["platform"],
+  // Microfinance modules
+  clients:       ["lending", "contacts"],
+  loan_products: ["lending"],
+  applications:  ["lending"],
+  loans:         ["lending"],
+  repayments:    ["lending"],
+  collections:   ["lending"],
+  accounting:    ["finance"],
+  treasury:      ["finance"],
+  reports:       ["reports"],
+  branches:      ["platform"],
+  audit:         ["platform"],
   // Retired domains — the keys remain to satisfy the PermissionModule enum,
   // but they grant visibility to no app because no such app is registered.
   products:    [],
@@ -34,6 +46,7 @@ export const MODULE_TO_APP_MAP: Record<PermissionModule, string[]> = {
   timesheets:  [],
   pos:         [],
 };
+
 
 /**
  * Given a set of Access Group rules, returns the set of app IDs the user should be able to see.
