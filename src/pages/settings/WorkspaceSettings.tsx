@@ -65,6 +65,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EnhancedNotificationSettings } from "@/components/notifications/EnhancedNotificationSettings";
 import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import AccessGroups from "@/pages/settings/AccessGroups";
+import EmailProviderSettings from "@/pages/settings/EmailProviderSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { Link } from "react-router-dom";
 
