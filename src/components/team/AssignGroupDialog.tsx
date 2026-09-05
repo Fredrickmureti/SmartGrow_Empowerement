@@ -133,6 +133,25 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
           )}
 
           <div className="space-y-2">
+            <Label>Branch access</Label>
+            <div className="space-y-2">
+              {SCOPE_OPTIONS.map((opt) => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => setBranchScope(opt.value)}
+                  className={`w-full text-left rounded-lg border p-3 transition-colors ${
+                    branchScope === opt.value ? "border-primary ring-2 ring-primary/30" : "hover:bg-muted/50"
+                  }`}
+                >
+                  <p className="text-sm font-medium">{opt.title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{opt.blurb}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
             <Label>Available Groups</Label>
             <ScrollArea className="max-h-[300px] rounded-md border">
               <div className="p-3 space-y-2">
