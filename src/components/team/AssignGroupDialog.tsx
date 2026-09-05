@@ -76,6 +76,7 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
   };
 
   const hasChanges = () => {
+    if (branchScope !== currentScope) return true;
     if (selectedGroupIds.size !== currentGroupIds.size) return true;
     for (const id of selectedGroupIds) {
       if (!currentGroupIds.has(id)) return true;
@@ -90,6 +91,7 @@ export function AssignGroupDialog({ open, onOpenChange, member }: AssignGroupDia
       await assignGroups.mutateAsync({
         userId: member.user_id,
         groupIds: Array.from(selectedGroupIds),
+        branchScope,
       });
       onOpenChange(false);
     } finally {
