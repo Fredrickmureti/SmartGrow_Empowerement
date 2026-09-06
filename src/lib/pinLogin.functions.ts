@@ -6,7 +6,8 @@
  * 2. admin generateLink — mints a magic-link token for that email
  * 3. verifyOtp — exchanges the token for a real session
  *
- * The service-role key is read inside the handler and never leaves the server.
+ * Configuration is resolved inside the handler. The service-role key never
+ * leaves the server and must never be exposed through a VITE_* variable.
  */
 
 import { createServerFn } from "@tanstack/react-start";
@@ -49,17 +50,13 @@ export const pinLogin = createServerFn({ method: "POST" })
       };
     }
 
-    const supabaseUrl = config.url;
-    const serviceRoleKey = config.serviceRoleKey;
-    const anonKey = config.publishableKey;
+    // Service-role work (PIN verification and magic-link minting) goes through
+    // the project's server-only client so credential handling stays centralized.
+    const { supabaseAdmin } = await import(
+      "@/integrations/supabase/client.server"
+    );
 
-    const authOptions = {
-      auth: { autoRefreshToken: false, persistSession: false },
-    } as const;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, authOptions);
-
-
-    const { data: verifyResult, error: verifyError } = await adminClient.rpc(
+    const { data: verifyResult, error: verifyError } = await supabaseAdmin.rpc(
       "verify_pin_full",
       { p_email: data.email, p_pin: data.pin },
     );
@@ -90,7 +87,7 @@ export const pinLogin = createServerFn({ method: "POST" })
     }
 
     const { data: linkData, error: linkError } =
-      await adminClient.auth.admin.generateLink({
+      await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
         email: data.email,
       });
@@ -101,7 +98,9 @@ export const pinLogin = createServerFn({ method: "POST" })
       return { success: false, error: "Authentication failed" };
     }
 
-    const anonClient = createClient(supabaseUrl, anonKey, authOptions);
+    const anonClient = createClient(config.url, config.publishableKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
     const { data: sessionData, error: sessionError } =
       await anonClient.auth.verifyOtp({
         token_hash: tokenHash,
