@@ -36,20 +36,28 @@ export const pinLogin = createServerFn({ method: "POST" })
     return { email, pin };
   })
   .handler(async ({ data }): Promise<PinLoginResult> => {
-    const supabaseUrl = process.env["SUPABASE_URL"];
-    const serviceRoleKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-    const anonKey =
-      process.env["SUPABASE_ANON_KEY"] ??
-      process.env["SUPABASE_PUBLISHABLE_KEY"];
+    const { resolveServerSupabaseConfig, describeMissingServerSupabaseConfig } =
+      await import("./serverSupabaseConfig.server");
+    const { config, missing } = resolveServerSupabaseConfig();
 
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
-      return { success: false, error: "PIN login is not configured" };
+    if (!config) {
+      const detail = describeMissingServerSupabaseConfig(missing);
+      console.error(`[pinLogin] ${detail}`);
+      return {
+        success: false,
+        error: `PIN login is not configured: missing ${missing.join(", ")}`,
+      };
     }
+
+    const supabaseUrl = config.url;
+    const serviceRoleKey = config.serviceRoleKey;
+    const anonKey = config.publishableKey;
 
     const authOptions = {
       auth: { autoRefreshToken: false, persistSession: false },
     } as const;
     const adminClient = createClient(supabaseUrl, serviceRoleKey, authOptions);
+
 
     const { data: verifyResult, error: verifyError } = await adminClient.rpc(
       "verify_pin_full",
