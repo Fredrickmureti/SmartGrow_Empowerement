@@ -485,13 +485,30 @@ The app will be available at `http://localhost:5173`
 
 ### Environment Configuration
 
-Create a `.env` file in the root directory:
+Copy `.env.example` to `.env.local` and fill in the values. The same variables
+must be set in every environment you run the app in — local, Vercel Production,
+Vercel Preview and Vercel Development. Nothing is injected implicitly outside
+the Lovable preview.
 
 ```env
-# Supabase Configuration (Required)
+# Sent to the browser (public)
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
+VITE_SUPABASE_PROJECT_ID=your-project-id
+
+# Server-side only — never prefix with VITE_
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your-publishable-or-anon-key
+SUPABASE_PROJECT_ID=your-project-id
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key   # SECRET
 ```
+
+`SUPABASE_SERVICE_ROLE_KEY` is required for **PIN login**: the PIN is verified
+and the session is minted server-side. Without it, PIN login returns
+"PIN login is not configured: missing SUPABASE_SERVICE_ROLE_KEY". Get it from
+Supabase Dashboard → Project Settings → API. Keep it server-side only —
+anything `VITE_`-prefixed is bundled into the browser.
+
 
 ---
 
