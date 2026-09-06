@@ -1,67 +1,83 @@
-# PIN login outside Lovable Preview — findings, fix, validation
+# PIN login environment failure — evidence-led remediation
 
-## Root cause (confirmed by tracing, not assumption)
+## Confirmed findings
 
-- The string "PIN login is not configured" exists in exactly one place:
-  `src/lib/pinLogin.functions.ts`, in the server-side `pinLogin` handler.
-- It is returned when any of three server values is absent at request time:
-  `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and
-  `SUPABASE_PUBLISHABLE_KEY`/`SUPABASE_ANON_KEY`.
-- The repo's `.env` supplies only `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
-  `SUPABASE_PROJECT_ID` and their `VITE_` twins. It contains **no**
-  service-role key. That key is present in the Lovable runtime because Lovable
-  injects it; nothing supplies it locally or on Vercel.
-- Therefore the failure is a missing, implicitly-provided server secret — not a
-  database, RLS, tenant, PIN-data, or build-vs-runtime evaluation problem. All
-  values were already read inside the handler (runtime), which is correct.
+- The exact message comes only from the server-side PIN handler. It is returned
+  before any PIN or session request when server configuration is incomplete.
+- The login sequence is: login form → server PIN handler → `verify_pin_full`
+  database function → privileged magic-link creation → token exchange → browser
+  session installation.
+- The privileged credential is not an optional PIN feature flag. It is required
+  for both the service-only PIN verification function and session creation. The
+  six values supplied include the URL, project ID, and public key twice (browser
+  and server forms), but do **not** include `SUPABASE_SERVICE_ROLE_KEY`.
+- The Lovable runtime currently has all three server bindings, including the
+  service-role key. The repository `.env` has the URL and public key but not the
+  service-role key. This exactly accounts for Preview succeeding and a plain
+  local run failing.
+- The app configuration and database configuration both reference project
+  `xwxqunklduknceoryrha`. This rules out a different-project mismatch in the
+  checked configuration.
+- The live database contains the expected PIN functions and one usable,
+  enabled PIN record. `check_pin_status` is callable publicly while
+  `verify_pin_full` is not; this is intentional. Therefore PIN data, the RPC,
+  and public access rules do not explain the configuration error, which occurs
+  before those calls.
+- Browser variables are read through `VITE_SUPABASE_*`; server values are read
+  at request time through `process.env`. There is no evidence of a build-time
+  evaluation bug or a Lovable-only browser dependency in this path.
 
-Category: deployment/configuration problem, compounded by an application
-problem — a single opaque message that named none of the three requirements.
+**Root-cause classification:** deployment configuration is the direct cause.
+Lovable injects a privileged server binding that local and Vercel environments
+must receive explicitly. The previous vague error was an application
+observability problem; changing it to name the missing binding exposed the real
+configuration gap rather than creating it.
 
-Also checked and found sound: the browser Supabase client resolves `VITE_*`
-first with a server fallback; the preview session-sharing helper
-(`src/integrations/supabase/previewAuthStorage.ts`) falls back to normal browser
-storage on any non-Lovable host, so no Lovable-only client dependency remains.
+## Remediation
 
-## Changes made
+1. Rebind the connected backend credentials in Lovable and verify that the
+   runtime binding belongs to project `xwxqunklduknceoryrha`; do not rotate or
+   expose the credential.
+2. Keep PIN verification and session minting server-only. Do not weaken RPC
+   grants, move the privileged key into a `VITE_` variable, bypass checks, or
+   hardcode a project/key.
+3. Consolidate the PIN handler on the generated server-only backend client where
+   practical, while retaining request-time configuration reads and a safe,
+   actionable failure. Add focused tests for missing configuration and the
+   successful handoff from PIN verification to session creation.
+4. Keep the documented environment contract explicit. Local execution must use
+   `.env.local` containing `SUPABASE_SERVICE_ROLE_KEY`; the checked-in `.env`
+   must never contain that secret.
+5. In Vercel, confirm the exact name `SUPABASE_SERVICE_ROLE_KEY` exists for
+   Production, Preview, and Development. The values shown in the report do not
+   establish that. Redeploy after adding/changing it because an existing
+   deployment does not acquire newly saved variables retroactively.
 
-1. `src/lib/serverSupabaseConfig.server.ts` (new) — one server-only resolver for
-   the Supabase URL, publishable key and service-role key. Reads `process.env`
-   at call time, reports exactly which names are missing, and never logs or
-   returns a secret value.
-2. `src/lib/pinLogin.functions.ts` — uses that resolver. On missing config it
-   logs the full actionable detail server-side and returns
-   "PIN login is not configured: missing SUPABASE_SERVICE_ROLE_KEY" (or whichever
-   names are missing). No check bypassed, nothing hardcoded, no branching per
-   environment.
-3. `.env.example` (new) and the README "Environment Configuration" section — the
-   complete required-variable list, marking the service-role key as server-only
-   and secret.
+## Validation and handoff
 
-## Validation performed
+- Verify the server reports all required bindings as present without printing
+  their values, and that the URL/project reference is the intended backend.
+- Exercise the Preview and local server paths with a non-user test request to
+  prove they pass configuration and reach `verify_pin_full` without risking the
+  real user's PIN lockout.
+- Run targeted tests and confirm password login remains unchanged.
+- A successful real PIN login requires the owner to test with their PIN. Vercel
+  Preview and Production can only be declared working after the secret is
+  confirmed in each Vercel environment, a new deployment is created, and that
+  deployment is tested. Record those outcomes here rather than claiming access
+  this workspace does not have.
 
-- Typecheck clean.
-- Resolver with the Lovable environment: no missing names, config resolved.
-- Resolver with the service-role key removed: reports
-  `SUPABASE_SERVICE_ROLE_KEY` and produces the actionable message.
-- Using only keys resolved through the new module against the live backend:
-  `verify_pin_full` (service role) returned `{"success":false,"error":"Invalid
-  credentials"}` for an unknown email, and `check_pin_status` (publishable key)
-  succeeded — so both credentials are valid and the flow past the config gate is
-  intact in Preview.
-- Login page renders and the password path is untouched.
+## Required environment contract
 
-Not verifiable from here: an actual successful PIN sign-in (requires a real
-user's PIN, and repeated wrong attempts trigger their lockout), and Vercel
-Preview/Production, which need the variables below to be set first.
+Server-only in every runtime:
 
-## Remaining deployment configuration (must be done in Vercel)
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_PROJECT_ID`
+- `SUPABASE_SERVICE_ROLE_KEY` — secret; never prefix with `VITE_`
 
-Set for **Production, Preview and Development**:
+Browser-safe build values:
 
-- `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`
-
-Service-role key: Supabase Dashboard → Project Settings → API. Never give it a
-`VITE_` prefix — `VITE_` variables are bundled into the browser. Locally, copy
-`.env.example` to `.env.local` with the same values.
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_PROJECT_ID`
