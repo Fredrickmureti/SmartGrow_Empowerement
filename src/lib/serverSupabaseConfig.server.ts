@@ -12,6 +12,10 @@
  * Never import this from browser code: it resolves the service-role key.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parse } from "dotenv";
+
 export interface ServerSupabaseConfig {
   url: string;
   serviceRoleKey: string;
@@ -29,7 +33,24 @@ function read(name: string): string | undefined {
   return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function loadLocalServerEnvironment(): void {
+  if (process.env.NODE_ENV === "test") return;
+
+  // Deployment-provided variables win; local files fill only missing values.
+  for (const file of [".env.local", ".env"]) {
+    const path = resolve(process.cwd(), file);
+    if (!existsSync(path)) continue;
+
+    const values = parse(readFileSync(path));
+    for (const [name, value] of Object.entries(values)) {
+      if (!read(name)) process.env[name] = value;
+    }
+  }
+}
+
 export function resolveServerSupabaseConfig(): ServerSupabaseConfigResult {
+  loadLocalServerEnvironment();
+
   const url = read("SUPABASE_URL") ?? read("VITE_SUPABASE_URL");
   const serviceRoleKey = read("SUPABASE_SERVICE_ROLE_KEY");
   const publishableKey =
