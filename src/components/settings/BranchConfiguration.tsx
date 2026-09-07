@@ -47,9 +47,6 @@ interface BranchConfigurationProps {
   branchName: string;
   business: {
     id: string;
-    invoice_prefix?: string | null;
-    estimate_prefix?: string | null;
-    bill_prefix?: string | null;
     logo_url?: string | null;
     address?: string | null;
     city?: string | null;
@@ -58,6 +55,7 @@ interface BranchConfigurationProps {
     phone?: string | null;
     receipt_settings?: { header?: string | null; footer?: string | null } | null;
   };
+
 }
 
 interface OverridableKey {
