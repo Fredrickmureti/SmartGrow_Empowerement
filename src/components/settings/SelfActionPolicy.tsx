@@ -135,7 +135,7 @@ export function SelfActionPolicy() {
   // The governance registry in the database is the source of truth for which
   // actions exist. The static catalogue is only a compile-time mirror, so the
   // table must never be built from it alone — a module registered server-side
-  // (e.g. Warehouse) would otherwise be invisible here and impossible to
+  // (e.g. a new Lending action) would otherwise be invisible here and impossible to
   // configure. Parity between the two is enforced by
   // src/test/architecture/governance-action-registry-parity.test.ts.
   const grouped = useMemo(() => {
