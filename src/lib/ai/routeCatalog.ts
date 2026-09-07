@@ -28,17 +28,10 @@ export interface CatalogEntry {
 
 export const ROUTE_CATALOG: Record<string, CatalogEntry> = {
   // ── Lending ─────────────────────────────────────────────────────────────
-  "lending.overview": {
-    id: "lending.overview",
-    label: "Lending Overview",
-    path: "/lending",
-    requires_app: "microfinance",
-    description: "Portfolio dashboard: active loans, arrears, collections.",
-  },
   "lending.clients": {
     id: "lending.clients",
     label: "Borrowers",
-    path: "/lending/clients",
+    path: "/lending",
     requires_app: "microfinance",
     description: "Borrower directory, KYC records and loan history.",
   },
