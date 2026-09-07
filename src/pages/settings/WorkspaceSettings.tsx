@@ -337,7 +337,7 @@ export default function WorkspaceSettings() {
                   <ImageIcon className="h-4 w-4" />
                   <AlertDescription className="flex flex-col gap-1">
                     <span>
-                      Logos are per-company. Each company has its own logo that appears on its invoices, bills, receipts, and statements.
+                      Logos are per-company. Each company has its own logo that appears on its loan statements, repayment receipts, and reports.
                     </span>
                     <Link
                       to="/settings/company?tab=company"
@@ -359,7 +359,7 @@ export default function WorkspaceSettings() {
                         disabled={!canEditOrg}
                       />
                       <p className="text-xs text-muted-foreground">
-                        The workspace name shown across the platform. Not used on invoices or other documents — those use the Company's legal name.
+                        The workspace name shown across the platform. Not used on loan statements or receipts — those use the Company's legal name.
                       </p>
                     </div>
                     {canEditOrg && (
@@ -375,7 +375,7 @@ export default function WorkspaceSettings() {
                   <Building2 className="h-4 w-4" />
                   <AlertDescription className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <span className="text-sm">
-                      Looking for legal name, tax ID, address, fiscal year, or invoice prefixes? Those live on each Company.
+                      Looking for legal name, tax ID, address, or fiscal year? Those live on each Company.
                     </span>
                     <Button asChild variant="outline" size="sm" className="shrink-0">
                       <Link to="/settings/company">
@@ -435,8 +435,8 @@ export default function WorkspaceSettings() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Migrate your chart of accounts, trial balance, open AR/AP, bank balances, and
-                  inventory from QuickBooks, Odoo, Xero, Tally, or any CSV/XLSX export.
+                  Migrate your chart of accounts, trial balance, bank balances, client records, and
+                  loan portfolio from any CSV/XLSX export.
                 </p>
                 <Button onClick={() => (window.location.href = "/settings/migration")} className="gap-2">
                   Open Migration Workbench

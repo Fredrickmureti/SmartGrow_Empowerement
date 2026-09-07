@@ -140,3 +140,74 @@ Changes:
 One object per migration. Order is strictly G-3 → G-4 → S → G-5. Each migration
 is delete-only against rows proven unreferenced above, and must carry its
 rollback re-seed as a commented-out INSERT block.
+
+
+
+===============THIS WAS THE LAST MESSAGE FROM THE AGENT BEFORE ITS TIME RUN OUT=============
+
+
+I'll start by reading the current plan and checking what remains.
+
+Here's where things stand.
+
+Done
+- The internal module registry no longer carries the eight leftover ERP modules (HR, payroll, point of sale, sales, purchases, vendor returns, inventory, warehouse). Before removing the old "sales" entry I moved its two still-live tables — payments and payment allocations — under Finance so they keep reset/export coverage, and I registered a new Lending module owning all 20 microfinance tables.
+- The branch override list lost its four ERP entries (invoice, estimate and bill number prefixes, and the point-of-sale receipt prefix). No branch had any of these set, so nothing was lost; branch logo, address, contact details and receipt header/footer remain.
+- Removed the Invoice/Estimate/Bill prefix fields from the company edit form, deleted three orphaned settings screens (tax, inventory, payment terms) and a point-of-sale-only test, and rewrote the module-registry test so it asserts the microfinance modules instead of pinning the old ERP ones.
+
+Remaining (logged for the next session)
+1. Finish `BranchConfiguration.tsx` — the prefix keys are still referenced in its inherited-values block around line 129, so a type check is needed there.
+2. Reword the leftover ERP copy in Branch Operations, Workspace Settings and Access Groups (mentions of invoices, warehouses, inventory imports, "Sales / User", and the payroll/timesheet column tooltips).
+3. Extend the governance self-action list with the new lending actions, then run the governance and approval tests plus a type check and build.
+4. Walk the settings tabs signed in as your account to confirm no ERP wording is left on screen.
+5. Deferred deliberately: the old `reset_module__hr/pos/sales/costing` database routines are still called by the workspace-reset routine, so deleting them now would break reset — they belong to the later legacy cleanup, along with dropping the unused prefix columns.
+---
+
+## Wave S-2 — Finish the settings/governance vocabulary cleanup (logged 2026-09-07)
+
+Status of the previous session, re-verified against the repo and database now:
+
+- Module registry pruned, `lending` module registered, orphaned settings screens
+  deleted, company-edit prefix fields removed — **done**.
+- `governance_action_registry` now holds 15 rows: Finance (3), Lending (7 —
+  `loan.approve`, `loan.disburse`, `loan.restructure`, `loan.write_off`,
+  `repayment.reverse`, `reversal.loan_repayment`), Platform (`app_access.grant`),
+  Spend (5). **FACT**
+- `src/lib/governance/selfActionCatalogue.ts` still declares
+  `module: "Finance" | "Spend"` with only 5 entries — the compile-time mirror is
+  out of parity with the table, so
+  `src/test/architecture/governance-action-registry-parity.test.ts` fails. **FACT**
+
+### Remaining items, in execution order
+
+1. **`selfActionCatalogue.ts`** — widen the `module` union to
+   `"Finance" | "Spend" | "Lending" | "Platform"` and add the eight missing
+   entries with the exact `action_key`/`subject_table` pairs listed above.
+   Then run the parity, `sod-coverage` and `governance-single-engine` tests.
+2. **`src/components/settings/BranchConfiguration.tsx`** — the override payload
+   is pruned but `inheritedFromBusiness` (lines ~128-138) still reads
+   `business.invoice_prefix`, `estimate_prefix`, `bill_prefix` and the POS
+   `receipt_prefix`, and the `business` prop interface no longer declares them.
+   Remove those four keys and their entries; keep logo, address, contact and
+   `receipt_header`/`receipt_footer`. Typecheck this file specifically.
+3. **Copy rewrites** (presentation only, no logic):
+   - `BranchOperations.tsx` line 10 (header comment) and line 154 — replace
+     "invoice prefix"/"default warehouse" with receipt text and branch document
+     details.
+   - `WorkspaceSettings.tsx` lines 340, 362, 378, 439 — invoices → loan
+     statements and repayment receipts; line 439's "inventory from QuickBooks,
+     Odoo, Xero, Tally" → client and loan data import from CSV/XLSX.
+   - `AccessGroups.tsx` line 193 example "Sales / User" → "Lending / Loan
+     Officer"; column tooltips 304-307 → Approve: loan applications and journal
+     entries; Post: journal entries; Pay: disbursements and repayment
+     settlements; Export: GL and portfolio reports.
+4. **Verification** — `bunx tsgo --noEmit`, the governance/approval test suites,
+   then a signed-in walk of the Company and Workspace settings tabs plus
+   Settings → Governance to confirm no ERP word remains on screen.
+
+### Still deferred (unchanged)
+
+`reset_module__hr/pos/sales/costing` remain live behind the workspace-reset
+routine; dropping them, and dropping `businesses.invoice_prefix` /
+`estimate_prefix` / `bill_prefix` and `branches.invoice_prefix_suffix` /
+`default_warehouse_id`, belongs to the later legacy-cleanup wave.
