@@ -9,7 +9,6 @@ import {
   Smartphone, 
   CreditCard, 
   Banknote, 
-  Bitcoin,
   QrCode,
   Settings2,
   ExternalLink
@@ -30,9 +29,7 @@ interface PaymentMethodSelectorProps {
 const typeIcons: Record<PaymentMethodType, React.ReactNode> = {
   bank: <Building2 className="h-4 w-4" />,
   mobile_money: <Smartphone className="h-4 w-4" />,
-  online: <CreditCard className="h-4 w-4" />,
   cash: <Banknote className="h-4 w-4" />,
-  crypto: <Bitcoin className="h-4 w-4" />,
 };
 
 export function PaymentMethodSelector({
@@ -65,17 +62,11 @@ export function PaymentMethodSelector({
       case 'bank':
         return (details as any).bank_name || '';
       case 'mobile_money':
-        return (details as any).paybill_number 
-          ? `Paybill: ${(details as any).paybill_number}` 
-          : (details as any).till_number 
-            ? `Till: ${(details as any).till_number}`
-            : '';
-      case 'online':
-        return (details as any).email || '';
+        return (details as any).paybill_number
+          ? `PayBill: ${(details as any).paybill_number}`
+          : '';
       case 'cash':
         return 'Cash payment';
-      case 'crypto':
-        return (details as any).currency?.toUpperCase() || '';
       default:
         return '';
     }
