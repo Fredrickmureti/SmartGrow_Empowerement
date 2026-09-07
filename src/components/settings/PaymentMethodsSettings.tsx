@@ -104,118 +104,34 @@ export function PaymentMethodsSettings() {
   }, [currentBusiness?.id]);
 
   const handleToggleGlobalPaymentMethods = async (checked: boolean) => {
-    if (!currentOrg?.id) return;
     if (!currentBusiness?.id) {
       toast({
         title: "Select a Company",
-        description: "Payment-method display is configured per Company.",
+        description: "Collection-detail display is configured per Company.",
         variant: "destructive",
       });
       return;
     }
     setIsTogglingGlobal(true);
 
-    const EXPECTED_TYPES = ['loan_agreement', 'repayment_schedule', 'loan_statement', 'client_statement', 'loan_payment_receipt'] as const;
-
+    // Single source of truth. The user-editable `document_templates` system was
+    // retired (see `.lovable/plan.md` §2): microfinance documents are
+    // standardised server-side, and this flag is the only presentation choice
+    // the institution controls.
     try {
-      // 1. Update Company-scoped flag (single source of truth on `businesses`).
-      const { error: orgErr } = await supabase
+      const { error } = await supabase
         .from("businesses")
-        .update({ show_payment_methods_on_documents: checked } as any)
+        .update({ show_payment_methods_on_documents: checked } as never)
         .eq("id", currentBusiness.id);
 
-      if (orgErr) throw orgErr;
-
-      // 2. Also update default templates for THIS Company.
-      const { data: existingTemplates, error: fetchErr } = await supabase
-        .from("document_templates")
-        .select("id, template_type")
-        .eq("organization_id", currentOrg.id)
-        .eq("business_id", currentBusiness.id)
-        .eq("is_default", true);
-
-      if (fetchErr) throw fetchErr;
-
-      const existingTypes = new Set((existingTemplates || []).map(t => t.template_type));
-
-      const missingTypes = EXPECTED_TYPES.filter(t => !existingTypes.has(t));
-
-      if (missingTypes.length > 0) {
-        const now = new Date().toISOString();
-        const newTemplates = missingTypes.map(type => ({
-          organization_id: currentOrg.id,
-          business_id: currentBusiness.id,
-          template_type: type,
-          template_name: `Default ${type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`,
-          is_default: true,
-          is_active: true,
-          show_payment_methods: checked,
-          logo_position: 'top-left',
-          logo_size: 'medium',
-          primary_color: '#1a1a2e',
-          secondary_color: '#6b7280',
-          accent_color: '#3b82f6',
-          font_family: 'Inter',
-          font_size_base: 14,
-          show_company_name: true,
-          show_company_address: true,
-          show_company_phone: true,
-          show_company_email: true,
-          show_tax_id: false,
-          document_title_format: type.replace(/_/g, ' ').toUpperCase(),
-          show_line_numbers: true,
-          show_item_description: true,
-          show_unit_price: true,
-          show_quantity: true,
-          show_tax_column: true,
-          show_discount_column: false,
-          show_subtotals_per_item: false,
-          show_subtotal: true,
-          show_discount_total: true,
-          show_tax_breakdown: true,
-          show_total_in_words: false,
-          totals_position: 'right',
-          show_payment_instructions: true,
-          show_bank_details: true,
-          show_signature_line: false,
-          signature_label: 'Authorized Signature',
-          show_terms: true,
-          show_status_badge: false,
-          watermark_opacity: 0.1,
-          background_color: '#ffffff',
-          created_at: now,
-          updated_at: now,
-        }));
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: insertErr } = await supabase
-          .from("document_templates")
-          .insert(newTemplates as any);
-
-        if (insertErr) throw insertErr;
-      }
-
-      if (existingTemplates && existingTemplates.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: updateErr } = await supabase
-          .from("document_templates")
-          .update({
-            show_payment_methods: checked,
-            updated_at: new Date().toISOString(),
-          } as any)
-          .eq("organization_id", currentOrg.id)
-          .eq("business_id", currentBusiness.id)
-          .eq("is_default", true);
-
-        if (updateErr) throw updateErr;
-      }
+      if (error) throw error;
 
       setShowOnAllDocs(checked);
       toast({
-        title: checked ? "Payment methods enabled" : "Payment methods hidden",
+        title: checked ? "Collection details enabled" : "Collection details hidden",
         description: checked
-          ? "All active payment methods will appear on all documents."
-          : "Payment methods will no longer appear on documents by default.",
+          ? "Active collection channels will appear on receipts and statements."
+          : "Collection channels will no longer appear on documents.",
       });
     } catch (err: unknown) {
       const e = err as Error;
