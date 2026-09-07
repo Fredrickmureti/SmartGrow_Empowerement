@@ -203,14 +203,6 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-I stopped mid-way through Wave 5. Here's where things stand.
+Done now: the document-template editor removal is complete and confirmed compiling — the empty template table, its helper routines, the leftover link column and the stale branch-lookup entry are gone from the database. M-Pesa collection settings are now PayBill-only (Till option removed), and the plan records the corrected decision to adapt the existing payment-method catalogue in place instead of building a parallel one.
 
-Done this session
-
-Checked the previous notes against the actual code — two things logged as finished were not. I removed the card/PayPal/PesaPal connection tests from the payment-provider test service, and stopped the M-Pesa Till number, card and crypto wallet details from being printed on documents.
-Started retiring the editable document-template system: documents now resolve their presentation from the institution record alone, and the "show collection details on documents" switch writes to that one place instead of creating dozens of template rows.
-Remaining
-
-Finish Wave 5: delete the template editor screen, its builder, the payment-method selector, the hook and its type; remove the Templates tab from Company settings; then drop the now-unused document_templates table.
-Wave 3: my verdict, which differs from the plan — do not create a new organization_payment_channels table. The existing payment-method table is already narrowed to Cash / Bank / Mobile money and already links to a bank account and a branch, so adapt it in place (vocabulary and labels) rather than migrating to a parallel table for no business gain.
-Wave 4 (lock to KES), Waves 6–8 (document numbering, notification/email re-scope, legacy database cleanup).
+Remaining: locking the institution to KES, document numbering, notification/email re-scoping, and the legacy database cleanup (Waves 4, 6, 7, 8), plus finishing the plan's status section for those.
