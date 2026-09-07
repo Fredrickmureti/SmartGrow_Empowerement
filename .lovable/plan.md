@@ -203,8 +203,8 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-I got the Kenya-shilling lock and the start of document numbering in place before stopping.
+I've set up automatic reference numbering in the database, but ran out of room before finishing the app side.
 
-Done in this session: the exchange-rate/currency screens are gone and the institution is now locked to Kenyan Shillings in the database (the routines that could change the base currency or override rates can no longer be called from the app), and the numbering foundation is created — a table where you set the prefix and digit length for loans, loan applications, clients, receipts and disbursements, per company and optionally per branch, plus the internal counters behind it.
+Done: every new client, loan application, loan and repayment receipt now gets its number from your company's numbering settings (LN-000123, APP-0001, CL-0001, RCP-000001), with counters continuing from the highest numbers already in use so nothing repeats.
 
-Remaining: point loan, receipt and disbursement number creation at that new numbering service, add the Settings screen for editing the prefixes, re-scope notifications/email to microfinance events only, do the final legacy database tidy-up, and record all of this in the project status file.
+Still to do: the create forms still show an editable, guessed number that will no longer match the one actually saved — they need to show "assigned automatically" instead; and the Settings screen for editing the prefixes and digit lengths hasn't been built yet.
