@@ -16,7 +16,11 @@ export type SelfActionEntityType =
   | "payment"
   | "journal_entry"
   | "expense"
-  | "bank_account";
+  | "bank_account"
+  | "loan_application"
+  | "loan"
+  | "repayment"
+  | "app_access";
 
 /**
  * How the override's `subject_user_id` is resolved.
@@ -27,7 +31,7 @@ export type SubjectMode = "actor" | "from_entity";
 
 export interface SelfActionEntry {
   key: string;
-  module: "Finance" | "Spend";
+  module: "Finance" | "Spend" | "Lending" | "Platform";
   label: string;
   description: string;
   entityType: SelfActionEntityType;
@@ -79,6 +83,90 @@ export const SELF_ACTION_CATALOGUE: SelfActionEntry[] = [
     entityType: "bank_account",
     subjectMode: "actor",
   },
+  // Lending — loan lifecycle duty separation
+  {
+    key: "loan.approve",
+    module: "Lending",
+    label: "Approve own loan application",
+    description: "Approve a client loan application the approver captured or assessed.",
+    entityType: "loan_application",
+    subjectMode: "actor",
+  },
+  {
+    key: "loan.disburse",
+    module: "Lending",
+    label: "Disburse own approved loan",
+    description: "Release funds on a loan the approver approved.",
+    entityType: "loan",
+    subjectMode: "actor",
+  },
+  {
+    key: "loan.restructure",
+    module: "Lending",
+    label: "Restructure own loan",
+    description: "Reschedule or refinance a loan the approver originated.",
+    entityType: "loan",
+    subjectMode: "actor",
+  },
+  {
+    key: "loan.write_off",
+    module: "Lending",
+    label: "Write off own loan",
+    description: "Write off a loan the approver originated or manages.",
+    entityType: "loan",
+    subjectMode: "actor",
+  },
+  {
+    key: "repayment.reverse",
+    module: "Lending",
+    label: "Reverse own repayment",
+    description: "Reverse a client repayment the approver recorded.",
+    entityType: "repayment",
+    subjectMode: "actor",
+  },
+  {
+    key: "reversal.loan_repayment",
+    module: "Lending",
+    label: "Reverse a registered loan repayment",
+    description: "Reversal routed through the reversal register for loan repayments.",
+    entityType: "repayment",
+    subjectMode: "from_entity",
+  },
+  // Spend — expense workflow
+  {
+    key: "expense.submit",
+    module: "Spend",
+    label: "Submit expense for approval",
+    description: "Submit a captured expense into the approval workflow.",
+    entityType: "expense",
+    subjectMode: "from_entity",
+  },
+  {
+    key: "expense.void",
+    module: "Spend",
+    label: "Void a posted expense",
+    description: "Reverse the accounting entry of an approved or paid expense.",
+    entityType: "expense",
+    subjectMode: "from_entity",
+  },
+  {
+    key: "reversal.expense",
+    module: "Spend",
+    label: "Approve expense reversal",
+    description: "Voiding a posted expense.",
+    entityType: "expense",
+    subjectMode: "from_entity",
+  },
+  // Platform — access administration
+  {
+    key: "app_access.grant",
+    module: "Platform",
+    label: "Grant app access",
+    description:
+      "Grant a team member access to an installed app by adding them to its permission group.",
+    entityType: "app_access",
+    subjectMode: "actor",
+  },
 ];
 
 export const SELF_ACTION_MODES = [
@@ -112,6 +200,10 @@ export const ENTITY_TYPE_LABELS: Record<SelfActionEntityType, string> = {
   journal_entry: "journal entry",
   expense: "expense",
   bank_account: "bank account",
+  loan_application: "loan application",
+  loan: "loan",
+  repayment: "repayment",
+  app_access: "app access grant",
 };
 
 /**
@@ -123,6 +215,10 @@ export const ENTITY_TYPE_DB_KEY: Record<SelfActionEntityType, string> = {
   journal_entry: "journal_entry",
   expense: "expense",
   bank_account: "bank_account",
+  loan_application: "loan_application",
+  loan: "loan",
+  repayment: "repayment",
+  app_access: "app_access",
 };
 
 /**
