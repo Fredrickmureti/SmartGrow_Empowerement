@@ -85,13 +85,16 @@ export function DocumentNumberingSettings() {
       }
       const rows = (data ?? []) as RuleRow[];
       const next: Record<string, Draft> = {};
+      const ids: Record<string, string> = {};
       for (const def of SEQUENCES) {
         const row = rows.find((r) => r.sequence_key === def.key);
+        if (row) ids[def.key] = row.id;
         next[def.key] = {
           prefix: row?.prefix ?? def.defaultPrefix,
           padding: row?.padding ?? 6,
         };
       }
+      setRuleIds(ids);
       setDrafts(next);
       setInitial(next);
       setLoading(false);
