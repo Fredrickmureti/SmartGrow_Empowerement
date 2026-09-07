@@ -225,20 +225,23 @@ Each wave is independently shippable and reversible.
 - `payment_requests`: RETAIN. Actively consumed by `supabase/functions/mpesa-outbound` and `mpesa-callback` (live M-Pesa flow), not just the debugger.
 - Remaining `get_next_*_number` functions (`invoice`, `estimate`, `credit_note`, `proforma`, `so`, `sales_return`, `receipt`, `expense`, `delivery`, `document`, `employee`, `asset`, `opening_stock`, `journal_entry`) all still have DB callers and/or app callers — each needs its consumer retired first.
 
+### Completed (verification pass) — 2026-09-07
+Independent re-verification of every earlier claim, not taken on trust:
+- Waves 1–5 file deletions confirmed absent: `PaymentGatewaySettings.tsx`, `usePaymentGateway.ts`, `DocumentTemplateSettings.tsx`, `DocumentTemplateBuilder.tsx`, `useDocumentTemplates.ts`, `src/types/documentTemplate.ts`.
+- Stripe/crypto: no live code path remains. The six remaining `stripe` matches in `src/` and `supabase/functions/` are prose comments plus one input placeholder; `till` matches are a doc comment in `MpesaC2BProviderCard.tsx` (PayBill-only) and unrelated words. Placeholder `%Stripe%` in `FinanceAccountingControls.tsx:207` changed to `%MPESA%`.
+- Wave 6/7 (numbering, notification alert settings, audit) confirmed in place as logged.
+- Nightly integrity job: the three ERP checks (sales invoices, supplier bills, payroll runs) are gone; the 13 orphan ERP routines listed last turn are dropped.
+- `bunx tsgo --noEmit -p tsconfig.app.json` clean (no diagnostics).
+
+### Finding that re-scopes the "orphan routine purge"
+A `pg_proc` sweep for legacy-domain names returns ~150 functions (`_consolidation_*`, `_pos_*`, `_project_*`, `_payroll_*`, `_estimate*`, `_invoice*`, `_purchase_return_*`, inventory diag helpers). These are NOT free-standing orphans: they are triggers/guards still attached to legacy tables that remain in the database. Dropping them individually is therefore pointless — they die with their tables. **Verdict: fold the routine purge into the table-drop waves; do not run it as a standalone wave.**
+
+### Remaining work (exact, in order)
+1. **Wave 9a — delivery-note / AI-assistant decoupling.** Blocks the sales chain drop. Repoint `delivery_notes.sales_order_id` + `delivery_note_items.sales_order_item_id` (or drop delivery notes outright), and remove the `sales_order*` references in `supabase/functions/{generate-document,send-document-email,ai-assistant}` and `src/hooks/{useExport,realtime/useUnifiedRealtimeSync}`.
+2. **Wave 9b — sales chain drop.** `sales_orders`, `sales_order_items`, `sales_returns`, `sales_return_items`, `sales_return_cost_basis`, `sales_document_idempotency` (all 0 rows), plus the 32/13/12 dependent functions, in FK order, one migration per table group.
+3. **Wave 9c — remaining legacy table groups** (POS, projects, consolidation, payroll, inventory) with their attached trigger functions, same pattern. Each group: grep `src/` + `supabase/functions/` immediately before the drop.
+4. **Wave 10 — security posture pass.** Pre-existing backlog only: functions with `EXECUTE` granted to `authenticated`, missing `search_path`, and leaked-password protection disabled in Supabase auth settings. Nothing here was introduced by the Settings waves.
+5. `payment_requests`: RETAIN — live M-Pesa flow (`mpesa-outbound`, `mpesa-callback`).
+
 ### Next action
-
-Here's where things stand.
-
-Done this turn
-
-Confirmed the previous session's claims: the project type-checks cleanly, and the numbering, notification and audit-log work described in the log is actually in place.
-Fixed two build errors that surfaced along the way: the document view no longer references the removed lifecycle strip, and the numbering settings form saves correctly again.
-Cleaned up the nightly data-integrity job: the three checks that looked for sales invoices, supplier bills and payroll runs (record types this system no longer has) were removed, so the job no longer errors on every run.
-Removed thirteen leftover background routines from the old system that would fail if called — the base-currency readiness and change pair, the active-currency toggle, the FX rate coverage report and its summary, the sample-data counter, the contact-deletion dependency check, the reversal-preview helpers, and the two mismatch checks the nightly job used.
-Still outstanding
-
-A wider sweep found several dozen more orphaned routines inherited from the old system (sales orders, purchase returns, stock counts, projects, consolidation, payroll readiness). None are reachable from the app, but they deserve their own dedicated clean-up wave rather than piecemeal edits.
-The sales-order tables themselves still can't be dropped: delivery notes and the AI assistant still point at them, so that needs its own wave.
-The security scan reports a large backlog of pre-existing warnings (mostly routines callable by signed-in users, plus leaked-password protection being switched off in the Supabase auth settings). None were introduced by this change, but it's worth a dedicated pass.
-I did not update the plan log with this turn's progress — that's the first thing to do next session.
-
+Start Wave 9a: inventory the delivery-note and AI-assistant references to `sales_order*`, decide keep-vs-drop for delivery notes, then migrate.
