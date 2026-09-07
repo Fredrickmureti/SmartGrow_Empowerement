@@ -60,9 +60,7 @@ import { normalizeError } from "@/services/resilience";
 const typeIcons: Record<PaymentMethodType, React.ReactNode> = {
   bank: <Building2 className="h-4 w-4" />,
   mobile_money: <Smartphone className="h-4 w-4" />,
-  online: <CreditCard className="h-4 w-4" />,
   cash: <Banknote className="h-4 w-4" />,
-  crypto: <Bitcoin className="h-4 w-4" />,
 };
 
 export function PaymentMethodsSettings() {
@@ -242,17 +240,11 @@ export function PaymentMethodsSettings() {
       case 'bank':
         return (details as any).bank_name || 'Bank Account';
       case 'mobile_money':
-        return (details as any).paybill_number 
-          ? `Paybill: ${(details as any).paybill_number}` 
-          : (details as any).till_number 
-            ? `Till: ${(details as any).till_number}`
-            : 'Mobile Money';
-      case 'online':
-        return (details as any).email || (details as any).username || 'Online Payment';
+        return (details as any).paybill_number
+          ? `PayBill: ${(details as any).paybill_number}`
+          : 'Mobile Money';
       case 'cash':
         return 'Cash Payment';
-      case 'crypto':
-        return (details as any).currency?.toUpperCase() || 'Cryptocurrency';
       default:
         return '';
     }
@@ -319,7 +311,7 @@ export function PaymentMethodsSettings() {
               <CreditCard className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="font-medium">No payment methods configured</p>
               <p className="text-sm mb-4">
-                Add bank accounts, mobile money, or online payment options.
+                Add cash, M-Pesa PayBill or bank transfer channels.
               </p>
               <Button onClick={() => setShowAddDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -374,14 +366,6 @@ export function PaymentMethodsSettings() {
                       )(method.details as any)}
                       {method.type === 'mobile_money' && (details =>
                         details?.phone_number || details?.account_number || '-'
-                      )(method.details as any)}
-                      {method.type === 'online' && (details =>
-                        details?.email || details?.payment_link || '-'
-                      )(method.details as any)}
-                      {method.type === 'crypto' && (details =>
-                        details?.wallet_address 
-                          ? `${details.wallet_address.slice(0, 8)}...${details.wallet_address.slice(-6)}`
-                          : '-'
                       )(method.details as any)}
                     </TableCell>
                     <TableCell className="text-center">

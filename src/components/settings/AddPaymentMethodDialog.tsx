@@ -22,20 +22,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Building2, Smartphone, CreditCard, Banknote, Bitcoin } from "lucide-react";
+import { Loader2, Building2, Smartphone, Banknote } from "lucide-react";
 import {
   OrganizationPaymentMethod,
   PaymentMethodInput,
   PaymentMethodType,
   BankPaymentDetails,
   MobileMoneyDetails,
-  OnlinePaymentDetails,
   CashPaymentDetails,
-  CryptoPaymentDetails,
   PAYMENT_METHOD_TYPES,
   MOBILE_MONEY_PROVIDERS,
-  ONLINE_PAYMENT_PROVIDERS,
-  CRYPTO_CURRENCIES,
 } from "@/types/paymentMethod";
 
 interface BankAccount {
@@ -56,9 +52,7 @@ interface AddPaymentMethodDialogProps {
 const typeIcons: Record<PaymentMethodType, React.ReactNode> = {
   bank: <Building2 className="h-4 w-4" />,
   mobile_money: <Smartphone className="h-4 w-4" />,
-  online: <CreditCard className="h-4 w-4" />,
   cash: <Banknote className="h-4 w-4" />,
-  crypto: <Bitcoin className="h-4 w-4" />,
 };
 
 export function AddPaymentMethodDialog({
@@ -92,23 +86,11 @@ export function AddPaymentMethodDialog({
   // Mobile money details
   const [mobileProvider, setMobileProvider] = useState<MobileMoneyDetails["provider"]>("mpesa");
   const [paybillNumber, setPaybillNumber] = useState("");
-  const [tillNumber, setTillNumber] = useState("");
   const [mobileAccountNumber, setMobileAccountNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
 
-  // Online payment details
-  const [onlineProvider, setOnlineProvider] = useState<OnlinePaymentDetails["provider"]>("paypal");
-  const [onlineEmail, setOnlineEmail] = useState("");
-  const [onlineUsername, setOnlineUsername] = useState("");
-  const [paymentLink, setPaymentLink] = useState("");
-
   // Cash details
   const [cashInstructions, setCashInstructions] = useState("");
-
-  // Crypto details
-  const [cryptoCurrency, setCryptoCurrency] = useState<CryptoPaymentDetails["currency"]>("btc");
-  const [walletAddress, setWalletAddress] = useState("");
-  const [cryptoNetwork, setCryptoNetwork] = useState("");
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -142,26 +124,12 @@ export function AddPaymentMethodDialog({
             const mobileDetails = details as MobileMoneyDetails;
             setMobileProvider(mobileDetails.provider || "mpesa");
             setPaybillNumber(mobileDetails.paybill_number || "");
-            setTillNumber(mobileDetails.till_number || "");
             setMobileAccountNumber(mobileDetails.account_number || "");
             setPhoneNumber(mobileDetails.phone_number || "");
-            break;
-          case "online":
-            const onlineDetails = details as OnlinePaymentDetails;
-            setOnlineProvider(onlineDetails.provider || "paypal");
-            setOnlineEmail(onlineDetails.email || "");
-            setOnlineUsername(onlineDetails.username || "");
-            setPaymentLink(onlineDetails.payment_link || "");
             break;
           case "cash":
             const cashDetails = details as CashPaymentDetails;
             setCashInstructions(cashDetails.instructions || "");
-            break;
-          case "crypto":
-            const cryptoDetails = details as CryptoPaymentDetails;
-            setCryptoCurrency(cryptoDetails.currency || "btc");
-            setWalletAddress(cryptoDetails.wallet_address || "");
-            setCryptoNetwork(cryptoDetails.network || "");
             break;
         }
       } else {
@@ -181,17 +149,9 @@ export function AddPaymentMethodDialog({
         setIban("");
         setMobileProvider("mpesa");
         setPaybillNumber("");
-        setTillNumber("");
         setMobileAccountNumber("");
         setPhoneNumber("");
-        setOnlineProvider("paypal");
-        setOnlineEmail("");
-        setOnlineUsername("");
-        setPaymentLink("");
         setCashInstructions("");
-        setCryptoCurrency("btc");
-        setWalletAddress("");
-        setCryptoNetwork("");
       }
     }
   }, [open, editingMethod]);
@@ -226,27 +186,13 @@ export function AddPaymentMethodDialog({
         return {
           provider: mobileProvider,
           paybill_number: paybillNumber || undefined,
-          till_number: tillNumber || undefined,
           account_number: mobileAccountNumber || undefined,
           phone_number: phoneNumber || undefined,
         } as MobileMoneyDetails;
-      case "online":
-        return {
-          provider: onlineProvider,
-          email: onlineEmail || undefined,
-          username: onlineUsername || undefined,
-          payment_link: paymentLink || undefined,
-        } as OnlinePaymentDetails;
       case "cash":
         return {
           instructions: cashInstructions || undefined,
         } as CashPaymentDetails;
-      case "crypto":
-        return {
-          currency: cryptoCurrency,
-          wallet_address: walletAddress,
-          network: cryptoNetwork || undefined,
-        } as CryptoPaymentDetails;
     }
   };
 
@@ -481,25 +427,14 @@ export function AddPaymentMethodDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="paybill">Paybill Number</Label>
-                  <Input
-                    id="paybill"
-                    value={paybillNumber}
-                    onChange={(e) => setPaybillNumber(e.target.value)}
-                    placeholder="e.g., 123456"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="till">Till Number</Label>
-                  <Input
-                    id="till"
-                    value={tillNumber}
-                    onChange={(e) => setTillNumber(e.target.value)}
-                    placeholder="e.g., 654321"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="paybill">PayBill Number</Label>
+                <Input
+                  id="paybill"
+                  value={paybillNumber}
+                  onChange={(e) => setPaybillNumber(e.target.value)}
+                  placeholder="e.g., 123456"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -524,60 +459,6 @@ export function AddPaymentMethodDialog({
             </div>
           )}
 
-          {type === "online" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Provider</Label>
-                <Select
-                  value={onlineProvider}
-                  onValueChange={(v) => setOnlineProvider(v as OnlinePaymentDetails["provider"])}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ONLINE_PAYMENT_PROVIDERS.map((p) => (
-                      <SelectItem key={p.value} value={p.value}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="online_email">Email</Label>
-                  <Input
-                    id="online_email"
-                    type="email"
-                    value={onlineEmail}
-                    onChange={(e) => setOnlineEmail(e.target.value)}
-                    placeholder="payments@company.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="online_username">Username</Label>
-                  <Input
-                    id="online_username"
-                    value={onlineUsername}
-                    onChange={(e) => setOnlineUsername(e.target.value)}
-                    placeholder="@yourhandle"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="payment_link">Payment Link</Label>
-                <Input
-                  id="payment_link"
-                  type="url"
-                  value={paymentLink}
-                  onChange={(e) => setPaymentLink(e.target.value)}
-                  placeholder="https://paypal.me/yourcompany"
-                />
-              </div>
-            </div>
-          )}
-
           {type === "cash" && (
             <div className="space-y-2">
               <Label htmlFor="cash_instructions">Payment Instructions</Label>
@@ -588,48 +469,6 @@ export function AddPaymentMethodDialog({
                 placeholder="Enter instructions for cash payments..."
                 rows={3}
               />
-            </div>
-          )}
-
-          {type === "crypto" && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Currency</Label>
-                <Select
-                  value={cryptoCurrency}
-                  onValueChange={(v) => setCryptoCurrency(v as CryptoPaymentDetails["currency"])}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CRYPTO_CURRENCIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="wallet_address">Wallet Address *</Label>
-                <Input
-                  id="wallet_address"
-                  value={walletAddress}
-                  onChange={(e) => setWalletAddress(e.target.value)}
-                  placeholder="Enter wallet address"
-                  className="font-mono text-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="crypto_network">Network</Label>
-                <Input
-                  id="crypto_network"
-                  value={cryptoNetwork}
-                  onChange={(e) => setCryptoNetwork(e.target.value)}
-                  placeholder="e.g., Ethereum Mainnet, BNB Chain"
-                />
-              </div>
             </div>
           )}
 
@@ -645,7 +484,7 @@ export function AddPaymentMethodDialog({
               <Switch checked={isDefault} onCheckedChange={setIsDefault} />
             </div>
 
-            {(type === "mobile_money" || type === "crypto") && (
+            {type === "mobile_money" && (
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Generate QR Code on documents</Label>
