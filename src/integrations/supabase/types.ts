@@ -4728,7 +4728,6 @@ export type Database = {
           cost_model: string
           country: string
           created_at: string
-          credit_note_prefix: string | null
           date_format: string | null
           default_tax_rate_id: string | null
           email: string | null
@@ -4748,7 +4747,6 @@ export type Database = {
           organization_id: string
           phone: string | null
           postal_code: string | null
-          proforma_prefix: string | null
           receipt_engine_v2: boolean
           receipt_settings: Json
           receipt_theme: Json | null
@@ -4775,7 +4773,6 @@ export type Database = {
           cost_model?: string
           country?: string
           created_at?: string
-          credit_note_prefix?: string | null
           date_format?: string | null
           default_tax_rate_id?: string | null
           email?: string | null
@@ -4795,7 +4792,6 @@ export type Database = {
           organization_id: string
           phone?: string | null
           postal_code?: string | null
-          proforma_prefix?: string | null
           receipt_engine_v2?: boolean
           receipt_settings?: Json
           receipt_theme?: Json | null
@@ -4822,7 +4818,6 @@ export type Database = {
           cost_model?: string
           country?: string
           created_at?: string
-          credit_note_prefix?: string | null
           date_format?: string | null
           default_tax_rate_id?: string | null
           email?: string | null
@@ -4842,7 +4837,6 @@ export type Database = {
           organization_id?: string
           phone?: string | null
           postal_code?: string | null
-          proforma_prefix?: string | null
           receipt_engine_v2?: boolean
           receipt_settings?: Json
           receipt_theme?: Json | null
@@ -14329,12 +14323,8 @@ export type Database = {
           expense_approval_required_above: number | null
           finance_alert_missing_je_enabled: boolean
           id: string
-          invoice_reminder_days_before: number | null
           large_payment_threshold: number | null
-          low_stock_critical_threshold: number | null
-          low_stock_warning_threshold: number | null
           organization_id: string
-          out_of_stock_alert: boolean | null
           overdue_escalation_enabled: boolean | null
           overdue_reminder_frequency_days: number | null
           payment_received_notify: boolean | null
@@ -14350,12 +14340,8 @@ export type Database = {
           expense_approval_required_above?: number | null
           finance_alert_missing_je_enabled?: boolean
           id?: string
-          invoice_reminder_days_before?: number | null
           large_payment_threshold?: number | null
-          low_stock_critical_threshold?: number | null
-          low_stock_warning_threshold?: number | null
           organization_id: string
-          out_of_stock_alert?: boolean | null
           overdue_escalation_enabled?: boolean | null
           overdue_reminder_frequency_days?: number | null
           payment_received_notify?: boolean | null
@@ -14371,12 +14357,8 @@ export type Database = {
           expense_approval_required_above?: number | null
           finance_alert_missing_je_enabled?: boolean
           id?: string
-          invoice_reminder_days_before?: number | null
           large_payment_threshold?: number | null
-          low_stock_critical_threshold?: number | null
-          low_stock_warning_threshold?: number | null
           organization_id?: string
-          out_of_stock_alert?: boolean | null
           overdue_escalation_enabled?: boolean | null
           overdue_reminder_frequency_days?: number | null
           payment_received_notify?: boolean | null
@@ -27456,19 +27438,7 @@ export type Database = {
           user_id: string
         }[]
       }
-      get_next_adjustment_number: {
-        Args: { p_business_id?: string; p_organization_id: string }
-        Returns: string
-      }
-      get_next_asn_number: {
-        Args: { p_business?: string; p_org: string }
-        Returns: string
-      }
       get_next_asset_number: { Args: { _org_id: string }; Returns: string }
-      get_next_carton_number: {
-        Args: { p_business?: string; p_org: string }
-        Returns: string
-      }
       get_next_contract_reference: {
         Args: { p_org_id: string }
         Returns: string
@@ -27492,10 +27462,6 @@ export type Database = {
         }
         Returns: string
       }
-      get_next_draft_transaction_number: {
-        Args: { p_organization_id: string; p_register_code: string }
-        Returns: string
-      }
       get_next_employee_number: {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
@@ -27516,18 +27482,6 @@ export type Database = {
         Args: { _org_id: string }
         Returns: string
       }
-      get_next_lead_number: {
-        Args: { p_business_id?: string; p_org_id: string }
-        Returns: string
-      }
-      get_next_leave_request_number: {
-        Args: { p_org_id: string }
-        Returns: string
-      }
-      get_next_manifest_number: {
-        Args: { p_business?: string; p_org: string }
-        Returns: string
-      }
       get_next_opening_stock_number: {
         Args: { p_business?: string; p_org: string }
         Returns: string
@@ -27536,7 +27490,6 @@ export type Database = {
         Args: { _business_id: string; _org_id: string }
         Returns: string
       }
-      get_next_project_number: { Args: { p_org_id: string }; Returns: string }
       get_next_recall_reference: {
         Args: { p_business?: string; p_org: string }
         Returns: string
@@ -27545,7 +27498,6 @@ export type Database = {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_rfq_number: { Args: { _org_id: string }; Returns: string }
       get_next_sales_return_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
@@ -27556,11 +27508,6 @@ export type Database = {
             Args: { _branch_id?: string; _business_id: string; _org_id: string }
             Returns: string
           }
-      get_next_task_number: { Args: { p_project_id: string }; Returns: string }
-      get_next_wave_number: {
-        Args: { p_business?: string; p_org: string }
-        Returns: string
-      }
       get_or_create_default_business_for_org: {
         Args: { _org_id: string }
         Returns: string
@@ -30992,12 +30939,8 @@ export type Database = {
           expense_approval_required_above: number | null
           finance_alert_missing_je_enabled: boolean
           id: string
-          invoice_reminder_days_before: number | null
           large_payment_threshold: number | null
-          low_stock_critical_threshold: number | null
-          low_stock_warning_threshold: number | null
           organization_id: string
-          out_of_stock_alert: boolean | null
           overdue_escalation_enabled: boolean | null
           overdue_reminder_frequency_days: number | null
           payment_received_notify: boolean | null
