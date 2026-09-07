@@ -16,13 +16,10 @@ export interface ResourceAppOption {
 export const RESOURCE_APP_OPTIONS: ResourceAppOption[] = [
   { key: "getting-started", label: "Getting started" },
   { key: "dashboard", label: "Dashboard" },
+  { key: "clients", label: "Clients" },
+  { key: "lending", label: "Lending" },
+  { key: "collections", label: "Collections" },
   { key: "finance", label: "Finance" },
-  { key: "sales", label: "Sales" },
-  { key: "purchases", label: "Purchases" },
-  { key: "inventory", label: "Inventory" },
-  { key: "pos", label: "Point of Sale" },
-  { key: "payroll", label: "Payroll" },
-  { key: "crm", label: "CRM" },
   { key: "reports", label: "Reports" },
   { key: "platform", label: "Platform & Settings" },
 ];
