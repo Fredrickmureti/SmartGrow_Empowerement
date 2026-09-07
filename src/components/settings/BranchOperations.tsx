@@ -6,8 +6,8 @@ import { normalizeError } from "@/services/resilience";
  * actually does: it RE-SCOPES operational records (bank accounts, payment
  * methods) to a specific branch by writing `branch_id` on them. It is NOT
  * a "branch settings" surface — that's `BranchOverridesEditor`, which
- * edits the override columns on `branches` itself (logo, receipt header,
- * invoice prefix suffix, default warehouse).
+ * edits the override columns on `branches` itself (logo, receipt header
+ * and footer, branch document details).
  *
  * Bank accounts and payment methods both carry an OPTIONAL `branch_id`
  * (NULL = available company-wide; non-null = scoped to that branch only).
@@ -150,8 +150,8 @@ export function BranchOperations({ branchId, branchName, businessId }: BranchOpe
         <AlertDescription className="text-xs">
           <strong>Operational scoping.</strong> Restrict bank accounts and
           payment methods to <strong>{branchName}</strong>. Records with no
-          branch are inherited company-wide. For branding overrides (logo,
-          receipt text, invoice prefix), use the Overrides tab.
+          branch are inherited company-wide. For branding overrides (logo and
+          receipt text), use the Overrides tab.
         </AlertDescription>
       </Alert>
 

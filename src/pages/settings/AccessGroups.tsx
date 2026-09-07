@@ -190,7 +190,7 @@ export default function AccessGroups() {
               Access Groups
             </CardTitle>
             <CardDescription className="mt-1">
-              Define module-level permission sets for internal users (e.g. "Sales / User", "Accounting / Manager"). Portal users have fixed access and are not configurable here.
+              Define module-level permission sets for internal users (e.g. "Lending / Loan Officer", "Accounting / Manager"). Portal users have fixed access and are not configurable here.
             </CardDescription>
           </div>
           <Button onClick={openCreate} size="sm" className="shrink-0 w-full sm:w-auto">
@@ -277,7 +277,7 @@ export default function AccessGroups() {
                 <Input
                   value={formData.name}
                   onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. Sales View Only"
+                  placeholder="e.g. Portfolio View Only"
                 />
               </div>
               <div className="space-y-2">
@@ -301,10 +301,10 @@ export default function AccessGroups() {
                     <th className="text-center p-2 font-medium w-16">Create</th>
                     <th className="text-center p-2 font-medium w-16">Write</th>
                     <th className="text-center p-2 font-medium w-16">Delete</th>
-                    <th className="text-center p-2 font-medium w-16" title="Approve drafts (timesheets, leave, JEs, payroll)">Approve</th>
-                    <th className="text-center p-2 font-medium w-16" title="Post draft → posted (JEs, payroll, invoices)">Post</th>
-                    <th className="text-center p-2 font-medium w-16" title="Disburse cash (payroll batches, AP payments)">Pay</th>
-                    <th className="text-center p-2 font-medium w-16" title="Export sensitive data (payroll, GL, reports)">Export</th>
+                    <th className="text-center p-2 font-medium w-16" title="Approve loan applications and journal entries">Approve</th>
+                    <th className="text-center p-2 font-medium w-16" title="Post draft → posted (journal entries)">Post</th>
+                    <th className="text-center p-2 font-medium w-16" title="Disburse loans and settle repayments">Pay</th>
+                    <th className="text-center p-2 font-medium w-16" title="Export sensitive data (GL and portfolio reports)">Export</th>
                     <th className="text-center p-2 font-medium w-20" title="Bypass maker-checker: allow creator to also approve. Use sparingly.">Override</th>
                   </tr>
                 </thead>

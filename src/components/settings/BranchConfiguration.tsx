@@ -126,10 +126,6 @@ export function BranchConfiguration({ branchId, branchName, business }: BranchCo
   //    don't have a 1:1 column we display "(no business default)".
   const inheritedFromBusiness: Record<string, any> = useMemo(() => {
     return {
-      invoice_prefix: business.invoice_prefix ?? null,
-      estimate_prefix: business.estimate_prefix ?? null,
-      bill_prefix: business.bill_prefix ?? null,
-      receipt_prefix: null, // POS receipt prefix lives in receipt_settings; left as null here
       document_logo_url: business.logo_url ?? null,
       document_address: [
         business.address,
