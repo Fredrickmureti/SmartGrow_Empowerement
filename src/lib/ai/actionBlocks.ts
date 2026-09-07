@@ -102,12 +102,7 @@ Supported action types:
 1) Navigate to a known destination — pick path_id ONLY from the AVAILABLE_NAVIGATION_TARGETS list:
    ::action {"type":"open_path","path_id":"<id>","label":"<short button text>"}
 
-2) Open the GL mapping fixer dialog (when payroll posting is blocked by missing mappings):
-   ::action {"type":"fix_gl_mappings","label":"Fix payroll mappings now"}
-   When LIVE_PAYROLL_DIAGNOSTICS lists a "Latest blocked run" with an id, ALWAYS include that id:
-   ::action {"type":"fix_gl_mappings","label":"Fix mappings for PAY-0001","payroll_run_id":"<uuid>"}
-
-3) Open the app install/activate dialog for a specific app id:
+2) Open the app install/activate dialog for a specific app id:
    ::action {"type":"open_install_dialog","app_id":"<app id>","label":"Install <App>"}
 
 Rules:
