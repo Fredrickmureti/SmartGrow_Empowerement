@@ -323,7 +323,7 @@ export function DocumentTemplateBuilder({
                 <Textarea
                   value={settings.payment_instructions || ''}
                   onChange={(e) => handleChange("payment_instructions", e.target.value || null)}
-                  placeholder="e.g., Payment due within 30 days. Please include invoice number."
+                  placeholder="e.g., Please quote your loan number on every repayment."
                   rows={2}
                 />
               </div>
