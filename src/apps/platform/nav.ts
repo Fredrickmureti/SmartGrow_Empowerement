@@ -3,7 +3,7 @@
  * configuration surface that used to live under the legacy DashboardLayout.
  *
  * Operations: day-to-day workspace surfaces (Home, Team, Notifications).
- * Company:    books-level configuration (company, migration, scanner).
+ * Company:    books-level configuration (company).
  * Workspace:  personal workspace chrome (profile, appearance, security, …).
  * Insights:   cross-cutting audit/compliance/consolidation reports.
  */
@@ -12,8 +12,6 @@ import {
   Users,
   Bell,
   Building2,
-  GitCompare,
-  ScanLine,
   UserCog,
   History,
 
@@ -35,8 +33,6 @@ export const PLATFORM_NAV: WorkspaceNav = {
       label: "Company",
       items: [
         { to: "/settings/company",   label: "Company",          icon: Building2 },
-        { to: "/settings/migration", label: "Data Migration",   icon: GitCompare },
-        { to: "/settings/scanner",   label: "Scanner",          icon: ScanLine },
       ],
     },
 

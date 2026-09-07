@@ -47,12 +47,9 @@ import {
   Palette,
   Bell,
   Shield,
-  Database,
   Users,
   Globe,
   ArrowRight,
-  DatabaseZap,
-  AppWindow,
   Image as ImageIcon,
 } from "lucide-react";
 
@@ -193,19 +190,12 @@ export default function WorkspaceSettings() {
               Settings that apply to the entire workspace and every company in it.
             </p>
           </div>
-          {/* Cross-links to other admin hubs — hidden for portal users so
-              employees don't get drawn into Apps & Subscriptions or Company
-              admin surfaces from a settings page that legitimately lets them
-              edit their own profile / notifications. */}
+          {/* Cross-link to company settings — hidden for portal users so
+              employees don't get drawn into company admin surfaces from a
+              settings page that legitimately lets them edit their own
+              profile / notifications. */}
           {!isPortalUser && (
             <div className="flex flex-wrap items-center gap-2 w-full @2xl/page:w-auto min-w-0">
-              <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
-                <Link to="/settings/apps">
-                  <AppWindow className="h-4 w-4 mr-1.5 shrink-0" />
-                  <span className="truncate">Apps & Subscriptions</span>
-                  <ArrowRight className="h-3 w-3 ml-1 shrink-0" />
-                </Link>
-              </Button>
               <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
                 <Link to="/settings/company">
                   <Building2 className="h-4 w-4 mr-1.5 shrink-0" />
@@ -260,12 +250,6 @@ export default function WorkspaceSettings() {
                 <TabsTrigger value="email-delivery" className="gap-1.5 text-xs sm:text-sm">
                   <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Email</span>
-                </TabsTrigger>
-              )}
-              {!isPortalUser && permissions.canManageOrganization && (
-                <TabsTrigger value="data" className="gap-1.5 text-xs sm:text-sm">
-                  <Database className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Data</span>
                 </TabsTrigger>
               )}
             </TabsList>
@@ -418,35 +402,6 @@ export default function WorkspaceSettings() {
             </TabsContent>
           )}
 
-          <TabsContent value="data" className="space-y-6">
-            <Card className="border-primary/20">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <DatabaseZap className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle>Data Migration</CardTitle>
-                    <CardDescription>
-                      Import financial data from another accounting system with guided validation.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Migrate your chart of accounts, trial balance, bank balances, client records, and
-                  loan portfolio from any CSV/XLSX export.
-                </p>
-                <Button onClick={() => (window.location.href = "/settings/migration")} className="gap-2">
-                  Open Migration Workbench
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-
-
-          </TabsContent>
         </Tabs>
       </div>
     </PlatformAppLayout>
