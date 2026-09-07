@@ -129,20 +129,56 @@ export function DocumentNumberingSettings() {
       return;
     }
     setSaving(true);
-    const payload = SEQUENCES.map((d) => ({
-      business_id: businessId,
-      branch_id: null,
-      sequence_key: d.key,
-      prefix: drafts[d.key].prefix.trim().toUpperCase(),
-      padding: drafts[d.key].padding,
-      period_reset: "never",
-      updated_at: new Date().toISOString(),
-    }));
-    const { error } = await supabase
-      .from("document_number_rules")
-      .upsert(payload, { onConflict: "business_id,branch_id,sequence_key" });
+    // The scope uniqueness index is an expression index (COALESCE on
+    // branch_id), which PostgREST cannot target with on_conflict — so update
+    // existing rules by id and insert only the ones that do not exist yet.
+    const changed = SEQUENCES.filter(
+      (d) =>
+        drafts[d.key].prefix !== initial[d.key]?.prefix ||
+        drafts[d.key].padding !== initial[d.key]?.padding,
+    );
+    let failed = false;
+    const inserts: Array<Record<string, unknown>> = [];
+    for (const d of changed) {
+      const values = {
+        prefix: drafts[d.key].prefix.trim().toUpperCase(),
+        padding: drafts[d.key].padding,
+      };
+      const id = ruleIds[d.key];
+      if (id) {
+        const { error } = await supabase
+          .from("document_number_rules")
+          .update({ ...values, updated_at: new Date().toISOString() })
+          .eq("id", id);
+        if (error) failed = true;
+      } else {
+        inserts.push({
+          business_id: businessId,
+          branch_id: null,
+          sequence_key: d.key,
+          period_reset: "never",
+          ...values,
+        });
+      }
+    }
+    if (inserts.length > 0) {
+      const { data, error } = await supabase
+        .from("document_number_rules")
+        .insert(inserts)
+        .select("id,sequence_key");
+      if (error) failed = true;
+      else if (data) {
+        setRuleIds((prev) => {
+          const next = { ...prev };
+          for (const row of data as Array<{ id: string; sequence_key: string }>) {
+            next[row.sequence_key] = row.id;
+          }
+          return next;
+        });
+      }
+    }
     setSaving(false);
-    if (error) {
+    if (failed) {
       toast.error("Could not save numbering settings");
       return;
     }
