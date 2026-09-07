@@ -27,7 +27,6 @@ const WORKSPACE_TABS = new Set([
   "security",
   "access-groups",
   "governance",
-  "data",
 ]);
 
 // Tabs that live on the company hub.
