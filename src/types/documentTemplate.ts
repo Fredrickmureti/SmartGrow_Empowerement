@@ -4,14 +4,14 @@
  * Cosmetic styling (colors, fonts, logos) is hardcoded in the server-side renderer.
  */
 
-// Template types supported
-export type DocumentTemplateType = 
-  | 'invoice' 
-  | 'estimate' 
-  | 'proforma' 
-  | 'credit_note' 
-  | 'receipt' 
-  | 'purchase_order';
+// Template types supported. These mirror the lending document kinds the
+// document engine registers in `resolveSourceDocumentRecord.ts`.
+export type DocumentTemplateType =
+  | 'loan_agreement'
+  | 'repayment_schedule'
+  | 'loan_statement'
+  | 'client_statement'
+  | 'loan_payment_receipt';
 
 // Totals position options
 export type TotalsPosition = 'right' | 'center' | 'full-width';
