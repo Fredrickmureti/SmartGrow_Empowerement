@@ -211,5 +211,6 @@ Each wave is independently shippable and reversible.
 - `npx tsgo --noEmit` clean.
 
 ### Remaining
-- Waves 7 (notifications/email template re-scope) and 8 (legacy DB cleanup) not started.
-- Browser verification of the Numbering tab was not possible in this environment (no authenticated session; app redirects to /login).
+
+
+Picked up where it stopped and finished that piece: the reference-numbering screen is now a "Numbering" tab on Company settings, and the New client and New loan application forms no longer show an editable guessed reference — they show "Assigned automatically", and the real number comes from the system when the record is saved (I confirmed in the database that it always assigns the number itself). The type check passes; I couldn't click through the screen here because the test browser has no signed-in session, so please open Company settings → Numbering once to confirm it looks right. Waves 7 (notifications/email templates) and 8 (legacy database cleanup) are still outstanding.
