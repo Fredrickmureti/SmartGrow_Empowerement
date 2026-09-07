@@ -203,15 +203,13 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-I'll start by reading the plan file to see exactly where execution stopped.
+### Completed (Wave 6)
+- DB verified in place: `document_number_rules`, `document_number_counters`, `mf_next_number()`, `mf_assign_document_number()` triggers on clients, applications, loans, repayments. The trigger assigns unconditionally — any client-supplied number is overwritten.
+- `src/components/settings/DocumentNumberingSettings.tsx` (prefix + padding per document kind, live sample).
+- Wired as the "Numbering" tab of `src/pages/settings/CompanySettings.tsx` (gated on `canEditSettings`).
+- `ClientFormDialog` / `ApplicationFormDialog`: removed the client-side guessed numbers (`nextClientNumber`, `nextApplicationNumber` no longer used); the reference field is now read-only "Assigned automatically" on create and read-only on edit. `client_number` / `application_number` made optional in `MfClientInput` / `MfLoanApplicationInput` and no longer sent on insert. Unused `existingClients` / `existing` props dropped from both pages.
+- `npx tsgo --noEmit` clean.
 
-I stopped part-way. Here's where things stand.
-
-Verified as genuinely done: the automatic numbering is real in the database — the rules table, the counters, the number-issuing function and the triggers on clients, applications, loans and repayments all exist, so every new record already gets its number assigned automatically.
-
-What I completed this session: a new Settings screen for reference numbering, where you set the prefix and the number length for clients, applications, loans, receipts and disbursements, with a live example of how each number will look.
-
-What still remains:
-- Add that screen as a tab on the Company settings page (it isn't linked yet, so you can't reach it).
-- Fix the two create forms (new client, new loan application) — they still show an editable, guessed number that won't match the one actually saved; they should say "assigned automatically" instead.
-- Run the type check and confirm the pages load.
+### Remaining
+- Waves 7 (notifications/email template re-scope) and 8 (legacy DB cleanup) not started.
+- Browser verification of the Numbering tab was not possible in this environment (no authenticated session; app redirects to /login).
