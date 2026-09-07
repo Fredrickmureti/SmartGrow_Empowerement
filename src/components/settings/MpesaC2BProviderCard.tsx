@@ -54,7 +54,8 @@ interface MpesaC2BConfig {
   consumer_key: string;
   consumer_secret: string;
   business_short_code: string;
-  shortcode_type: "paybill" | "till";
+  /** PayBill only. Till (Buy Goods) carries no account reference and is not supported. */
+  shortcode_type: "paybill";
   response_type?: string;
   validation_url?: string;
   confirmation_url?: string;
@@ -80,7 +81,6 @@ export function MpesaC2BProviderCard() {
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
   const [businessShortCode, setBusinessShortCode] = useState("");
-  const [shortcodeType, setShortcodeType] = useState<"paybill" | "till">("paybill");
   const [showSecrets, setShowSecrets] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -90,7 +90,6 @@ export function MpesaC2BProviderCard() {
       const config = c2bConfig.config as MpesaC2BConfig;
       setConsumerKey(config.consumer_key || "");
       setBusinessShortCode(config.business_short_code || "");
-      setShortcodeType(config.shortcode_type || "paybill");
     }
   }, [c2bConfig, isEditing]);
 
@@ -111,12 +110,12 @@ export function MpesaC2BProviderCard() {
         consumer_key: consumerKey,
         consumer_secret: consumerSecret,
         business_short_code: businessShortCode,
-        shortcode_type: shortcodeType,
+        shortcode_type: "paybill",
         response_type: "Completed",
       };
 
       await saveProviderConfig("mpesa_c2b", config, {
-        displayName: "M-Pesa Paybill/Till (C2B)",
+        displayName: "M-Pesa PayBill (C2B)",
         isTestMode: false, // Environment controlled by platform admin
         isActive: false,
       });
@@ -217,11 +216,11 @@ export function MpesaC2BProviderCard() {
             </div>
             <div>
               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                M-Pesa Paybill/Till (C2B)
+                M-Pesa PayBill (C2B)
                 <Badge variant="outline" className="text-xs">Incoming</Badge>
               </CardTitle>
               <CardDescription>
-                Receive payments when customers pay to your Paybill or Till
+                Receive payments when clients pay to your PayBill
               </CardDescription>
             </div>
           </div>
@@ -253,7 +252,7 @@ export function MpesaC2BProviderCard() {
             <div className="bg-muted/50 rounded-lg p-6">
               <h3 className="font-medium mb-2">Receive M-Pesa Payments</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Configure your Paybill or Till number to automatically receive and record
+                Configure your PayBill number to automatically receive and record
                 client repayments. Transactions are matched to loan repayments automatically.
               </p>
               <Button onClick={() => setIsEditing(true)}>
@@ -338,30 +337,14 @@ export function MpesaC2BProviderCard() {
                   id="businessShortCode"
                   value={businessShortCode}
                   onChange={(e) => setBusinessShortCode(e.target.value)}
-                  placeholder="Your paybill/till number"
+                  placeholder="Your PayBill number"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your Paybill or Till number
+                  Clients enter the loan/client number as the account reference
                 </p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="shortcodeType">Shortcode Type</Label>
-                <Select value={shortcodeType} onValueChange={(v) => setShortcodeType(v as "paybill" | "till")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="paybill">Paybill Number</SelectItem>
-                    <SelectItem value="till">Till Number (Buy Goods)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {shortcodeType === "paybill" ? "Customers enter account number" : "No account number required"}
-                </p>
-              </div>
-            </div>
 
             <div className="flex gap-2 pt-2">
               <Button type="submit" disabled={isSaving}>
@@ -397,22 +380,6 @@ export function MpesaC2BProviderCard() {
               </div>
             </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm font-medium">Shortcode Type</p>
-              <Badge variant="outline" className="mt-1">
-                {(c2bConfig?.config as MpesaC2BConfig)?.shortcode_type === "till" ? "Till (Buy Goods)" : "Paybill"}
-              </Badge>
-            </div>
-
-            {c2bConfig?.callback_url && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Confirmation URL</p>
-                    <p className="text-sm text-muted-foreground font-mono break-all">
-                      {c2bConfig.callback_url}
-                    </p>
-                  </div>
                   <Button variant="ghost" size="icon" onClick={handleCopyCallback}>
                     <Copy className="h-4 w-4" />
                   </Button>
