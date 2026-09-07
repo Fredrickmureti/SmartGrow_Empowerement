@@ -418,7 +418,7 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     openConversation,
     workingContext,
     categorizeExpense,
-    analyzeInvoice,
+    
     getFinancialInsights,
     suggestActions,
     sendChatMessage,
