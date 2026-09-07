@@ -20,12 +20,6 @@ export type ActionBlock =
       label: string;
     }
   | {
-      type: "fix_gl_mappings";
-      label: string;
-      /** Optional run id — when present the dialog opens with run-specific missing rows. */
-      payroll_run_id?: string;
-    }
-  | {
       type: "open_install_dialog";
       app_id: string;
       label: string;
