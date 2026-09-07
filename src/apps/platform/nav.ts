@@ -3,7 +3,7 @@
  * configuration surface that used to live under the legacy DashboardLayout.
  *
  * Operations: day-to-day workspace surfaces (Home, Team, Notifications).
- * Company:    books-level configuration (company, migration, scanner).
+ * Company:    books-level configuration (company).
  * Workspace:  personal workspace chrome (profile, appearance, security, …).
  * Insights:   cross-cutting audit/compliance/consolidation reports.
  */
