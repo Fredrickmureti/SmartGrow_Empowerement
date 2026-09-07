@@ -29182,10 +29182,6 @@ export type Database = {
         Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
         Returns: Json
       }
-      physical_count_submit: {
-        Args: { p_allow_self?: boolean; p_count_id: string; p_user_id: string }
-        Returns: Json
-      }
       platform_delete_organization: {
         Args: { p_confirmation_token: string; p_org_id: string }
         Returns: Json
@@ -30709,7 +30705,6 @@ export type Database = {
         Args: { _snapshot: Json }
         Returns: undefined
       }
-      rfq_submit_for_approval: { Args: { _rfq_id: string }; Returns: Json }
       rfq_withdraw_quotation: {
         Args: { _quotation_id: string; _reason?: string }
         Returns: Json
