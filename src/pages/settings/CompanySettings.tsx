@@ -177,9 +177,6 @@ function CompanySettingsInner() {
           </TabsContent>
 
 
-          <TabsContent value="templates">
-            <DocumentTemplateSettings />
-          </TabsContent>
 
           <TabsContent value="payment-methods">
             <PaymentMethodsSettings />
