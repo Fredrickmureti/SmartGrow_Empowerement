@@ -138,7 +138,14 @@ export function DocumentNumberingSettings() {
         drafts[d.key].padding !== initial[d.key]?.padding,
     );
     let failed = false;
-    const inserts: Array<Record<string, unknown>> = [];
+    const inserts: Array<{
+      business_id: string;
+      branch_id: string | null;
+      sequence_key: string;
+      period_reset: string;
+      prefix: string;
+      padding: number;
+    }> = [];
     for (const d of changed) {
       const values = {
         prefix: drafts[d.key].prefix.trim().toUpperCase(),
