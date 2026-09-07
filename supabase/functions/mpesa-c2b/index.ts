@@ -166,21 +166,22 @@ async function handleValidation(req: Request): Promise<Response> {
     }
 
     if (BillRefNumber) {
-      const { data: invoice } = await supabase
-        .from("invoices")
-        .select("id, invoice_number, total, status")
-        .eq("organization_id", matchingConfig.organization_id)
-        .ilike("invoice_number", `%${BillRefNumber}%`)
-        .single();
+      // BillRefNumber is the loan reference (or the client reference). We only
+      // log mismatches here — validation must never reject a genuine payment.
+      const { data: loan } = await supabase
+        .from("mf_loans")
+        .select("id, loan_number, status")
+        .eq("loan_number", BillRefNumber)
+        .maybeSingle();
 
-      if (invoice) {
-        const invoiceAmount = parseFloat(invoice.total);
-        const transAmount = parseFloat(TransAmount);
-        if (Math.abs(invoiceAmount - transAmount) > 1) {
-          console.log(`Amount mismatch: Invoice ${invoiceAmount}, Transaction ${transAmount}`);
-        }
+      if (!loan) {
+        console.log(`[mpesa-c2b/validation] no exact loan for BillRef ${BillRefNumber}`);
+      } else if (loan.status !== "active" && loan.status !== "disbursed") {
+        console.log(`[mpesa-c2b/validation] loan ${loan.loan_number} is ${loan.status}`);
       }
+      console.log(`Validation amount ${TransAmount} for BillRef ${BillRefNumber}`);
     }
+
 
     console.log(`Validated C2B transaction: ${TransID} for ${TransAmount} from ${MSISDN}`);
     return json({ ResultCode: 0, ResultDesc: "Accepted" });
