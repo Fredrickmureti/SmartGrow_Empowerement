@@ -17,7 +17,7 @@ import type { DocumentMoney } from "./money";
 import type { DocumentActivityEntry, DocumentTotalsRow } from "./panels";
 import type { LineItemColumn, LineItemRow } from "./LineItemsGrid";
 import type { DetailField } from "./RecordBody";
-import type { LifecycleDocType } from "./DocumentLifecycleStrip";
+
 
 export interface DocumentRecordView {
   // ---- Identity -----------------------------------------------------
