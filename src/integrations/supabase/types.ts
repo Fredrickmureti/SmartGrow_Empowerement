@@ -21267,14 +21267,6 @@ export type Database = {
       }
     }
     Functions: {
-      __test_no_dropped_payroll_table_refs: {
-        Args: never
-        Returns: {
-          args: string
-          function_name: string
-          schema_name: string
-        }[]
-      }
       __ts_wave5_record: { Args: { _r: Json }; Returns: undefined }
       __ts_wave5_seed_ids: {
         Args: {
@@ -21348,15 +21340,6 @@ export type Database = {
       }
       _assert_expense_account_postable: {
         Args: { p_account_id: string; p_label: string }
-        Returns: undefined
-      }
-      _assert_inventory_diag_authenticated: { Args: never; Returns: undefined }
-      _assert_inventory_diag_business: {
-        Args: { _business_id: string }
-        Returns: undefined
-      }
-      _assert_inventory_report_access: {
-        Args: { _branch_id?: string; _business_id: string }
         Returns: undefined
       }
       _assert_org_member: { Args: { p_org: string }; Returns: undefined }
@@ -21689,7 +21672,6 @@ export type Database = {
       }
       _is_teardown_active: { Args: never; Returns: boolean }
       _is_teardown_for_org: { Args: { p_org: string }; Returns: boolean }
-      _is_trusted_inventory_diag_context: { Args: never; Returns: boolean }
       _landed_cost_annotate_reversal_intent: {
         Args: { _intent: Json }
         Returns: Json
@@ -21737,22 +21719,6 @@ export type Database = {
         Args: { _employee_id: string; _org: string; _supplied: string }
         Returns: string
       }
-      _next_physical_count_number: { Args: { p_org: string }; Returns: string }
-      _payroll_assert_je_line_account: {
-        Args: { _account_id: string }
-        Returns: undefined
-      }
-      _payroll_is_cogs_account: {
-        Args: { p_account_id: string }
-        Returns: boolean
-      }
-      _payroll_needs_from: {
-        Args: { _parameters: Json; _rule_type: string }
-        Returns: {
-          needs_employee: boolean
-          needs_employer: boolean
-        }[]
-      }
       _pc_emit: {
         Args: {
           _contract_id: string
@@ -21784,40 +21750,10 @@ export type Database = {
         }[]
       }
       _pick_hq_branch: { Args: { _business_id: string }; Returns: string }
-      _pos_apply_lot_consumption: {
-        Args: {
-          _actor: string
-          _allocations: Json
-          _biz_id: string
-          _branch_id: string
-          _direction: string
-          _is_lot_tracked: boolean
-          _org_id: string
-          _packaging_id?: string
-          _product_id: string
-          _quantity: number
-          _txn_id: string
-          _txn_number: string
-          _unit_cost: number
-          _uom_id?: string
-          _warehouse_id: string
-        }
-        Returns: undefined
-      }
-      _pos_assert_business_access: {
-        Args: { _business: string; _org: string }
-        Returns: undefined
-      }
-      _pos_build_receipt_snapshot: { Args: { p_tx_id: string }; Returns: Json }
-      _pos_set_writer_token: { Args: { _token: string }; Returns: undefined }
       _pr_lifecycle_active: { Args: never; Returns: boolean }
       _pr_lifecycle_begin: { Args: never; Returns: undefined }
       _pret_lifecycle_begin: { Args: never; Returns: undefined }
       _primary_business_for_org: { Args: { _org: string }; Returns: string }
-      _product_localization_from_payload: {
-        Args: { p_product: Json }
-        Returns: Json
-      }
       _project_assert_currency: {
         Args: {
           _business_id: string
@@ -21832,10 +21768,6 @@ export type Database = {
       }
       _project_id_for_task: { Args: { _task_id: string }; Returns: string }
       _raise_business_required: { Args: never; Returns: string }
-      _recalc_so_item_invoiced: {
-        Args: { p_so_item_ids: string[] }
-        Returns: undefined
-      }
       _recurring_bump_definition_version: {
         Args: { _recurring_id: string; _user_id: string }
         Returns: undefined
@@ -21843,10 +21775,6 @@ export type Database = {
       _recurring_complete_if_finished: {
         Args: { _next_start: string; _recurring_id: string }
         Returns: undefined
-      }
-      _release_physical_count_reservations: {
-        Args: { p_count_id: string }
-        Returns: number
       }
       _resolve_account_detail_type: {
         Args: {
@@ -21865,23 +21793,6 @@ export type Database = {
           p_setting_key: string
         }
         Returns: string
-      }
-      _resolve_credit_note_line: {
-        Args: {
-          _exclude_credit_note_id?: string
-          _invoice_id: string
-          _item: Json
-        }
-        Returns: Json
-      }
-      _resolve_invoice_gl_accounts: {
-        Args: {
-          p_business_id: string
-          p_contact_id: string
-          p_org_id: string
-          p_product_ids: string[]
-        }
-        Returns: Json
       }
       _resolve_supplier_role_id: {
         Args: { p_business_id: string; p_party_or_role_id: string }
@@ -21966,99 +21877,6 @@ export type Database = {
         Args: { p_user: string }
         Returns: boolean
       }
-      _wms_assert_business_access: {
-        Args: { p_business_id: string }
-        Returns: undefined
-      }
-      _wms_assert_period_open: {
-        Args: { _business_id: string; _on_date: string }
-        Returns: undefined
-      }
-      _wms_billing_quantity: {
-        Args: { _activity: string; _aggregate_id: string; _payload: Json }
-        Returns: number
-      }
-      _wms_caller_business_branch: {
-        Args: never
-        Returns: {
-          branch_id: string
-          business_id: string
-          organization_id: string
-        }[]
-      }
-      _wms_client_from_goods_receipt: {
-        Args: { _business_id: string; _grn_id: string }
-        Returns: string
-      }
-      _wms_crossdock_staging_location: {
-        Args: { p_warehouse_id: string }
-        Returns: string
-      }
-      _wms_emit_event: {
-        Args: {
-          _actor: string
-          _aggregate_id: string
-          _branch_id: string
-          _business_id: string
-          _event_type: string
-          _idempotency_key?: string
-          _org_id: string
-          _payload: Json
-          _source_doc_id?: string
-          _source_doc_type?: string
-          _warehouse_id: string
-        }
-        Returns: string
-      }
-      _wms_emit_outbox:
-        | {
-            Args: {
-              p_business_id: string
-              p_idempotency_key: string
-              p_organization_id: string
-              p_payload: Json
-              p_topic: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_business_id: string
-              p_idempotency_key: string
-              p_organization_id: string
-              p_payload: Json
-              p_topic: string
-            }
-            Returns: undefined
-          }
-      _wms_event_business_id: {
-        Args: { _org_id: string; _payload: Json; _warehouse_id: string }
-        Returns: string
-      }
-      _wms_exception_sla_minutes: {
-        Args: {
-          p_kind: Database["public"]["Enums"]["wms_exception_kind"]
-          p_severity: number
-        }
-        Returns: number
-      }
-      _wms_lpn_require_version: {
-        Args: { _expected_version: number }
-        Returns: number
-      }
-      _wms_map_event_to_activity: {
-        Args: { p_event_type: string; p_payload?: Json }
-        Returns: string
-      }
-      _wms_packaging_assert_write: {
-        Args: { p_business_id: string }
-        Returns: undefined
-      }
-      _wms_replay_lpn_set_packaging: { Args: { p_args: Json }; Returns: Json }
-      _wms_roster_seconds: {
-        Args: { _break_minutes: number; _end: string; _start: string }
-        Returns: number
-      }
       accept_organization_invitation_atomic: {
         Args: {
           p_invitation_id: string
@@ -22066,10 +21884,6 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
-      }
-      accounting_event_for_pos_statement: {
-        Args: { p_statement_id: string }
-        Returns: string
       }
       accounting_post_event: {
         Args: { p_event_id: string; p_idempotency_key?: string }
@@ -22118,19 +21932,6 @@ export type Database = {
       app_state_for_org: {
         Args: { _app_id: string; _org_id: string }
         Returns: string
-      }
-      apply_credit_to_invoice_atomic: {
-        Args: {
-          _amount: number
-          _applied_by: string
-          _branch_id: string
-          _business_id: string
-          _credit_note_id: string
-          _invoice_id: string
-          _notes: string
-          _org_id: string
-        }
-        Returns: Json
       }
       apply_customer_deposit_atomic: {
         Args: {
@@ -22515,10 +22316,6 @@ export type Database = {
         }
         Returns: Json
       }
-      assert_can_reverse_payroll: {
-        Args: { _caller: string; _organization_id: string }
-        Returns: undefined
-      }
       assert_can_view_dashboard_scope: {
         Args: { _branch_id: string; _business_id: string; _kind: string }
         Returns: undefined
@@ -22557,21 +22354,6 @@ export type Database = {
       }
       assert_no_receipt_cost_basis_as_money: { Args: never; Returns: undefined }
       assert_org_not_locked: { Args: { _org_id: string }; Returns: undefined }
-      assert_payroll_ready: {
-        Args: {
-          p_business_id?: string
-          p_employee_ids?: string[]
-          p_org_id: string
-          p_period_end?: string
-          p_period_start?: string
-          p_run_id?: string
-        }
-        Returns: boolean
-      }
-      assert_pos_caller_branch_access: {
-        Args: { p_branch_id: string }
-        Returns: undefined
-      }
       assert_reversal_reason: {
         Args: {
           _comment?: string
@@ -22594,15 +22376,6 @@ export type Database = {
           p_notes?: string
         }
         Returns: string
-      }
-      attendance_pending_corrections_count: {
-        Args: {
-          _employee_ids?: string[]
-          _from: string
-          _organization_id: string
-          _to: string
-        }
-        Returns: number
       }
       audit_system_account_writer_allowlist: {
         Args: never
@@ -22832,17 +22605,6 @@ export type Database = {
           status: string
         }[]
       }
-      build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
-      calculate_leave_days: {
-        Args: {
-          p_end_date: string
-          p_end_period: string
-          p_org_id: string
-          p_start_date: string
-          p_start_period: string
-        }
-        Returns: number
-      }
       calculate_project_progress: {
         Args: { p_project_id: string }
         Returns: number
@@ -22925,15 +22687,6 @@ export type Database = {
         }
         Returns: Json
       }
-      check_leave_overlap: {
-        Args: {
-          p_employee_id: string
-          p_end_date: string
-          p_exclude_id?: string
-          p_start_date: string
-        }
-        Returns: boolean
-      }
       check_low_stock_products: { Args: never; Returns: undefined }
       check_org_app_access: {
         Args: { _app_id: string; _org_id: string }
@@ -22955,7 +22708,6 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: boolean
       }
-      check_overdue_invoices: { Args: never; Returns: undefined }
       check_pack_install_allowed: {
         Args: { _acknowledge_skeleton?: boolean; _pack_id: string }
         Returns: Json
@@ -22965,36 +22717,6 @@ export type Database = {
         Returns: Json
       }
       check_pin_status: { Args: { p_email: string }; Returns: Json }
-      check_product_stock_and_notify: {
-        Args: { p_product_id: string }
-        Returns: undefined
-      }
-      check_serial_position_drift: {
-        Args: { p_business_id?: string }
-        Returns: {
-          detail: string
-          net_quantity: number
-          observed_warehouse_id: string
-          product_id: string
-          recorded_status: string
-          recorded_warehouse_id: string
-          scope: string
-          serial_id: string
-          serial_number: string
-        }[]
-      }
-      check_stock_quant_drift: {
-        Args: { _business_id?: string }
-        Returns: {
-          drift: number
-          lot_number: string
-          product_id: string
-          projected_qty: number
-          quant_qty: number
-          scope: string
-          warehouse_id: string
-        }[]
-      }
       check_subscription_expired: {
         Args: { _org_id: string }
         Returns: boolean
@@ -23212,7 +22934,6 @@ export type Database = {
           reaped_count: number
         }[]
       }
-      cleanup_pos_transaction_idempotency: { Args: never; Returns: number }
       cleanup_report_generation_logs: {
         Args: { _retention_days?: number }
         Returns: number
@@ -23294,10 +23015,6 @@ export type Database = {
         Args: { p_appointment_id: string }
         Returns: undefined
       }
-      complete_goods_receipt_atomic: {
-        Args: { p_grn_id: string; p_user_id: string }
-        Returns: Json
-      }
       complete_onboarding: {
         Args: {
           p_business_type?: string
@@ -23340,29 +23057,6 @@ export type Database = {
         }
         Returns: number
       }
-      confirm_credit_note_atomic: {
-        Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
-        Returns: Json
-      }
-      confirm_invoice_atomic:
-        | {
-            Args: {
-              p_final_status?: string
-              p_invoice_id: string
-              p_main_lines?: Json
-              p_user_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_cogs_lines?: Json
-              p_invoice_id: string
-              p_main_lines: Json
-              p_user_id: string
-            }
-            Returns: Json
-          }
       consolidation_diagnose_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -23660,18 +23354,6 @@ export type Database = {
         }
         Returns: number
       }
-      convert_estimate_to_invoice_atomic: {
-        Args: {
-          p_auto_confirm?: boolean
-          p_estimate_id: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      convert_proforma_to_invoice_atomic: {
-        Args: { p_proforma_id: string; p_user_id: string }
-        Returns: Json
-      }
       count_my_employee_drafts: {
         Args: { p_business_id: string; p_org_id: string }
         Returns: number
@@ -23683,26 +23365,6 @@ export type Database = {
           p_organization_id: string
         }
         Returns: number
-      }
-      create_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
-      create_estimate_atomic: {
-        Args: {
-          p_costs?: Json
-          p_header: Json
-          p_idempotency_key?: string
-          p_items?: Json
-          p_user_id?: string
-        }
-        Returns: Json
-      }
-      create_invoice_atomic: {
-        Args: {
-          p_header: Json
-          p_idempotency_key?: string
-          p_items: Json
-          p_user_id?: string
-        }
-        Returns: Json
       }
       create_journal_entry_atomic: {
         Args: {
@@ -23843,10 +23505,6 @@ export type Database = {
               isSetofReturn: false
             }
           }
-      create_proforma_atomic: {
-        Args: { p_header: Json; p_items: Json }
-        Returns: Json
-      }
       create_scanner_session: {
         Args: {
           p_branch_id: string
@@ -23906,14 +23564,6 @@ export type Database = {
       delete_ai_api_key: { Args: { p_id: string }; Returns: undefined }
       delete_all_chart_of_accounts: {
         Args: { p_organization_id: string }
-        Returns: Json
-      }
-      delete_credit_note_atomic: {
-        Args: { _credit_note_id: string }
-        Returns: Json
-      }
-      delete_draft_invoice_atomic: {
-        Args: { _actor?: string; _invoice_id: string }
         Returns: Json
       }
       delete_draft_journal_entry: {
@@ -24085,21 +23735,6 @@ export type Database = {
         }
         Returns: string
       }
-      emit_inventory_event: {
-        Args: {
-          p_actor_user_id?: string
-          p_branch_id: string
-          p_business_id: string
-          p_event_type: string
-          p_idempotency_key: string
-          p_org_id: string
-          p_payload: Json
-          p_source_doc_id: string
-          p_source_doc_type: string
-          p_warehouse_id: string
-        }
-        Returns: string
-      }
       end_employee_branch_assignment: {
         Args: { p_assignment_id: string; p_effective_to?: string }
         Returns: undefined
@@ -24127,19 +23762,6 @@ export type Database = {
             Returns: string
           }
         | { Args: { p_transmission_id: string }; Returns: string }
-      enqueue_inventory_sms: {
-        Args: {
-          _business_id: string
-          _current_stock: number
-          _event: Database["public"]["Enums"]["sms_event_type"]
-          _org_id: string
-          _product_id: string
-          _product_name: string
-          _reorder_level: number
-          _sku: string
-        }
-        Returns: undefined
-      }
       enqueue_sms_event: {
         Args: {
           p_business_id: string
@@ -24226,14 +23848,6 @@ export type Database = {
             }
             Returns: string
           }
-      ensure_inventory_gl_accounts: {
-        Args: { _business_id: string; _org_id: string }
-        Returns: {
-          adjustment_account_id: string
-          cogs_account_id: string
-          inventory_account_id: string
-        }[]
-      }
       ensure_loan_gl_accounts: {
         Args: { _biz: string; _org: string }
         Returns: Json
@@ -24255,10 +23869,6 @@ export type Database = {
         Args: { _created_by: string; _employee_id: string; _user_id: string }
         Returns: boolean
       }
-      expense_queue_payroll_reimbursement: {
-        Args: { p_employee_id?: string; p_expense_id: string }
-        Returns: Json
-      }
       expense_reimburse_direct: {
         Args: {
           p_bank_account_id: string
@@ -24273,10 +23883,6 @@ export type Database = {
         Returns: Json
       }
       expense_submit: { Args: { p_expense_id: string }; Returns: Json }
-      expense_unqueue_payroll_reimbursement: {
-        Args: { p_expense_id: string }
-        Returns: Json
-      }
       expense_void:
         | { Args: { p_expense_id: string; p_reason?: string }; Returns: Json }
         | {
@@ -24287,8 +23893,6 @@ export type Database = {
             }
             Returns: Json
           }
-      expire_overdue_proformas: { Args: never; Returns: number }
-      expire_stale_estimates: { Args: never; Returns: number }
       fetch_collector_assignments_with_names: {
         Args: { _org_id: string }
         Returns: {
@@ -24562,18 +24166,6 @@ export type Database = {
       }
       garnishment_resolve_policy: { Args: { p_org_id: string }; Returns: Json }
       gc_pack_readiness_rules: { Args: { _org_id: string }; Returns: number }
-      gc_payroll_readiness_findings: {
-        Args: { p_org_id: string }
-        Returns: number
-      }
-      generate_invoice_number: {
-        Args: {
-          p_branch_id?: string
-          p_business_id?: string
-          p_organization_id: string
-        }
-        Returns: string
-      }
       generate_loan_schedule: {
         Args: { _dry_run?: boolean; _loan_id: string }
         Returns: Json
@@ -24893,10 +24485,6 @@ export type Database = {
         Args: { p_branch_id?: string; p_business_id: string }
         Returns: Json
       }
-      get_effective_invoice_limit: {
-        Args: { _org_id: string }
-        Returns: number
-      }
       get_effective_user_limit: { Args: { _org_id: string }; Returns: number }
       get_email_provider_settings: { Args: never; Returns: Json }
       get_employee_directory_stats: {
@@ -25032,25 +24620,6 @@ export type Database = {
               reference: string
             }[]
           }
-      get_invoice_status_counts:
-        | {
-            Args: { _business_id?: string; _org_id: string }
-            Returns: {
-              count: number
-              status: string
-            }[]
-          }
-        | {
-            Args: {
-              _branch_id?: string
-              _business_id?: string
-              _org_id: string
-            }
-            Returns: {
-              count: number
-              status: string
-            }[]
-          }
       get_journal_report: {
         Args: {
           _branch_id?: string
@@ -25088,14 +24657,6 @@ export type Database = {
           total_entries: number
         }[]
       }
-      get_leave_balance: {
-        Args: {
-          p_employee_id: string
-          p_leave_type_id: string
-          p_year?: number
-        }
-        Returns: number
-      }
       get_ledger_opening_balances: {
         Args: {
           _as_of: string
@@ -25125,10 +24686,6 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: string
       }
-      get_next_credit_note_number: {
-        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
-        Returns: string
-      }
       get_next_delivery_number: { Args: { _org_id: string }; Returns: string }
       get_next_document_number: {
         Args: {
@@ -25146,28 +24703,12 @@ export type Database = {
         Args: { _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_estimate_number: {
-        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
-        Returns: string
-      }
       get_next_expense_number: {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_invoice_number: {
-        Args: { _business_id?: string; _org_id: string }
-        Returns: string
-      }
       get_next_journal_entry_number: {
         Args: { _org_id: string }
-        Returns: string
-      }
-      get_next_opening_stock_number: {
-        Args: { p_business?: string; p_org: string }
-        Returns: string
-      }
-      get_next_proforma_number: {
-        Args: { _business_id: string; _org_id: string }
         Returns: string
       }
       get_next_recall_reference: {
@@ -25250,81 +24791,6 @@ export type Database = {
       get_platform_admin_scopes: {
         Args: { _user_id: string }
         Returns: string[]
-      }
-      get_pos_daily_sales: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_date_from: string
-          p_date_to: string
-          p_organization_id: string
-          p_register_id?: string
-        }
-        Returns: {
-          sale_date: string
-          total_amount: number
-          transaction_count: number
-        }[]
-      }
-      get_pos_dashboard_stats: {
-        Args: {
-          _branch_id?: string
-          _business_id: string
-          _date?: string
-          _org_id: string
-        }
-        Returns: Json
-      }
-      get_pos_hourly_sales: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_date: string
-          p_organization_id: string
-          p_register_id?: string
-        }
-        Returns: {
-          sale_hour: number
-          total_amount: number
-          transaction_count: number
-        }[]
-      }
-      get_pos_shift_report_summary: {
-        Args: { _shift_id: string }
-        Returns: Json
-      }
-      get_pos_top_products: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_date_from: string
-          p_date_to: string
-          p_limit?: number
-          p_organization_id: string
-          p_register_id?: string
-        }
-        Returns: {
-          product_name: string
-          total_quantity: number
-          total_revenue: number
-        }[]
-      }
-      get_pos_x_report: {
-        Args: {
-          p_business_id: string
-          p_organization_id: string
-          p_shift_id: string
-        }
-        Returns: Json
-      }
-      get_pos_z_report: {
-        Args: {
-          p_business_id: string
-          p_date?: string
-          p_organization_id: string
-          p_register_id?: string
-        }
-        Returns: Json
       }
       get_sms_config_masked: {
         Args: { p_organization_id: string }
@@ -25473,10 +24939,6 @@ export type Database = {
         Returns: string
       }
       get_vendor_contact_id: { Args: { _user_id: string }; Returns: string }
-      goods_receipt_line_base_unit_cost: {
-        Args: { _gri_id: string }
-        Returns: number
-      }
       governance_assert_not_self: {
         Args: {
           p_action: string
@@ -25656,10 +25118,6 @@ export type Database = {
         Returns: Json
       }
       identity_code_candidates: { Args: { p_raw: string }; Returns: string[] }
-      insert_payroll_run_atomic: {
-        Args: { p_payroll_run: Json; p_payslips: Json }
-        Returns: Json
-      }
       install_app: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: {
@@ -25689,32 +25147,6 @@ export type Database = {
           _force_reseed?: boolean
           _installed_by: string
           _pack_id: string
-        }
-        Returns: Json
-      }
-      inventory_cost_layer_descendants: {
-        Args: { p_layer_ids: string[] }
-        Returns: {
-          layer_id: string
-          traced_qty: number
-        }[]
-      }
-      inventory_gl_readiness: {
-        Args: { _business_id: string; _org_id: string }
-        Returns: {
-          is_mapped: boolean
-          label: string
-          required_account_type: string
-          setting_key: string
-          suggested_account_id: string
-          suggested_account_label: string
-        }[]
-      }
-      invoice_project_timesheets: {
-        Args: {
-          _period_from?: string
-          _period_to?: string
-          _project_id: string
         }
         Returns: Json
       }
@@ -25772,14 +25204,6 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: { _user_id: string }; Returns: boolean }
-      is_product_frozen: {
-        Args: {
-          _organization_id: string
-          _product_id: string
-          _warehouse_id: string
-        }
-        Returns: boolean
-      }
       is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -25790,19 +25214,6 @@ export type Database = {
         Returns: boolean
       }
       is_vendor_portal_user: { Args: { _user_id: string }; Returns: boolean }
-      issue_credit_note_atomic: {
-        Args: { _credit_note_id: string }
-        Returns: Json
-      }
-      issue_credit_note_for_payment_atomic: {
-        Args: {
-          _client_request_id: string
-          _payment_id: string
-          _reason_text: string
-          _reversal_date: string
-        }
-        Returns: string
-      }
       landed_cost_assert_bill_unencumbered: {
         Args: { _bill_id: string; _operation?: string }
         Returns: undefined
@@ -25940,40 +25351,6 @@ export type Database = {
           p_status?: string
         }
         Returns: Json[]
-      }
-      list_inventory_subledger_composition: {
-        Args: { p_business?: string; p_limit?: number; p_org: string }
-        Returns: {
-          cost_basis: string
-          product_id: string
-          product_name: string
-          quantity: number
-          sku: string
-          unit_cost: number
-          value: number
-          warehouse_id: string
-          warehouse_name: string
-        }[]
-      }
-      list_invoices_missing_journals: {
-        Args: {
-          _branch_id?: string
-          _business_id?: string
-          _limit?: number
-          _offset?: number
-          _org_id: string
-        }
-        Returns: {
-          amount_paid: number
-          contact_id: string
-          contact_name: string
-          invoice_id: string
-          invoice_number: string
-          issue_date: string
-          residual: number
-          status: string
-          total: number
-        }[]
       }
       list_org_storage_paths: { Args: { org_id: string }; Returns: Json }
       list_persona_conflicts: {
@@ -26243,15 +25620,6 @@ export type Database = {
         Args: { p_app_id: string; p_days_left: number; p_org_id: string }
         Returns: undefined
       }
-      notify_attendance_decision: {
-        Args: {
-          _decision: string
-          _employee_id: string
-          _kind: string
-          _note?: string
-        }
-        Returns: undefined
-      }
       notify_me_when_app_launches: {
         Args: { _app_id: string }
         Returns: string
@@ -26280,298 +25648,9 @@ export type Database = {
         Args: { _payment_id: string }
         Returns: boolean
       }
-      payroll_apply_proposed_mappings: {
-        Args: {
-          _accept: Json
-          _branch_id?: string
-          _business_id: string
-          _org_id: string
-          _reason?: string
-          _source?: string
-        }
-        Returns: number
-      }
-      payroll_can_see_amounts: {
-        Args: { _business_id: string; _employee_id: string; _user_id: string }
-        Returns: boolean
-      }
-      payroll_certificate_reconciliation: {
-        Args: {
-          p_business_id: string
-          p_fiscal_year: number
-          p_organization_id: string
-          p_template_code: string
-        }
-        Returns: {
-          cert_count: number
-          cert_total_employee_tax: number
-          cert_total_employer_tax: number
-          remittance_total: number
-          return_count: number
-          return_total: number
-          variance_cert_vs_return: number
-          variance_return_vs_remittance: number
-        }[]
-      }
-      payroll_create_and_map_account: {
-        Args: {
-          _account_type: string
-          _branch_id?: string
-          _business_id: string
-          _code?: string
-          _name: string
-          _org_id: string
-          _setting_key: string
-          _source?: string
-        }
-        Returns: string
-      }
-      payroll_employee_monthly_breakdown: {
-        Args: { p_employee_id: string; p_rule_codes: string[]; p_year: number }
-        Returns: {
-          category: string
-          employee_amount: number
-          employer_amount: number
-          month_index: number
-          rule_code: string
-          taxable_amount: number
-        }[]
-      }
-      payroll_employee_ytd_apply_line: {
-        Args: {
-          p_business: string
-          p_category: string
-          p_emp: number
-          p_employee: string
-          p_er: number
-          p_org: string
-          p_payslip: string
-          p_rule_code: string
-          p_run: string
-          p_sign: number
-          p_taxable_amt: number
-          p_taxable_flag: boolean
-        }
-        Returns: undefined
-      }
-      payroll_employee_ytd_reconcile: {
-        Args: { p_org?: string; p_year?: number }
-        Returns: number
-      }
-      payroll_employee_ytd_rollup: {
-        Args: { p_employee_id: string; p_year: number }
-        Returns: {
-          category: string
-          country_code: string
-          employee_amount: number
-          employer_amount: number
-          last_period_end: string
-          payslip_count: number
-          rule_code: string
-          taxable_amount: number
-        }[]
-      }
-      payroll_get_run_type_policy: {
-        Args: { p_country_code: string; p_run_type: string }
-        Returns: Json
-      }
-      payroll_gl_readiness: {
-        Args: { _business_id?: string; _org_id: string }
-        Returns: {
-          is_mapped: boolean
-          kind: string
-          label: string
-          required_account_type: string
-          rule_code: string
-          setting_key: string
-          suggested_account_id: string
-          suggested_account_label: string
-        }[]
-      }
-      payroll_mark_stale_certificates: {
-        Args: { p_business: string; p_fiscal_year?: number; p_org: string }
-        Returns: number
-      }
-      payroll_pack_required_account_roles: {
-        Args: { p_pack_id: string }
-        Returns: {
-          account_type: string
-          detail_type: string
-          label: string
-          role_key: string
-        }[]
-      }
-      payroll_period_employees: {
-        Args: {
-          p_business_id?: string
-          p_org_id: string
-          p_period_end?: string
-          p_period_start?: string
-        }
-        Returns: {
-          employee_id: string
-          employee_number: string
-          first_name: string
-          last_name: string
-        }[]
-      }
-      payroll_period_for_date: {
-        Args: { _business_id: string; _on: string }
-        Returns: string
-      }
-      payroll_period_frozen: {
-        Args: { _business_id: string; _from: string; _to: string }
-        Returns: boolean
-      }
-      payroll_period_workflow_blockers: {
-        Args: { _period_id: string }
-        Returns: {
-          current_state: string
-          required_states: string[]
-          run_id: string
-          waived: boolean
-          workflow: string
-        }[]
-      }
-      payroll_readiness_blockers: {
-        Args: {
-          p_business_id?: string
-          p_org_id: string
-          p_scope?: string
-          p_subject_id?: string
-        }
-        Returns: {
-          missing_fields: string[]
-          reason: string
-          reason_code: string
-          remediation_label: string
-          remediation_link: string
-          rule_code: string
-          rule_name: string
-        }[]
-      }
-      payroll_resolve_wet: {
-        Args: { _business_id: string; _code: string; _org_id: string }
-        Returns: string
-      }
-      payroll_return_assert_transition: {
-        Args: { p_from: string; p_to: string }
-        Returns: undefined
-      }
-      payroll_rule_slug: { Args: { p_name: string }; Returns: string }
-      payroll_run_visible_to_employee: {
-        Args: { _run_id: string }
-        Returns: boolean
-      }
-      payslip_bucket:
-        | {
-            Args: { cat: Database["public"]["Enums"]["payslip_line_category"] }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.payslip_bucket(cat => text), public.payslip_bucket(cat => payslip_line_category). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { cat: string }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.payslip_bucket(cat => text), public.payslip_bucket(cat => payslip_line_category). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-      payslip_relevant_identifier_types: {
-        Args: { _payslip_id: string }
-        Returns: string[]
-      }
-      payslip_visible_to_employee: {
-        Args: { _payslip_id: string }
-        Returns: boolean
-      }
-      physical_count_approve: {
-        Args: {
-          p_allow_self?: boolean
-          p_count_id: string
-          p_tolerance_override_reason?: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      physical_count_cancel: {
-        Args: { p_count_id: string; p_reason: string; p_user_id: string }
-        Returns: Json
-      }
-      physical_count_freeze: {
-        Args: { p_count_id: string; p_user_id: string }
-        Returns: Json
-      }
-      physical_count_record_line: {
-        Args: {
-          p_count_id: string
-          p_counted_qty: number
-          p_device_id?: string
-          p_product_id: string
-          p_scan_ref?: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      physical_count_release_freeze_before_post: {
-        Args: { p_count_id: string }
-        Returns: number
-      }
-      physical_count_request_recount: {
-        Args: { p_count_id: string; p_line_ids: string[]; p_user_id: string }
-        Returns: Json
-      }
       platform_delete_organization: {
         Args: { p_confirmation_token: string; p_org_id: string }
         Returns: Json
-      }
-      pos_payment_session_allocated: {
-        Args: { p_session_id: string }
-        Returns: number
-      }
-      pos_resolve_line: {
-        Args: {
-          p_at?: string
-          p_business_id: string
-          p_contact_id?: string
-          p_discount_type: string
-          p_discount_value: number
-          p_display_uom_id?: string
-          p_packaging_id?: string
-          p_product_id: string
-          p_quantity: number
-          p_requested_unit_price: number
-        }
-        Returns: Json
-      }
-      pos_return_authorization_transition_v2: {
-        Args: {
-          p_amount?: number
-          p_authorization_id: string
-          p_business_id?: string
-          p_manager_override_id?: string
-          p_organization_id?: string
-          p_reason: string
-          p_shift_id?: string
-          p_to_state: string
-        }
-        Returns: undefined
-      }
-      pos_split_bill_session: {
-        Args: { p_split_bill_id: string }
-        Returns: {
-          branch_id: string
-          business_id: string
-          organization_id: string
-          session_id: string
-        }[]
-      }
-      pos_topic_handler_scope: {
-        Args: { p_event_type: string }
-        Returns: string
-      }
-      pos_topic_max_attempts: {
-        Args: { p_event_type: string }
-        Returns: number
       }
       post_expense_gl: { Args: { p_expense_id: string }; Returns: Json }
       post_journal_entry_atomic:
@@ -26661,15 +25740,6 @@ export type Database = {
         Args: { _entry_id: string; _user_id: string }
         Returns: undefined
       }
-      post_missing_invoice_journals: {
-        Args: {
-          _branch_id?: string
-          _business_id: string
-          _limit?: number
-          _org_id: string
-        }
-        Returns: Json
-      }
       post_source_to_gl: {
         Args: { p_source_id: string; p_source_type: string }
         Returns: string
@@ -26727,112 +25797,7 @@ export type Database = {
           render_mode: string
         }[]
       }
-      process_payroll_loan_deductions: {
-        Args: {
-          _deductions: Json
-          _payroll_number: string
-          _payroll_run_id: string
-        }
-        Returns: undefined
-      }
-      process_pos_cash_movement: {
-        Args: {
-          p_amount: number
-          p_business_id: string
-          p_movement_type: string
-          p_notes?: string
-          p_organization_id: string
-          p_override_id?: string
-          p_performed_by?: string
-          p_reason?: string
-          p_reason_code?: string
-          p_register_id: string
-          p_shift_id: string
-        }
-        Returns: Json
-      }
-      process_pos_transaction: {
-        Args: {
-          p_cashier_id?: string
-          p_created_by?: string
-          p_customer_id?: string
-          p_customer_name?: string
-          p_customer_tin?: string
-          p_discount_amount: number
-          p_items: Json
-          p_notes?: string
-          p_organization_id: string
-          p_payments: Json
-          p_register_id: string
-          p_shift_id: string
-          p_subtotal: number
-          p_table_session_id?: string
-          p_tax_amount: number
-          p_total: number
-          p_transaction_type?: string
-          p_warehouse_id?: string
-        }
-        Returns: Json
-      }
-      process_pos_void: {
-        Args: {
-          p_organization_id: string
-          p_transaction_id: string
-          p_void_reason: string
-          p_voided_by: string
-        }
-        Returns: Json
-      }
       process_scheduled_organization_deletions: { Args: never; Returns: Json }
-      product_identification_queue: {
-        Args: {
-          p_business_id: string
-          p_limit?: number
-          p_offset?: number
-          p_search?: string
-        }
-        Returns: {
-          category_id: string
-          identifier_count: number
-          image_url: string
-          is_waived: boolean
-          level_name: string
-          needs_identifier: boolean
-          packaging_id: string
-          pending_product_count: number
-          primary_code: string
-          product_id: string
-          product_name: string
-          qty_in_base_uom: number
-          sku: string
-          unit_price: number
-        }[]
-      }
-      product_identification_status: {
-        Args: { p_business_id: string; p_product_ids: string[] }
-        Returns: {
-          identifier_count: number
-          is_waived: boolean
-          level_name: string
-          packaging_id: string
-          primary_code: string
-          product_id: string
-          qty_in_base_uom: number
-          sort_qty: number
-        }[]
-      }
-      product_pack_cost: {
-        Args: { p_packaging_id: string; p_product_id: string }
-        Returns: number
-      }
-      product_pack_price: {
-        Args: { p_packaging_id: string; p_product_id: string }
-        Returns: number
-      }
-      product_physical_attributes_required: {
-        Args: { p_business_id: string }
-        Returns: boolean
-      }
       project_analytic_account_id: {
         Args: { p_project_id: string }
         Returns: string
@@ -27060,17 +26025,6 @@ export type Database = {
         }
         Returns: Json
       }
-      reconcile_stock_quantities: {
-        Args: { p_business_id: string; p_organization_id: string }
-        Returns: {
-          calculated_quantity: number
-          difference: number
-          product_id: string
-          product_name: string
-          sku: string
-          stored_quantity: number
-        }[]
-      }
       reconciliation_assistant_consume_quota: {
         Args: { _action: string; _bank_transaction_id: string }
         Returns: Json
@@ -27170,15 +26124,6 @@ export type Database = {
       record_onboarding_attempt: {
         Args: { p_idempotency_key: string; p_step?: string }
         Returns: string
-      }
-      record_opening_stock: {
-        Args: {
-          p_business_id: string
-          p_items: Json
-          p_user_id?: string
-          p_warehouse_id: string
-        }
-        Returns: Json
       }
       record_payment_atomic: {
         Args: {
@@ -27360,51 +26305,6 @@ export type Database = {
         Args: { _organization_id?: string }
         Returns: Json
       }
-      repair_payroll_duplicate_accounts: {
-        Args: { _business_id: string; _dry_run?: boolean }
-        Returns: {
-          je_lines_repointed: number
-          kept_account_id: string
-          kept_code: string
-          mappings_repointed: number
-          merged_account_id: string
-          merged_code: string
-          role_key: string
-        }[]
-      }
-      report_stock_transfers: {
-        Args: {
-          p_branch?: string
-          p_business: string
-          p_from?: string
-          p_limit?: number
-          p_offset?: number
-          p_org: string
-          p_status?: string
-          p_to?: string
-        }
-        Returns: {
-          actual_arrival_date: string
-          completed_at: string
-          expected_arrival_date: string
-          from_branch_id: string
-          from_warehouse_id: string
-          from_warehouse_name: string
-          line_count: number
-          qty_received: number
-          qty_requested: number
-          qty_sent: number
-          status: string
-          to_branch_id: string
-          to_warehouse_id: string
-          to_warehouse_name: string
-          total_rows: number
-          transfer_date: string
-          transfer_id: string
-          transfer_number: string
-          variance: number
-        }[]
-      }
       request_app_access: {
         Args: { _app_id: string; _message?: string }
         Returns: string
@@ -27502,7 +26402,6 @@ export type Database = {
       reset_module__finance: { Args: { org_id: string }; Returns: Json }
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
       reset_module__hr: { Args: { org_id: string }; Returns: Json }
-      reset_module__pos: { Args: { org_id: string }; Returns: Json }
       reset_module__sales: { Args: { org_id: string }; Returns: Json }
       reset_module__sequences: { Args: { org_id: string }; Returns: Json }
       reset_module__transactions_ledger: {
@@ -27595,16 +26494,6 @@ export type Database = {
           presentation_currency: string
           requires_translation: boolean
         }[]
-      }
-      resolve_credit_note_revenue_lines: {
-        Args: {
-          p_business_id: string
-          p_cn_number: string
-          p_credit_note_id: string
-          p_org_id: string
-          p_subtotal: number
-        }
-        Returns: Json
       }
       resolve_default_account:
         | {
@@ -27730,30 +26619,8 @@ export type Database = {
           payment_term_id: string
         }[]
       }
-      resolve_payroll_pack_for_employee: {
-        Args: { p_employee_id: string }
-        Returns: string
-      }
       resolve_posting_account: {
         Args: { p_branch_id?: string; p_business_id: string; p_key: string }
-        Returns: string
-      }
-      resolve_product_account_override: {
-        Args: {
-          p_business_id: string
-          p_org_id: string
-          p_product_id: string
-          p_purpose: string
-        }
-        Returns: string
-      }
-      resolve_product_gl_account: {
-        Args: {
-          p_business_id: string
-          p_org_id: string
-          p_product_id: string
-          p_purpose: string
-        }
         Returns: string
       }
       resolve_project_billing_rate: {
@@ -27827,10 +26694,6 @@ export type Database = {
           p_requested_rate?: number
           p_tax_rate_id?: string
         }
-        Returns: Json
-      }
-      resolve_sales_return_line_tax: {
-        Args: { _invoice_item_id: string; _qty: number }
         Returns: Json
       }
       resolve_statutory_country_for_employee: {
@@ -28073,10 +26936,6 @@ export type Database = {
         Args: { _org_id: string; _pack_id: string }
         Returns: number
       }
-      seed_pos_cash_movement_type_defaults: {
-        Args: { p_business_id: string }
-        Returns: undefined
-      }
       seed_project_permission_groups: {
         Args: { _org_id: string }
         Returns: undefined
@@ -28130,15 +26989,6 @@ export type Database = {
         }
         Returns: Json
       }
-      set_estimate_status_atomic: {
-        Args: {
-          p_estimate_id: string
-          p_reason?: string
-          p_status: string
-          p_user_id?: string
-        }
-        Returns: Json
-      }
       set_exchange_rate_override: {
         Args: {
           p_business_id: string
@@ -28151,15 +27001,6 @@ export type Database = {
         Returns: string
       }
       set_last_org_id: { Args: { p_org_id: string }; Returns: undefined }
-      set_proforma_status_atomic: {
-        Args: {
-          p_proforma_id: string
-          p_reason?: string
-          p_status: string
-          p_user_id?: string
-        }
-        Returns: Json
-      }
       set_recurring_status_atomic: {
         Args: {
           p_reason?: string
@@ -28231,20 +27072,11 @@ export type Database = {
         Args: { p_older_than_minutes?: number }
         Returns: number
       }
-      sms_scan_overdue_invoices: { Args: never; Returns: number }
       snapshot_all_active_burndowns: { Args: never; Returns: number }
       snapshot_control_account_drift: { Args: never; Returns: number }
       start_appointment: {
         Args: { p_appointment_id: string }
         Returns: undefined
-      }
-      stock_movement_signed_quantity: {
-        Args: { p_movement_type: string; p_quantity: number }
-        Returns: number
-      }
-      stock_reservation_is_open: {
-        Args: { p_expires_at: string; p_status: string }
-        Returns: boolean
       }
       storage_gc_resolve_objects: {
         Args: {
@@ -28403,17 +27235,6 @@ export type Database = {
         Args: { p_app_id: string; p_org_id: string }
         Returns: undefined
       }
-      update_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
-      update_estimate_atomic: {
-        Args: {
-          p_costs?: Json
-          p_estimate_id: string
-          p_header?: Json
-          p_items?: Json
-          p_user_id?: string
-        }
-        Returns: Json
-      }
       update_journal_entry_atomic: {
         Args: {
           _description: string
@@ -28427,7 +27248,6 @@ export type Database = {
         Returns: Json
       }
       update_overdue_compliance_items: { Args: never; Returns: undefined }
-      update_overdue_invoices: { Args: never; Returns: number }
       update_own_employee_personal: { Args: { patch: Json }; Returns: string }
       update_portal_contact_self: {
         Args: {
@@ -28494,14 +27314,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      update_pos_daily_summary: {
-        Args: {
-          p_business_id: string
-          p_date: string
-          p_organization_id: string
-        }
-        Returns: undefined
       }
       upsert_collector_assignment: {
         Args: {
@@ -28607,14 +27419,6 @@ export type Database = {
         Args: { _business_id: string; _user_id: string }
         Returns: boolean
       }
-      user_can_approve_leave_level2: {
-        Args: { _org: string; _user: string }
-        Returns: boolean
-      }
-      user_can_view_employee_payroll: {
-        Args: { _org_id: string; _user_id: string }
-        Returns: boolean
-      }
       user_can_view_employee_private: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
@@ -28658,10 +27462,6 @@ export type Database = {
         Returns: boolean
       }
       user_has_org_access: { Args: { org_id: string }; Returns: boolean }
-      user_has_payroll_admin_override: {
-        Args: { _org_id: string; _user_id: string }
-        Returns: boolean
-      }
       user_is_project_member: {
         Args: { _project_id: string; _user_id: string }
         Returns: boolean
@@ -28711,18 +27511,6 @@ export type Database = {
             Returns: Json
           }
         | { Args: { p_pin: string }; Returns: Json }
-      void_invoice_atomic: {
-        Args: {
-          _actor?: string
-          _cascade_payments?: boolean
-          _client_request_id?: string
-          _invoice_id: string
-          _reason: string
-          _reason_code?: string
-          _void_date?: string
-        }
-        Returns: Json
-      }
       void_journal_entry_atomic: {
         Args: {
           _entry_id: string
@@ -28755,154 +27543,6 @@ export type Database = {
           work_entry_type_id: string
         }[]
       }
-      wms_accrue_storage_days: {
-        Args: { p_as_of?: string; p_business_id: string }
-        Returns: number
-      }
-      wms_activity_feed: {
-        Args: {
-          p_business_id: string
-          p_limit?: number
-          p_warehouse_id?: string
-        }
-        Returns: {
-          actor_user_id: string
-          created_at: string
-          event_type: string
-          id: string
-          payload: Json
-          source_doc_id: string
-          source_doc_type: string
-          warehouse_id: string
-        }[]
-      }
-      wms_apply_gr_stock: {
-        Args: { _actor: string; _gr_id: string }
-        Returns: Json
-      }
-      wms_labour_demand: {
-        Args: { _from?: string; _to?: string; _warehouse_id?: string }
-        Returns: {
-          demand_date: string
-          open_tasks: number
-          overdue_tasks: number
-          required_seconds: number
-          task_type: Database["public"]["Enums"]["wms_task_type"]
-          unassigned_tasks: number
-          unstandardised: number
-          warehouse_id: string
-        }[]
-      }
-      wms_labour_plan: {
-        Args: { _from?: string; _to?: string; _warehouse_id?: string }
-        Returns: {
-          actual_seconds: number
-          gap_seconds: number
-          open_tasks: number
-          overdue_tasks: number
-          plan_date: string
-          planned_operators: number
-          planned_seconds: number
-          published_seconds: number
-          required_seconds: number
-          warehouse_id: string
-        }[]
-      }
-      wms_location_occupancy: {
-        Args: { p_location_id: string }
-        Returns: {
-          distinct_lots: number
-          distinct_products: number
-          units: number
-          volume: number
-          weight: number
-        }[]
-      }
-      wms_location_path: { Args: { _location_id: string }; Returns: string }
-      wms_lpn_tree: {
-        Args: { _lpn_id: string }
-        Returns: {
-          id: string
-        }[]
-      }
-      wms_manifest_proof_status: {
-        Args: { p_manifest_id: string }
-        Returns: Json
-      }
-      wms_manifest_short_cartons: {
-        Args: { p_manifest_id: string }
-        Returns: string[]
-      }
-      wms_my_performance: {
-        Args: { _days?: number; _warehouse_id: string }
-        Returns: {
-          day: string
-          direct_seconds: number
-          earned_seconds: number
-          idle_seconds: number
-          indirect_seconds: number
-          tasks_completed: number
-          true_utilisation: number
-        }[]
-      }
-      wms_open_tasks_for_document: {
-        Args: { _source_doc_id: string; _source_doc_type: string }
-        Returns: Json
-      }
-      wms_operator_eligibility_enforced: {
-        Args: { _warehouse_id: string }
-        Returns: boolean
-      }
-      wms_operator_scorecard: {
-        Args: { _from?: string; _to?: string; _warehouse_id?: string }
-        Returns: {
-          direct_seconds: number
-          earned_seconds: number
-          idle_seconds: number
-          incentive_eligible: boolean
-          indirect_seconds: number
-          operator_code: string
-          operator_id: string
-          operator_name: string
-          performance_pct: number
-          performance_variance: number
-          target_performance_pct: number
-          target_utilisation_pct: number
-          tasks_completed: number
-          user_id: string
-          utilisation_pct: number
-          utilisation_variance: number
-          warehouse_id: string
-        }[]
-      }
-      wms_packaging_class_to_lpn_type: {
-        Args: { _class: Database["public"]["Enums"]["wms_packaging_class"] }
-        Returns: Database["public"]["Enums"]["wms_lpn_type"]
-      }
-      wms_packaging_fits_item: {
-        Args: {
-          p_inner_h: number
-          p_inner_l: number
-          p_inner_w: number
-          p_item_h: number
-          p_item_l: number
-          p_item_w: number
-        }
-        Returns: boolean
-      }
-      wms_resolve_receiving_staging_location: {
-        Args: { p_warehouse_id: string }
-        Returns: string
-      }
-      wms_sscc_build: {
-        Args: {
-          p_company_prefix: string
-          p_extension_digit: number
-          p_serial: number
-        }
-        Returns: string
-      }
-      wms_sscc_is_valid: { Args: { p_sscc: string }; Returns: boolean }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"
