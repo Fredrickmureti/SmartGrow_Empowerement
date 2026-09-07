@@ -349,7 +349,7 @@ function scrubContextByCapabilities(
 
 // Fetch financial context for the organization with branch filtering
 async function getFinancialContext(
-  supabaseClient: any, 
+  supabaseClient: any,
   organizationId: string,
   businessId?: string,
   branchId?: string,
@@ -364,24 +364,6 @@ async function getFinancialContext(
   try {
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    // Build POS transactions query based on access level
-    let posTransactionsQuery = supabaseClient
-      .from("pos_transactions")
-      .select(`
-        id, transaction_number, total, payment_status, created_at,
-        register:pos_registers(id, register_code, branch_id, branch:branches(id, name))
-      `)
-      .eq("organization_id", organizationId)
-      .gte("created_at", sevenDaysAgo)
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    // For non-admin users, filter by accessible branches
-    if (!isAdmin && branchIds.length > 0) {
-      // We'll filter client-side since the nested filter is complex
-    }
 
     // Helper to conditionally add business_id filter
     const biz = (query: any) => {
@@ -389,31 +371,36 @@ async function getFinancialContext(
       return query;
     };
 
-    // Fetch all data in parallel - extended to include all system data
+    // The microfinance chain is business-scoped (no organization_id column), so
+    // resolve the businesses of this organization first and narrow by them.
+    const orgBusinessIds: string[] = businessId
+      ? [businessId]
+      : (((await supabaseClient
+            .from("businesses")
+            .select("id")
+            .eq("organization_id", organizationId)).data) || []).map((b: any) => b.id);
+
+    /** Scope a business-only table to the caller's permitted businesses. */
+    const mfi = (query: any) =>
+      orgBusinessIds.length > 0 ? query.in("business_id", orgBusinessIds) : query.eq("business_id", "00000000-0000-0000-0000-000000000000");
+
     const [
       orgResult,
       bankResult,
-      invoicesResult,
       expensesResult,
       paymentsResult,
-      billsResult,
       contactsResult,
-      productsResult,
-      lowStockResult,
       employeesResult,
-      leaveRequestsResult,
-      projectsResult,
-      projectTasksResult,
-      crmLeadsResult,
       fixedAssetsResult,
-      posTransactionsResult,
-      estimatesResult,
-      salesOrdersResult,
-      creditNotesResult,
-      purchaseOrdersResult,
       accountsResult,
       branchesResult,
       businessResult,
+      clientsResult,
+      activeClientsCountResult,
+      loansResult,
+      activeLoansResult,
+      applicationsResult,
+      repaymentsResult,
     ] = await Promise.all([
       // Organization info
       supabaseClient
@@ -421,7 +408,7 @@ async function getFinancialContext(
         .select("name, email, phone, address, city, country")
         .eq("id", organizationId)
         .single(),
-      
+
       // Bank account identity only. Balances NEVER come from a column here —
       // they come from the `bank_account_positions` projection below.
       biz(supabaseClient
@@ -430,19 +417,6 @@ async function getFinancialContext(
         .eq("organization_id", organizationId)
         .eq("is_active", true)),
 
-      
-      // Recent invoices (last 30 days + all unpaid)
-      biz(supabaseClient
-        .from("invoices")
-        .select(`
-          id, invoice_number, status, total, amount_paid, due_date, issue_date,
-          contact:contacts(name, company, email)
-        `)
-        .eq("organization_id", organizationId)
-        .or(`issue_date.gte.${thirtyDaysAgo},status.in.(draft,sent,overdue,partial)`)
-        .order("issue_date", { ascending: false })
-        .limit(50)),
-      
       // Recent expenses (last 30 days)
       biz(supabaseClient
         .from("expenses")
@@ -455,60 +429,23 @@ async function getFinancialContext(
         .gte("expense_date", thirtyDaysAgo)
         .order("expense_date", { ascending: false })
         .limit(50)),
-      
-      // Recent payments received (last 30 days)
+
+      // Recent payments (last 30 days)
       biz(supabaseClient
         .from("payments")
-        .select(`
-          id, amount, payment_date, payment_method, receipt_number,
-          contact:contacts(name),
-          invoice:invoices(invoice_number)
-        `)
+        .select("id, amount, payment_date, payment_method, receipt_number, contact_id")
         .eq("organization_id", organizationId)
         .gte("payment_date", thirtyDaysAgo)
         .order("payment_date", { ascending: false })
         .limit(30)),
-      
-      // Pending bills
-      biz(supabaseClient
-        .from("bills")
-        .select(`
-          id, bill_number, total, amount_paid, due_date, status,
-          vendor:contacts(name, company)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["draft", "pending", "partial", "overdue"])
-        .order("due_date", { ascending: true })
-        .limit(30)),
-      
-      // Top contacts
+
+      // Top contacts (vendors / other parties)
       biz(supabaseClient
         .from("contacts")
         .select("id, name, company, email, type")
         .eq("organization_id", organizationId)
         .eq("is_active", true)
         .limit(20)),
-
-      // Products summary. NOTE: the physical columns are `unit_price` and
-      // `stock_quantity` — the older `selling_price`/`quantity_on_hand` names
-      // do not exist and made this whole query (and therefore the assistant's
-      // product knowledge) come back empty.
-      biz(supabaseClient
-        .from("products")
-        .select("id, name, sku, type, unit_price, cost_price, stock_quantity, reorder_level, track_inventory, is_lot_tracked, is_expiry_tracked, is_serial_tracked, is_active")
-        .eq("organization_id", organizationId)
-        .eq("is_active", true)
-        .limit(200)),
-
-      // Low stock products
-      biz(supabaseClient
-        .from("products")
-        .select("id, name, sku, stock_quantity, reorder_level")
-        .eq("organization_id", organizationId)
-        .eq("is_active", true)
-        .eq("track_inventory", true)
-        .limit(200)),
-
 
       // Employees
       biz(supabaseClient
@@ -518,106 +455,13 @@ async function getFinancialContext(
         .eq("status", "active")
         .limit(50)),
 
-      // Leave requests (pending)
-      supabaseClient
-        .from("leave_requests")
-        .select(`
-          id, leave_type, start_date, end_date, status, reason,
-          employee:employees(first_name, last_name, branch_id)
-        `)
-        .eq("organization_id", organizationId)
-        .eq("status", "pending")
-        .order("created_at", { ascending: false })
-        .limit(20),
-
-      // Projects
-      biz(supabaseClient
-        .from("projects")
-        .select("id, name, status, budget, start_date, deadline, progress")
-        .eq("organization_id", organizationId)
-        .in("status", ["planning", "in_progress", "on_hold"])
-        .order("deadline", { ascending: true })
-        .limit(20)),
-
-      // Project tasks (pending/in progress)
-      supabaseClient
-        .from("project_tasks")
-        .select(`
-          id, name, status, priority, due_date,
-          project:projects(name)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["todo", "in_progress"])
-        .order("due_date", { ascending: true })
-        .limit(30),
-
-      // CRM Leads
-      supabaseClient
-        .from("crm_leads")
-        .select("id, name, email, status, stage_id, expected_revenue, probability, created_at, crm_stages(name)")
-        .eq("organization_id", organizationId)
-        .eq("is_active", true)
-        .not("status", "in", "(won,lost)")
-        .order("expected_revenue", { ascending: false })
-        .limit(20),
-
-      // Fixed Assets
+      // Fixed assets
       biz(supabaseClient
         .from("fixed_assets")
         .select("id, name, asset_number, purchase_price, current_value, status, purchase_date")
         .eq("organization_id", organizationId)
         .eq("status", "active")
         .limit(30)),
-
-      // POS Transactions (last 7 days) - includes branch info
-      posTransactionsQuery,
-
-      // Estimates (pending/sent)
-      biz(supabaseClient
-        .from("estimates")
-        .select(`
-          id, estimate_number, status, total, valid_until,
-          contact:contacts(name, company)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["draft", "sent"])
-        .order("valid_until", { ascending: true })
-        .limit(20)),
-
-      // Sales Orders (pending)
-      biz(supabaseClient
-        .from("sales_orders")
-        .select(`
-          id, order_number, status, total, order_date,
-          contact:contacts(name, company)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["draft", "confirmed", "processing"])
-        .order("order_date", { ascending: false })
-        .limit(20)),
-
-      // Credit Notes
-      biz(supabaseClient
-        .from("credit_notes")
-        .select(`
-          id, credit_note_number, status, total, amount_applied,
-          contact:contacts(name, company)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["draft", "issued"])
-        .limit(20)),
-
-      // Purchase Orders (pending)
-      biz(supabaseClient
-        .from("purchase_orders")
-        .select(`
-          id, po_number, status, total, expected_delivery_date,
-          vendor:contacts(name, company)
-        `)
-        .eq("organization_id", organizationId)
-        .in("status", ["draft", "sent", "confirmed"])
-        .order("expected_delivery_date", { ascending: true })
-        .limit(20)),
 
       // Accounts summary
       supabaseClient
@@ -643,63 +487,81 @@ async function getFinancialContext(
             .eq("id", businessId)
             .single()
         : Promise.resolve({ data: null }),
+
+      // ─── Microfinance: recently onboarded clients ───
+      mfi(supabaseClient
+        .from("mf_clients")
+        .select("id, client_number, full_name, status, joined_on, completed_cycles, branch_id")
+        .order("created_at", { ascending: false })
+        .limit(30)),
+
+      // Active client count (exact, not a page)
+      mfi(supabaseClient
+        .from("mf_clients")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "active")),
+
+      // Recent loans
+      mfi(supabaseClient
+        .from("mf_loans")
+        .select("id, loan_number, client_id, status, currency_code, principal, term_installments, repayment_frequency, interest_method, interest_rate, disbursed_at, branch_id")
+        .order("created_at", { ascending: false })
+        .limit(50)),
+
+      // Active loan book (for portfolio counts / disbursed principal)
+      mfi(supabaseClient
+        .from("mf_loans")
+        .select("id, principal, currency_code, status")
+        .eq("status", "active")
+        .limit(1000)),
+
+      // Applications still in the pipeline
+      mfi(supabaseClient
+        .from("mf_loan_applications")
+        .select("id, application_number, client_id, status, requested_amount, approved_amount, submitted_at, branch_id")
+        .in("status", ["submitted", "under_review", "approved"])
+        .order("submitted_at", { ascending: false })
+        .limit(30)),
+
+      // Repayment receipts, last 30 days
+      mfi(supabaseClient
+        .from("mf_repayments")
+        .select("id, receipt_number, loan_id, client_id, paid_on, amount, method, status, branch_id")
+        .gte("paid_on", thirtyDaysAgo)
+        .order("paid_on", { ascending: false })
+        .limit(200)),
     ]);
 
-    // Calculate summary metrics
     const bankAccounts = bankResult.data || [];
-    const invoices = invoicesResult.data || [];
     const expenses = expensesResult.data || [];
     const payments = paymentsResult.data || [];
-    const bills = billsResult.data || [];
-    const products = productsResult.data || [];
-    const lowStockProducts = (lowStockResult.data || [])
-      .filter((p: any) => Number(p.stock_quantity ?? 0) <= Number(p.reorder_level ?? 0))
-      .slice(0, 50);
-
+    const contacts = contactsResult.data || [];
     let employees = employeesResult.data || [];
-    let leaveRequests = leaveRequestsResult.data || [];
-    const projects = projectsResult.data || [];
-    const projectTasks = projectTasksResult.data || [];
-    const crmLeads = crmLeadsResult.data || [];
     const fixedAssets = fixedAssetsResult.data || [];
-    let posTransactions = posTransactionsResult.data || [];
-    const estimates = estimatesResult.data || [];
-    const salesOrders = salesOrdersResult.data || [];
-    const creditNotes = creditNotesResult.data || [];
-    const purchaseOrders = purchaseOrdersResult.data || [];
     const accounts = accountsResult.data || [];
     const branches = branchesResult.data || [];
 
+    let clients = clientsResult.data || [];
+    let loans = loansResult.data || [];
+    const activeLoans = activeLoansResult.data || [];
+    let applications = applicationsResult.data || [];
+    let repayments = (repaymentsResult.data || []).filter((r: any) => r.status !== "reversed");
+
     // Apply branch filtering for non-admin users. FAIL CLOSED: with no viewable
-    // branch the caller sees no branch-scoped rows — the old `length > 0` guard
-    // skipped filtering entirely and leaked every branch to an unassigned user.
+    // branch the caller sees no branch-scoped rows.
     if (!isAdmin) {
-      // Filter POS transactions by branch
-      posTransactions = posTransactions.filter((t: any) => 
-        t.register?.branch_id && branchIds.includes(t.register.branch_id)
-      );
-
-      // Filter employees by branch (branch-less records stay company-wide)
-      employees = employees.filter((e: any) => 
-        !e.branch_id || branchIds.includes(e.branch_id)
-      );
-
-      // Filter leave requests by employee's branch
-      leaveRequests = leaveRequests.filter((lr: any) => 
-        !lr.employee?.branch_id || branchIds.includes(lr.employee.branch_id)
-      );
+      const inBranch = (row: any) => !row.branch_id || branchIds.includes(row.branch_id);
+      employees = employees.filter(inBranch);
+      clients = clients.filter(inBranch);
+      loans = loans.filter(inBranch);
+      applications = applications.filter(inBranch);
+      repayments = repayments.filter(inBranch);
     }
-
 
     // ─── Ledger-grounded financial truth ───────────────────────────────────
     // Every money figure below comes from a sanctioned projection, and a failed
     // read stays `null` (rendered as "unavailable") instead of collapsing to 0.
-    const businessesForCash: string[] = businessId
-      ? [businessId]
-      : (((await supabaseClient
-            .from("businesses")
-            .select("id")
-            .eq("organization_id", organizationId)).data) || []).map((b: any) => b.id);
+    const businessesForCash: string[] = orgBusinessIds;
 
     const [bankPositions, ledger, receivables, payables] = await Promise.all([
       fetchBankPositions(supabaseClient, businessesForCash, today),
@@ -717,39 +579,26 @@ async function getFinancialContext(
     const recentRevenue = ledger.ok ? ledger.value.revenue : null;
     const recentExpensesTotal = ledger.ok ? ledger.value.expenses : null;
 
-
-    // Calculate today's POS sales
-    const todayStart = new Date().toISOString().split('T')[0];
-    const todayPOSSales = posTransactions
-      .filter((t: any) => t.created_at.startsWith(todayStart) && t.payment_status === 'completed')
-      .reduce((sum: number, t: any) => sum + (t.total || 0), 0);
-
     // Calculate total asset value
     const totalAssetValue = fixedAssets.reduce((sum: number, a: any) => sum + (a.current_value || 0), 0);
 
-    // Store branches and admin context for prompt building
+    // Microfinance aggregates
+    const activePrincipal = activeLoans.reduce((sum: number, l: any) => sum + Number(l.principal ?? 0), 0);
+    const repaymentsLast30 = repayments.reduce((sum: number, r: any) => sum + Number(r.amount ?? 0), 0);
+
     const contextData = {
       organization: orgResult.data,
       bankAccounts,
-      recentInvoices: invoices,
       recentExpenses: expenses,
       recentPayments: payments,
-      pendingBills: bills,
-      contacts: contactsResult.data || [],
-      products,
-      lowStockProducts,
+      contacts,
       employees,
-      leaveRequests,
-      projects,
-      projectTasks,
-      crmLeads,
       fixedAssets,
-      posTransactions,
-      estimates,
-      salesOrders,
-      creditNotes,
-      purchaseOrders,
       accounts,
+      clients,
+      loans,
+      applications,
+      repayments,
       summary: {
         totalBankBalance,
         totalReceivables,
@@ -757,14 +606,13 @@ async function getFinancialContext(
         overdueReceivables,
         recentRevenue,
         recentExpenses: recentExpensesTotal,
-        totalProducts: products.length,
-        lowStockCount: lowStockProducts.length,
         totalEmployees: employees.length,
-        pendingLeaveRequests: leaveRequests.length,
-        activeProjects: projects.length,
-        openLeads: crmLeads.length,
         totalAssetValue,
-        todayPOSSales,
+        totalClients: activeClientsCountResult?.count ?? clients.length,
+        activeLoans: activeLoans.length,
+        activePrincipal,
+        pendingApplications: applications.length,
+        repaymentsLast30,
       },
       // Ledger-grounded reads (Result-typed: a failed read is reported, never zeroed)
       _bankPositions: bankPositions,
@@ -772,7 +620,6 @@ async function getFinancialContext(
       _receivables: receivables,
       _payables: payables,
       // Extra data for branch-aware prompts
-
       _branches: branches,
       _isAdmin: isAdmin,
       _branchIds: branchIds,
@@ -787,6 +634,7 @@ async function getFinancialContext(
     return null;
   }
 }
+
 
 // Build context string for AI with branch awareness
 function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCurrencyContext): string {
