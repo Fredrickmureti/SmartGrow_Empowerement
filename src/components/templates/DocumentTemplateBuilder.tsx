@@ -97,7 +97,7 @@ export function DocumentTemplateBuilder({
                 id="document-title"
                 value={settings.document_title_format || ''}
                 onChange={(e) => handleChange("document_title_format", e.target.value)}
-                placeholder="e.g., INVOICE, TAX INVOICE"
+                placeholder="e.g., REPAYMENT RECEIPT, LOAN STATEMENT"
               />
             </div>
           </div>
