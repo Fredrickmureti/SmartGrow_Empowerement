@@ -46,26 +46,37 @@ const corsHeaders = {
 // rendering buttons; the server lists them in the system prompt so the
 // model only emits ids that resolve.
 const ROUTE_CATALOG_ENTRIES: Array<{ id: string; label: string; path: string; description: string }> = [
-  { id: "payroll.overview",        label: "Payroll Overview",        path: "/hr/payroll",                              description: "Payroll dashboard: readiness, next pay run, pending issues." },
-  { id: "payroll.runs",            label: "Payroll Runs",            path: "/hr/payroll/runs",                         description: "List of pay runs / batches." },
-  { id: "payroll.payslips",        label: "Payslips",                path: "/hr/payroll/payslips",                     description: "Generated payslips, statuses, downloads." },
-  { id: "payroll.payments",        label: "Payroll Payments",        path: "/hr/payroll/payments",                     description: "Mark payroll as paid; payment batches." },
-  { id: "payroll.gl_mappings",     label: "GL Account Mapping",      path: "/hr/payroll/configuration/accounts",       description: "Map every payroll posting key to a chart-of-accounts entry." },
-  { id: "payroll.salary_structures", label: "Salary Structures",     path: "/hr/payroll/configuration/structures",     description: "Define salary structures and rules." },
-  { id: "payroll.statutory_rules", label: "Statutory Rules",         path: "/hr/payroll/statutory-rules",              description: "Active country-specific statutory rules." },
-  { id: "payroll.configuration",   label: "Payroll Configuration",   path: "/hr/payroll/configuration",                description: "All payroll settings: schedules, structures, accounts." },
-  { id: "payroll.setup",           label: "Payroll Setup",           path: "/hr/payroll/setup",                        description: "Guided payroll setup wizard." },
-  { id: "payroll.loans",           label: "Employee Loans",          path: "/hr/payroll/loans",                        description: "Employee loan records and recoveries." },
-  { id: "payroll.remittances",     label: "Remittance Tracking",     path: "/hr/remittances",                          description: "Statutory remittances per period." },
-  { id: "hr.employees",            label: "Employees",               path: "/hr/employees",                            description: "Employee directory and records." },
-  { id: "hr.attendance",           label: "Attendance",              path: "/hr/attendance",                           description: "Attendance records and check-ins." },
-  { id: "hr.time_off",             label: "Time Off",                path: "/hr/leave",                                description: "Leave requests, balances, approvals." },
-  { id: "finance.chart_of_accounts", label: "Chart of Accounts",     path: "/finance/accounts",                        description: "All ledger accounts." },
-  { id: "finance.journals",        label: "Journal Entries",         path: "/finance/journal-entries",                 description: "All posted and draft journal entries." },
-  { id: "settings.localization",   label: "Localization Settings",   path: "/settings/workspace?tab=localization", description: "Configure country localization for this workspace (currency, date format, statutory pack selection)." },
-  { id: "settings.access_groups",  label: "Access Groups",           path: "/settings/workspace?tab=access-groups", description: "Roles and permissions for users in this workspace." },
-  { id: "settings.businesses",     label: "Companies & Branches",    path: "/settings/company?tab=company",        description: "Multi-business / branch configuration." },
-  { id: "apps.marketplace",        label: "Apps Marketplace",        path: "/apps",                                    description: "Browse, install, and configure apps." },
+  // Lending
+  { id: "lending.clients",       label: "Borrowers",            path: "/lending",                            description: "Borrower directory, KYC records and loan history." },
+  { id: "lending.groups",        label: "Groups",               path: "/lending/groups",                     description: "Groups and centres, membership and meeting schedules." },
+  { id: "lending.applications",  label: "Loan Applications",    path: "/lending/applications",               description: "Applications with assessment and approval status." },
+  { id: "lending.loans",         label: "Loans",                path: "/lending/loans",                      description: "Loan accounts, schedules and balances." },
+  { id: "lending.repayments",    label: "Repayments",           path: "/lending/repayments",                 description: "Recorded repayments, receipts and allocations." },
+  { id: "lending.collections",   label: "Collections",          path: "/lending/collections",                description: "Officer collection sheets and follow-up." },
+  { id: "lending.products",      label: "Loan Products",        path: "/lending/products",                   description: "Loan product master data: terms, interest, fees, penalties." },
+  { id: "lending.accounting_config", label: "Lending Accounting Mapping", path: "/lending/configuration/accounting", description: "Map lending events to chart-of-accounts entries." },
+  { id: "lending.reports_portfolio",        label: "Portfolio Report",     path: "/lending/reports/portfolio",        description: "Portfolio composition and outstanding principal." },
+  { id: "lending.reports_arrears",          label: "Arrears Report",       path: "/lending/reports/arrears",          description: "Loans in arrears with days overdue." },
+  { id: "lending.reports_par_aging",        label: "PAR Ageing",           path: "/lending/reports/par-aging",        description: "Portfolio at risk by ageing bucket." },
+  { id: "lending.reports_collections",      label: "Collections Report",   path: "/lending/reports/collections",      description: "Collections by period, branch and officer." },
+  { id: "lending.reports_disbursements",    label: "Disbursements Report", path: "/lending/reports/disbursements",    description: "Disbursements by period, branch and product." },
+  { id: "lending.reports_client_statement", label: "Client Statement",     path: "/lending/reports/client-statement", description: "Statement of a borrower's loans and repayments." },
+  // Finance
+  { id: "finance.dashboard",         label: "Finance Dashboard",  path: "/finance/dashboard",       description: "Cash, ledger and period overview." },
+  { id: "finance.chart_of_accounts", label: "Chart of Accounts",  path: "/finance/accounts",        description: "All ledger accounts." },
+  { id: "finance.journals",          label: "Journal Entries",    path: "/finance/journal-entries", description: "All posted and draft journal entries." },
+  { id: "finance.banking",           label: "Banking",            path: "/finance/banking",         description: "Bank accounts and bank transactions." },
+  { id: "finance.reconciliation",    label: "Bank Reconciliation", path: "/finance/reconciliation", description: "Match bank transactions to recorded payments." },
+  { id: "finance.fiscal_periods",    label: "Fiscal Periods",     path: "/finance/fiscal-periods",  description: "Open and close accounting periods." },
+  { id: "finance.reports",           label: "Financial Reports",  path: "/finance/reports",         description: "Trial balance, P&L, balance sheet and ledgers." },
+  { id: "finance.settings",          label: "Finance Settings",   path: "/finance/settings",        description: "Default GL accounts and accounting configuration." },
+  // Settings
+  { id: "settings.access_groups",    label: "Access Groups",      path: "/settings/workspace?tab=access-groups", description: "Roles and permissions for users in this workspace." },
+  { id: "settings.businesses",       label: "Companies & Branches", path: "/settings/company?tab=company",       description: "Institution and branch configuration." },
+  { id: "settings.numbering",        label: "Document Numbering", path: "/settings/company?tab=numbering",       description: "Prefixes and formats for client, loan, application and receipt numbers." },
+  { id: "settings.payment_channels", label: "Payment Channels",   path: "/settings/company?tab=payments",        description: "Cash, M-Pesa PayBill and bank collection channels." },
+  { id: "settings.audit_logs",       label: "Audit Logs",         path: "/settings/audit-logs",                  description: "Who changed what, and when." },
+  { id: "apps.marketplace",          label: "Apps Marketplace",   path: "/apps",                                 description: "Browse, install, and configure apps." },
 ];
 
 const ROUTE_CATALOG_PROMPT = [
@@ -81,9 +92,7 @@ Each action line MUST be on its own line and MUST start with the literal prefix 
 Supported action types:
 1) Navigate (path_id MUST come from AVAILABLE_NAVIGATION_TARGETS):
    ::action {"type":"open_path","path_id":"<id>","label":"<button text>"}
-2) Open the GL mapping fixer dialog (when payroll posting is blocked by missing mappings):
-   ::action {"type":"fix_gl_mappings","label":"Fix payroll mappings now"}
-3) Open the install/activate dialog for an app:
+2) Open the install/activate dialog for an app:
    ::action {"type":"open_install_dialog","app_id":"<app id>","label":"Install <App>"}
 
 Rules:
@@ -93,94 +102,6 @@ Rules:
 - Do not wrap action lines in code fences.
 `.trim();
 
-/**
- * Pull a *live* payroll diagnostics snapshot for the current org so the
- * assistant can answer "why won't payroll post?" without asking.
- */
-async function buildPayrollDiagnostics(
-  supabaseClient: any,
-  orgId: string,
-  businessId?: string,
-): Promise<string | null> {
-  try {
-    const [{ data: readiness }, { data: setup }, { data: packs }] = await Promise.all([
-      supabaseClient.rpc("payroll_gl_readiness", { _org_id: orgId, _business_id: businessId ?? null }),
-      supabaseClient
-        .from("app_setup_status")
-        .select("status, blocking_reasons")
-        .eq("organization_id", orgId)
-        .eq("app_id", "payroll")
-        .maybeSingle(),
-      supabaseClient
-        .from("installed_localization_packs")
-        .select("pack_id, pack_version, status, localization_packs(name, country_code)")
-        .eq("organization_id", orgId)
-        .eq("status", "active"),
-    ]);
-
-    const missing = (readiness ?? []).filter((r: any) => !r.is_mapped);
-    const totalKeys = (readiness ?? []).length;
-    const installedSummary = (packs ?? [])
-      .map((p: any) => `${p.localization_packs?.name ?? p.pack_id} (${p.localization_packs?.country_code ?? "?"}) v${p.pack_version}`)
-      .join(", ") || "none";
-
-    // ── Latest blocked / approved-but-unposted run, if any ──
-    let blockedLine = "- No blocked payroll runs.";
-    let blockedActionHint = "";
-    try {
-      let runQuery = supabaseClient
-        .from("payroll_runs")
-        .select("id, payroll_number, status, business_id")
-        .eq("organization_id", orgId)
-        .in("status", ["approved", "posting_failed"])
-        .order("updated_at", { ascending: false })
-        .limit(1);
-      if (businessId) runQuery = runQuery.eq("business_id", businessId);
-      const { data: blockedRuns } = await runQuery;
-      const blocked = (blockedRuns ?? [])[0];
-      if (blocked) {
-        const { data: validation } = await supabaseClient.rpc(
-          "validate_payroll_run_mappings",
-          { p_run_id: blocked.id },
-        );
-        const ok = !!validation?.ok;
-        const missingKeys: string[] = validation?.missing_keys ?? [];
-        if (!ok) {
-          blockedLine =
-            `- Latest blocked run: ${blocked.payroll_number} (${blocked.id}), status=${blocked.status}, ` +
-            `${missingKeys.length} missing mapping(s): ${missingKeys.slice(0, 10).join(", ")}`;
-          blockedActionHint =
-            `When the user asks why payroll won't post, propose action ` +
-            `\`fix_gl_mappings\` with payroll_run_id="${blocked.id}" so the dialog opens with run-specific rows.`;
-        } else {
-          blockedLine =
-            `- Latest unposted run: ${blocked.payroll_number} (${blocked.id}), status=${blocked.status}, ` +
-            `mappings OK — likely a different blocker (work entries, period lock, permission).`;
-        }
-      }
-    } catch (_) { /* swallow — diagnostics is best-effort */ }
-
-    return [
-      "LIVE_PAYROLL_DIAGNOSTICS:",
-      `- Installed localization packs: ${installedSummary}`,
-      `- Payroll setup status: ${setup?.status ?? "unknown"}`,
-      setup?.blocking_reasons?.length
-        ? `- Blocking reasons: ${JSON.stringify(setup.blocking_reasons)}`
-        : `- Blocking reasons: none`,
-      `- GL mapping keys total/missing (setup-wide): ${totalKeys} / ${missing.length}`,
-      missing.length
-        ? `- Missing mapping labels (setup-wide): ${missing.slice(0, 20).map((m: any) => m.label).join("; ")}`
-        : `- All setup-wide payroll GL mappings are configured.`,
-      blockedLine,
-      "",
-      "When the user is blocked by missing GL mappings, propose the action `fix_gl_mappings` AND link to `payroll.gl_mappings`.",
-      blockedActionHint,
-    ].filter(Boolean).join("\n");
-  } catch (e) {
-    console.error("buildPayrollDiagnostics failed:", e);
-    return null;
-  }
-}
 
 export interface WorkingContext {
   /** Route path the user was on when the turn was sent. */
@@ -195,7 +116,7 @@ export interface WorkingContext {
 }
 
 interface AIRequest {
-  type: "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions" | "email_assist" | "match_transactions" | "document_text";
+  type: "categorize_expense" | "financial_insights" | "chat" | "suggest_actions" | "email_assist";
   data?: Record<string, any>;
   messages?: Array<{ role: string; content: string }>;
   organizationId?: string;
@@ -236,26 +157,17 @@ interface ApiKeyConfig {
 interface FinancialContext {
   organization: any;
   bankAccounts: any[];
-  recentInvoices: any[];
   recentExpenses: any[];
   recentPayments: any[];
-  pendingBills: any[];
   contacts: any[];
-  // Extended data
-  products: any[];
-  lowStockProducts: any[];
   employees: any[];
-  leaveRequests: any[];
-  projects: any[];
-  projectTasks: any[];
-  crmLeads: any[];
   fixedAssets: any[];
-  posTransactions: any[];
-  estimates: any[];
-  salesOrders: any[];
-  creditNotes: any[];
-  purchaseOrders: any[];
   accounts: any[];
+  // Microfinance core
+  clients: any[];
+  loans: any[];
+  applications: any[];
+  repayments: any[];
   summary: {
     // `null` means the sanctioned read failed. It is rendered as
     // "unavailable" — never as 0, which the model would quote as fact.
@@ -266,15 +178,15 @@ interface FinancialContext {
     recentRevenue: number | null;
     recentExpenses: number | null;
 
-    // Extended summaries
-    totalProducts: number;
-    lowStockCount: number;
     totalEmployees: number;
-    pendingLeaveRequests: number;
-    activeProjects: number;
-    openLeads: number;
     totalAssetValue: number;
-    todayPOSSales: number;
+
+    // Lending aggregates
+    totalClients: number | null;
+    activeLoans: number | null;
+    activePrincipal: number | null;
+    pendingApplications: number | null;
+    repaymentsLast30: number | null;
   };
 }
 
@@ -283,46 +195,36 @@ function isAdminRole(role: string | undefined): boolean {
   return ['super_admin', 'owner', 'admin'].includes(role || '');
 }
 
-/** Which module each snapshot collection belongs to. */
+/** Which module each snapshot collection belongs to (keys of `AI_MODULES`). */
 const CONTEXT_FIELD_MODULE: Record<string, string> = {
-  bankAccounts: "financials",
-  recentExpenses: "financials",
-  accounts: "financials",
-  fixedAssets: "financials",
-  recentInvoices: "sales",
-  recentPayments: "sales",
-  estimates: "sales",
-  salesOrders: "sales",
-  creditNotes: "sales",
-  crmLeads: "sales",
-  pendingBills: "purchases",
-  purchaseOrders: "purchases",
-  contacts: "contacts",
-  products: "products",
-  lowStockProducts: "inventory",
-  posTransactions: "pos",
-  employees: "hr",
-  leaveRequests: "leave",
-  projects: "projects",
-  projectTasks: "projects",
+  bankAccounts: "treasury",
+  recentExpenses: "accounting",
+  recentPayments: "accounting",
+  accounts: "accounting",
+  fixedAssets: "accounting",
+  contacts: "clients",
+  employees: "team",
+  clients: "clients",
+  loans: "loans",
+  applications: "applications",
+  repayments: "repayments",
 };
 
 /** Summary figures that must be hidden with their module. */
 const CONTEXT_SUMMARY_MODULE: Record<string, string> = {
-  totalBankBalance: "financials",
-  recentExpenses: "financials",
-  totalAssetValue: "financials",
-  totalReceivables: "sales",
-  overdueReceivables: "sales",
-  recentRevenue: "sales",
-  openLeads: "sales",
-  totalPayables: "purchases",
-  totalProducts: "products",
-  lowStockCount: "inventory",
-  todayPOSSales: "pos",
-  totalEmployees: "hr",
-  pendingLeaveRequests: "leave",
-  activeProjects: "projects",
+  totalBankBalance: "treasury",
+  recentExpenses: "accounting",
+  recentRevenue: "accounting",
+  totalReceivables: "accounting",
+  overdueReceivables: "accounting",
+  totalPayables: "accounting",
+  totalAssetValue: "accounting",
+  totalEmployees: "team",
+  totalClients: "clients",
+  activeLoans: "loans",
+  activePrincipal: "loans",
+  pendingApplications: "applications",
+  repaymentsLast30: "repayments",
 };
 
 /**
@@ -867,23 +769,6 @@ Analyze the expense description and suggest the most appropriate category from t
 Return your response as JSON with structure:
 { "category": "Category Name", "confidence": 0.95, "reasoning": "Brief explanation" }`,
 
-  analyze_invoice: `You are an expert accountant AI assistant that analyzes invoices.
-Extract key information and provide insights about the invoice.
-Look for:
-- Payment terms and due date urgency
-- Unusual amounts or discrepancies
-- Potential duplicate invoices
-- Tax calculation accuracy
-- Suggestions for follow-up
-
-Return your response as JSON with structure:
-{
-  "summary": "Brief invoice summary",
-  "urgency": "low|medium|high",
-  "insights": ["insight 1", "insight 2"],
-  "warnings": ["warning 1"],
-  "recommendations": ["recommendation 1"]
-}`,
 
   financial_insights: `You are a senior financial analyst AI assistant with direct access to the organization's financial data.
 Analyze the provided real-time financial data and generate actionable insights.
@@ -914,335 +799,57 @@ Return JSON with structure:
   ]
 }`,
 
-  email_assist: `You are an expert business email writer. Your task is to improve or rewrite email messages for business documents like invoices, estimates, and quotes.
+  email_assist: `You are an expert business email writer for a Kenyan microfinance institution. Your task is to improve or rewrite messages that accompany lending documents (loan agreements, repayment schedules, loan and client statements, repayment receipts, repayment reminders).
 
 Rules:
 - Maintain the same core information and intent
-- Keep the message professional and appropriate for business communication
+- Keep the message professional, respectful and appropriate for a borrower
 - Output ONLY the improved email text, nothing else
 - Do not include explanations or commentary
-- Preserve any specific amounts, dates, or reference numbers mentioned`,
+- Preserve any specific amounts, dates, loan/receipt numbers mentioned`,
 
-  match_transactions: `You are an expert bank reconciliation AI assistant. Your task is to analyze bank transactions and match them with invoices, bills, or expenses.
 
-For each bank transaction, analyze:
-1. Transaction description and reference
-2. Amount (positive = credit/income, negative = debit/expense)
-3. Transaction date
 
-Compare against the provided list of pending invoices (for credits) and bills/expenses (for debits).
+  chat: `You are the AI assistant of a Kenyan, branch-based microfinance institution, with access to the institution's real-time operating data as provided below.
 
-Matching criteria:
-- Amount match (exact or close within 5%)
-- Description/reference similarity
-- Date proximity (transaction within reasonable time of invoice/bill date)
+IMPORTANT: Use the data context below. Do NOT ask the user for information that is already there.
+IMPORTANT: Every monetary value in the data context is prefixed with the workspace's ISO currency code (e.g. "KES 1,200.00"). You MUST reproduce that exact code. NEVER substitute "$", "USD" or any other symbol. Violating this rule is a critical error.
 
-Return your response as JSON with structure:
-{
-  "matches": [
-    {
-      "transaction_id": "uuid",
-      "matched_type": "invoice" | "bill" | "expense" | null,
-      "matched_entity_id": "uuid" | null,
-      "matched_entity_reference": "INV-001" | null,
-      "confidence": 0.95,
-      "reasoning": "Brief explanation of why this match was chosen"
-    }
-  ]
-}
+**WHAT YOU KNOW ABOUT:**
 
-If no confident match is found (confidence < 0.7), set matched_type and matched_entity_id to null.
-Be conservative - only suggest matches with high confidence.`,
+👤 **Borrowers & Groups**
+- Client records, client numbers, status, completed loan cycles, branch
+- Group membership (groups are the meeting/collection point; loans are individual)
 
-  chat: `You are AccrualFlow AI, an expert business management assistant with FULL ACCESS to the organization's complete real-time data.
+📝 **Loan Applications**
+- Applications in the pipeline: submitted, under review, approved but not yet disbursed
+- Requested vs approved amounts
 
-IMPORTANT: You have direct access to ALL system data provided below. Use actual numbers and specifics. Do NOT ask users for information that is already in the data context.
-IMPORTANT: Always use the organization's base currency as indicated in the data context for all monetary values. Never assume USD unless that is the configured base currency.
-CRITICAL CURRENCY RULE: Every monetary value in the data context is prefixed with the workspace's ISO currency code (e.g. "KES 1,200.00"). You MUST reproduce that exact ISO code in your responses. NEVER substitute "$", "USD", or any other symbol/code. If the workspace currency is KES, write "KES 0.00" — not "$0.00". Violating this rule is a critical error.
+🏦 **Loans**
+- Loan accounts: loan number, product terms, principal, term, repayment frequency, interest method and rate, disbursement date, status
+- Outstanding balances are NOT stored on the loan. Derive them from the schedule and repayments with the data tools, or point the user to the portfolio report. Never present disbursed principal as an outstanding balance.
 
-**YOUR KNOWLEDGE INCLUDES:**
+💵 **Repayments & Collections**
+- Repayment receipts with amount, method (cash, M-Pesa PayBill, bank), date, status
+- Reversed receipts are excluded from collection totals
 
-📊 **Financial Data:**
-- Bank accounts, balances, and cash flow
-- Invoices (sent, overdue, paid), payments received
-- Bills to pay, expenses by category
-- Credit notes and their applications
+💰 **Finance & Treasury**
+- Bank accounts and statement positions, unreconciled bank lines
+- Posted journal entries: income (interest, fees) and expenses, balances by account type
+- Receivables and payables open items, expenses by category, fixed assets
 
-🛒 **Sales & POS:**
-- Point of sale transactions and daily sales
-- Sales orders, estimates, proforma invoices
-- Delivery notes and customer orders
-
-📦 **Products & Inventory:**
-- Product catalog with pricing
-- Stock levels and low stock alerts
-- Warehouses and inventory locations
-
-👥 **HR & Employees:**
-- Employee directory and departments
-- Leave requests (pending, approved)
-- Timesheets and attendance
-
-📊 **Projects & CRM:**
-- Active projects with progress and deadlines
-- Project tasks and assignments
-- CRM leads and pipeline value
-- Customer activities and follow-ups
-
-🏢 **Fixed Assets:**
-- Asset register with valuations
-- Depreciation and maintenance records
-
-📒 **Accounting:**
-- Chart of accounts and balances
-- Journal entries and reconciliation
-
-🛠️ **Studio (Customization Platform) — COMPLETE GUIDE:**
-
-Studio is the system's customization engine (like Odoo Studio). It has 6 modules accessible via the top navigation at /studio:
-
-**1. Fields (/studio — default landing page)**
-Create and manage custom fields for any entity type. This is where you extend the data model.
-
-*Supported Entity Types:* Contact, Product, Invoice, Estimate, Sales Order, Purchase Order, Project, CRM Lead, Expense, Bill
-
-*Supported Field Types:*
-- **Text** — Single-line text input
-- **Number** — Numeric value (integers or decimals)
-- **Date** — Date picker (date only)
-- **DateTime** — Date and time picker
-- **Boolean** — Toggle switch (yes/no)
-- **Select** — Dropdown with predefined options (define value/label pairs when creating)
-- **MultiSelect** — Multiple selection from predefined options
-- **Related** — Link to another entity record
-- **Computed** — Calculated field based on formulas
-- **HTML** — Rich text / HTML content
-- **File** — File attachment
-
-*Field Properties (toggleable per field):*
-- **Required** — Must be filled before saving
-- **Visible** — Show/hide on forms
-- **Searchable** — Include in search results
-- **Filterable** — Available as a filter option in list views
-
-*How to create a custom field:*
-1. Go to Studio → Fields (the default tab)
-2. Select the entity type from the left sidebar (desktop) or dropdown (mobile)
-3. Click "Add Custom Field"
-4. Enter: Field Label, Field Type, Placeholder (optional), Help Text (optional)
-5. For Select/MultiSelect types: add option value-label pairs
-6. Toggle Required, Searchable, Filterable as needed
-7. Click Save
-
-*Document Field Placement (for document entity types only):*
-For Invoice, Estimate, Sales Order, Purchase Order, Bill, and Expense entities, a "Document Field Placement" section appears below the field list. This lets you drag custom fields into specific sections of printed documents:
-- **Header** — Near document number and date
-- **Customer Details** — Beside Bill To / Ship To
-- **After Items** — Below the line items table
-- **Notes Section** — With notes and payment info
-- **Footer** — At the bottom of the document
-- **Additional Info** — Separate info block (default placement)
-
-To place a field: drag it from one section and drop it into another. Click the X to remove it from a section (moves back to Additional Info).
-
-**2. Automations (/studio/automations)**
-Create event-driven or scheduled workflows that run automatically.
-
-*Trigger Types:*
-- **On Create** — Fires when a new record is created
-- **On Update** — Fires when a record is modified
-- **On Delete** — Fires when a record is deleted
-- **Time Based** — Fires on a schedule (interval, cron, specific time)
-- **Field Change** — Fires when a specific field value changes
-- **Webhook** — Fires when an external webhook is received
-- **Manual** — User-triggered (run on demand)
-
-*Action Types (steps that execute when triggered):*
-- **Update Record** — Modify fields on the triggering record or related records
-- **Create Record** — Create a new record in any entity
-- **Send Email** — Send an email notification
-- **Send Notification** — Send an in-app notification
-- **Webhook Call** — Make an HTTP request to an external URL
-- **Create Activity** — Schedule a follow-up activity
-- **Add Tag** — Apply a tag to the record
-- **Run Code** — Execute custom logic
-
-*How to create an automation:*
-1. Go to Studio → Automations
-2. Click "Create Automation" (or "Templates" to start from a pre-built template)
-3. Enter: Name, Description, Trigger type, Target Model (entity type)
-4. Click "Create & Configure" — this opens the Steps editor
-5. Add action steps: click "Add Step", choose action type, configure the action
-6. Each step runs in order; you can add multiple steps
-7. Toggle the automation on/off with the switch on the card
-8. Use "Copy" to duplicate an automation
-
-*Automation cards show:* trigger type badge, target model, active/inactive status, description. Active and inactive automations are grouped separately.
-
-**3. Views (/studio/views)**
-Create and manage saved views (list, kanban, pivot, chart, calendar, gantt) for any entity.
-
-*View Types:*
-- **List** — Traditional table/grid view with sortable columns
-- **Kanban** — Card-based board grouped by a field (like a pipeline)
-- **Pivot** — Pivot table for data analysis and aggregation
-- **Chart** — Visual charts (bar, line, pie) for data visualization
-- **Calendar** — Calendar-based view for date-driven records
-- **Gantt** — Timeline/Gantt chart for project planning
-
-*View Properties:*
-- **Name** — Display name for the view
-- **Shared** — Toggle to share with team or keep private
-- **Default** — Set as the default view for this entity type
-
-*How to create a view:*
-1. Go to Studio → Views
-2. Select the entity type from the dropdown
-3. Click "New View"
-4. Enter view name, select view type, toggle Shared/Default
-5. Click "Create View"
-6. To set as default later: use the ⋮ menu → "Set as Default"
-
-**4. Forms (/studio/forms)**
-Design custom form layouts with tabs, field groups, and column arrangements.
-
-*Layout Structure:*
-- **Tabs** — Top-level sections (e.g., "General", "Billing", "Notes")
-- **Groups** — Within each tab, groups organize fields (e.g., "Basic Information", "Address")
-- **Columns** — Each group can have 1, 2, 3, or 4 columns for field arrangement
-- **Fields** — Individual fields placed within groups
-
-*Field Width Overrides:* quarter, third, half, two-thirds, three-quarters, full
-
-*Field Overrides per Layout:*
-- Custom label (different from the field's default label)
-- Width override
-- Hidden (hide a field in this layout only)
-- Read-only (prevent editing in this layout)
-
-*Groups can be:* collapsible (with toggle) and optionally default-collapsed
-
-*How to create a form layout:*
-1. Go to Studio → Forms
-2. Select the entity type from the dropdown
-3. Click "New Layout"
-4. Enter layout name, toggle "Set as Default"
-5. Click "Create Layout" — creates with a default "General" tab and "Basic Information" group
-6. Expand the layout to see the tab/group preview
-7. Edit or delete layouts via the ⋮ menu
-
-**5. Reports (/studio/reports)**
-Design custom document templates using HTML/CSS with template variables.
-
-*Report Types:* Invoice, Estimate, Bill, Credit Note, Sales Order, Purchase Order, Receipt, Delivery Note
-
-*Template Editor has 4 tabs:*
-- **HTML** — Main body template with Handlebars-style variables
-- **CSS** — Custom styles for the template
-- **Header** — Repeating header content (appears on every page)
-- **Footer** — Repeating footer content (appears on every page)
-
-*Available Template Variables (insert from the left panel):*
-- **Company:** {{company_name}}, {{company_address}}, {{company_phone}}, {{company_email}}
-- **Document:** {{document_title}}, {{document_number}}, {{document_date}}, {{due_date}}
-- **Customer:** {{customer_name}}, {{customer_address}}, {{customer_email}}
-- **Items:** {{#each items}}...{{/each}} loop with {{description}}, {{quantity}}, {{unit_price}}, {{line_total}}
-- **Totals:** {{subtotal}}, {{tax_amount}}, {{total}}
-
-*Page Settings (right panel):*
-- Page Size: A4, Letter, Legal, A5
-- Orientation: Portrait, Landscape
-- Margins: Top, Right, Bottom, Left (in mm)
-
-*How to create a report template:*
-1. Go to Studio → Reports
-2. Click "New Template"
-3. Enter template name and select report type
-4. Click in the template list to open the editor
-5. Write HTML in the body tab, insert variables from the Fields panel on the left
-6. Add CSS for styling, set page size/orientation/margins in the right panel
-7. Click "Preview" to see the rendered output
-8. Click "Save Template"
-9. Set as default via the ⋮ menu; duplicate templates for variations
-
-**6. Scheduling (/studio/scheduling)**
-Automate report generation and delivery via email on recurring schedules.
-
-*Available Report Types for Scheduling:*
-Financial: Balance Sheet, Income Statement, Cash Flow Statement, Trial Balance
-Sales: Sales Summary, Invoice Aging, Customer Analysis
-Operations: Stock Report, Tax Report
-
-*Schedule Frequencies:*
-- Daily — runs every day at specified time
-- Weekly — runs on a specific day of the week at specified time
-- Monthly — runs on a specific day of the month (1-28) at specified time
-- Quarterly — runs quarterly at specified time
-- Test frequencies: Every 1 min, Every 5 min, Every 15 min (for testing)
-
-*Report Formats:* PDF, CSV, Excel
-*Include Charts:* Toggle to include visual charts in the report
-
-*Date Ranges:* Last 7 Days, Last 30 Days, This Month, Last Month, This Quarter, Last Quarter, This Year, Last Year
-
-*How to create a scheduled report:*
-1. Go to Studio → Scheduling
-2. Click "New Schedule"
-3. Fill in: Name, Report Type, Schedule (frequency + day/time), Format, Date Range
-4. Add recipient email addresses (comma-separated)
-5. Toggle "Include Charts" if desired
-6. Click Save
-7. Use "Send Now" to trigger an immediate send for testing
-8. View delivery history in the "History" tab
-9. Toggle active/inactive with the switch
-
-*Dashboard Stats:* Total Schedules, Active count, Sent This Month, Failed This Month
+👥 **Institution**
+- Branches, staff directory, company and branch configuration
 
 **HOW TO RESPOND:**
-- Use specific numbers from the data provided
-- Format responses with markdown for clarity
-- Be concise but thorough
-- Proactively offer insights when relevant
-- Suggest actions based on the data (e.g., follow up on overdue invoices)
-- When on Studio pages, provide step-by-step guidance with exact UI element references
-- For Studio questions, include the specific field types, trigger types, view types etc. from the lists above
+- Use specific numbers from the data provided; never estimate or carry a number over from a previous answer
+- If a figure is marked UNAVAILABLE, say so plainly and point the user to where it can be seen. Never substitute 0
+- Name the basis when it matters (statement position vs GL balance, disbursed principal vs outstanding balance, posted vs draft)
+- Format with markdown, be concise, and offer the relevant page as a navigation action when it helps
+- Operating model: staff-only branch microfinance. There is no borrower self-service portal, no online self-application, and no point-of-sale. Do not suggest any of those.
 
-You are friendly, professional, and deeply knowledgeable about business operations, accounting, and system customization.`,
+You are friendly, professional and knowledgeable about microfinance operations and accounting.`,
 
-  document_text_notes: `You are an expert business writer specializing in professional document notes for invoices, estimates, quotes, and sales orders.
-
-Your task is to generate or improve customer-facing notes that appear on business documents.
-
-Guidelines for notes:
-- Keep it concise (2-4 sentences maximum)
-- Be warm and professional
-- Thank the customer when appropriate
-- Include relevant delivery or service information if context is provided
-- Avoid legal jargon - that belongs in terms & conditions
-- Personalize with customer name if provided
-
-Output ONLY the note text, no explanations or formatting instructions.`,
-
-  document_text_terms: `You are an expert business writer specializing in professional terms and conditions for business documents.
-
-Your task is to generate or improve terms & conditions for invoices, estimates, quotes, and sales orders.
-
-Guidelines for terms:
-- Be clear and professional
-- Include payment terms if the document type requires it
-- Keep it reasonably concise (3-6 points or short paragraphs)
-- Cover key areas: payment terms, validity (for quotes), warranties/guarantees if applicable
-- Use professional but accessible language
-- Use plain numbered lines (1. 2. 3.) separated by line breaks for structure
-- Do NOT use markdown formatting: no asterisks, no hashes, no bold, no bullet dashes, no headers
-
-Document-specific guidance:
-- Estimates/Quotes: Include validity period, scope limitations, price change conditions
-- Invoices: Payment due date, late payment penalties, accepted payment methods
-- Sales Orders: Delivery terms, returns policy, order cancellation
-- Proforma: Validity, payment before delivery, subject to availability
-
-Output ONLY the terms text as clean plain text. No markdown, no explanations, no headers like "Terms & Conditions:".`
 };
 
 
