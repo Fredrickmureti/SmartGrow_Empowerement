@@ -92,9 +92,7 @@ Each action line MUST be on its own line and MUST start with the literal prefix 
 Supported action types:
 1) Navigate (path_id MUST come from AVAILABLE_NAVIGATION_TARGETS):
    ::action {"type":"open_path","path_id":"<id>","label":"<button text>"}
-2) Open the GL mapping fixer dialog (when payroll posting is blocked by missing mappings):
-   ::action {"type":"fix_gl_mappings","label":"Fix payroll mappings now"}
-3) Open the install/activate dialog for an app:
+2) Open the install/activate dialog for an app:
    ::action {"type":"open_install_dialog","app_id":"<app id>","label":"Install <App>"}
 
 Rules:
@@ -104,94 +102,6 @@ Rules:
 - Do not wrap action lines in code fences.
 `.trim();
 
-/**
- * Pull a *live* payroll diagnostics snapshot for the current org so the
- * assistant can answer "why won't payroll post?" without asking.
- */
-async function buildPayrollDiagnostics(
-  supabaseClient: any,
-  orgId: string,
-  businessId?: string,
-): Promise<string | null> {
-  try {
-    const [{ data: readiness }, { data: setup }, { data: packs }] = await Promise.all([
-      supabaseClient.rpc("payroll_gl_readiness", { _org_id: orgId, _business_id: businessId ?? null }),
-      supabaseClient
-        .from("app_setup_status")
-        .select("status, blocking_reasons")
-        .eq("organization_id", orgId)
-        .eq("app_id", "payroll")
-        .maybeSingle(),
-      supabaseClient
-        .from("installed_localization_packs")
-        .select("pack_id, pack_version, status, localization_packs(name, country_code)")
-        .eq("organization_id", orgId)
-        .eq("status", "active"),
-    ]);
-
-    const missing = (readiness ?? []).filter((r: any) => !r.is_mapped);
-    const totalKeys = (readiness ?? []).length;
-    const installedSummary = (packs ?? [])
-      .map((p: any) => `${p.localization_packs?.name ?? p.pack_id} (${p.localization_packs?.country_code ?? "?"}) v${p.pack_version}`)
-      .join(", ") || "none";
-
-    // ── Latest blocked / approved-but-unposted run, if any ──
-    let blockedLine = "- No blocked payroll runs.";
-    let blockedActionHint = "";
-    try {
-      let runQuery = supabaseClient
-        .from("payroll_runs")
-        .select("id, payroll_number, status, business_id")
-        .eq("organization_id", orgId)
-        .in("status", ["approved", "posting_failed"])
-        .order("updated_at", { ascending: false })
-        .limit(1);
-      if (businessId) runQuery = runQuery.eq("business_id", businessId);
-      const { data: blockedRuns } = await runQuery;
-      const blocked = (blockedRuns ?? [])[0];
-      if (blocked) {
-        const { data: validation } = await supabaseClient.rpc(
-          "validate_payroll_run_mappings",
-          { p_run_id: blocked.id },
-        );
-        const ok = !!validation?.ok;
-        const missingKeys: string[] = validation?.missing_keys ?? [];
-        if (!ok) {
-          blockedLine =
-            `- Latest blocked run: ${blocked.payroll_number} (${blocked.id}), status=${blocked.status}, ` +
-            `${missingKeys.length} missing mapping(s): ${missingKeys.slice(0, 10).join(", ")}`;
-          blockedActionHint =
-            `When the user asks why payroll won't post, propose action ` +
-            `\`fix_gl_mappings\` with payroll_run_id="${blocked.id}" so the dialog opens with run-specific rows.`;
-        } else {
-          blockedLine =
-            `- Latest unposted run: ${blocked.payroll_number} (${blocked.id}), status=${blocked.status}, ` +
-            `mappings OK — likely a different blocker (work entries, period lock, permission).`;
-        }
-      }
-    } catch (_) { /* swallow — diagnostics is best-effort */ }
-
-    return [
-      "LIVE_PAYROLL_DIAGNOSTICS:",
-      `- Installed localization packs: ${installedSummary}`,
-      `- Payroll setup status: ${setup?.status ?? "unknown"}`,
-      setup?.blocking_reasons?.length
-        ? `- Blocking reasons: ${JSON.stringify(setup.blocking_reasons)}`
-        : `- Blocking reasons: none`,
-      `- GL mapping keys total/missing (setup-wide): ${totalKeys} / ${missing.length}`,
-      missing.length
-        ? `- Missing mapping labels (setup-wide): ${missing.slice(0, 20).map((m: any) => m.label).join("; ")}`
-        : `- All setup-wide payroll GL mappings are configured.`,
-      blockedLine,
-      "",
-      "When the user is blocked by missing GL mappings, propose the action `fix_gl_mappings` AND link to `payroll.gl_mappings`.",
-      blockedActionHint,
-    ].filter(Boolean).join("\n");
-  } catch (e) {
-    console.error("buildPayrollDiagnostics failed:", e);
-    return null;
-  }
-}
 
 export interface WorkingContext {
   /** Route path the user was on when the turn was sent. */
