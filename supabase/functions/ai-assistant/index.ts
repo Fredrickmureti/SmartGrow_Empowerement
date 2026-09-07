@@ -769,23 +769,6 @@ Analyze the expense description and suggest the most appropriate category from t
 Return your response as JSON with structure:
 { "category": "Category Name", "confidence": 0.95, "reasoning": "Brief explanation" }`,
 
-  analyze_invoice: `You are an expert accountant AI assistant that analyzes invoices.
-Extract key information and provide insights about the invoice.
-Look for:
-- Payment terms and due date urgency
-- Unusual amounts or discrepancies
-- Potential duplicate invoices
-- Tax calculation accuracy
-- Suggestions for follow-up
-
-Return your response as JSON with structure:
-{
-  "summary": "Brief invoice summary",
-  "urgency": "low|medium|high",
-  "insights": ["insight 1", "insight 2"],
-  "warnings": ["warning 1"],
-  "recommendations": ["recommendation 1"]
-}`,
 
   financial_insights: `You are a senior financial analyst AI assistant with direct access to the organization's financial data.
 Analyze the provided real-time financial data and generate actionable insights.
