@@ -229,9 +229,16 @@ Each wave is independently shippable and reversible.
 
 Here's where things stand.
 
-Fixed this turn
+Done this turn
 
-The build error is resolved: the document view no longer imports the two lineage strips that were removed with the sales paperwork.
-The audit-log "Clear All" dialog now mounts properly, and two out-of-date code checks were corrected. The project type-checks cleanly.
-Background database routines: the automation notifier used by clients, staff and expense records was cleaned up (it also had an old hardcoded link to a previous project, now removed); three unused sales-lineage reports were retired; and the "preview what a company reset would delete" routine was rebuilt around the record types this system actually has.
-Still outstanding Seven routines still mention removed tables and would fail if called — none are used by the app today: the company base-currency readiness/change pair, the contact-deletion dependency check, the FX rate coverage report, the sample-data counter, and the reversal-preview helper. Beyond those, a wider sweep found several dozen more orphaned invoice/purchase-order routines inherited from the old ERP; that deserves its own dedicated clean-up wave rather than piecemeal edits. Five remaining check failures are historical migration records and are safe to leave as they are.
+Confirmed the previous session's claims: the project type-checks cleanly, and the numbering, notification and audit-log work described in the log is actually in place.
+Fixed two build errors that surfaced along the way: the document view no longer references the removed lifecycle strip, and the numbering settings form saves correctly again.
+Cleaned up the nightly data-integrity job: the three checks that looked for sales invoices, supplier bills and payroll runs (record types this system no longer has) were removed, so the job no longer errors on every run.
+Removed thirteen leftover background routines from the old system that would fail if called — the base-currency readiness and change pair, the active-currency toggle, the FX rate coverage report and its summary, the sample-data counter, the contact-deletion dependency check, the reversal-preview helpers, and the two mismatch checks the nightly job used.
+Still outstanding
+
+A wider sweep found several dozen more orphaned routines inherited from the old system (sales orders, purchase returns, stock counts, projects, consolidation, payroll readiness). None are reachable from the app, but they deserve their own dedicated clean-up wave rather than piecemeal edits.
+The sales-order tables themselves still can't be dropped: delivery notes and the AI assistant still point at them, so that needs its own wave.
+The security scan reports a large backlog of pre-existing warnings (mostly routines callable by signed-in users, plus leaked-password protection being switched off in the Supabase auth settings). None were introduced by this change, but it's worth a dedicated pass.
+I did not update the plan log with this turn's progress — that's the first thing to do next session.
+
