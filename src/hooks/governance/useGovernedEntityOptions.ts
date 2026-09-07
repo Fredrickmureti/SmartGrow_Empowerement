@@ -112,11 +112,12 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.employee_id ? map.get(r.employee_id) ?? null : r.created_by ?? null,
     }));
   },
-  loan_application: async (orgId) => {
+  // The `mf_*` tables are scoped by business, not organization; RLS already
+  // restricts them to the businesses the caller may read.
+  loan_application: async () => {
     const { data, error } = await supabase
       .from("mf_loan_applications")
       .select("id, application_number, requested_amount, status, created_at, created_by")
-      .eq("organization_id", orgId)
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
@@ -127,33 +128,31 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.created_by ?? null,
     }));
   },
-  loan: async (orgId) => {
+  loan: async () => {
     const { data, error } = await supabase
       .from("mf_loans")
-      .select("id, loan_number, principal_amount, status, created_at, created_by")
-      .eq("organization_id", orgId)
+      .select("id, loan_number, principal, status, created_at, created_by")
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
     return (data ?? []).map((r: any) => ({
       id: r.id,
       label: r.loan_number ?? `Loan ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.principal_amount, null)} • ${r.status ?? ""}`.trim(),
+      hint: `${fmtMoney(r.principal, null)} • ${r.status ?? ""}`.trim(),
       subject_user_id: r.created_by ?? null,
     }));
   },
-  repayment: async (orgId) => {
+  repayment: async () => {
     const { data, error } = await supabase
       .from("mf_repayments")
-      .select("id, receipt_number, amount, payment_date, status, created_by")
-      .eq("organization_id", orgId)
+      .select("id, receipt_number, amount, paid_on, status, created_by")
       .order("created_at", { ascending: false })
       .limit(LIMIT);
     if (error) throw error;
     return (data ?? []).map((r: any) => ({
       id: r.id,
       label: r.receipt_number ?? `Repayment ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.amount, null)} • ${fmtDate(r.payment_date)}`.trim(),
+      hint: `${fmtMoney(r.amount, null)} • ${fmtDate(r.paid_on)}`.trim(),
       subject_user_id: r.created_by ?? null,
     }));
   },
