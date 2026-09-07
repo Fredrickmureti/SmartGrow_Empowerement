@@ -11,10 +11,11 @@ import {
 
 describe("humanizeEntityType", () => {
   it("uses curated overrides", () => {
-    expect(humanizeEntityType("payroll_runs")).toBe("Payroll run");
-    expect(humanizeEntityType("pos_transaction_items")).toBe("POS transaction line");
-    expect(humanizeEntityType("employee_contract")).toBe("Employee contract");
+    expect(humanizeEntityType("journal_entries")).toBe("Journal entry");
+    expect(humanizeEntityType("payment_allocations")).toBe("Payment allocation");
+    expect(humanizeEntityType("bank_reconciliation_sessions")).toBe("Bank reconciliation");
   });
+
   it("falls back to Title Case + singularize", () => {
     expect(humanizeEntityType("shipment_notices")).toBe("Shipment Notice");
     expect(humanizeEntityType("policies")).toBe("Policy");
