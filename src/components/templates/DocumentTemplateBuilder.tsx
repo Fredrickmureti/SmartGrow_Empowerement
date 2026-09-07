@@ -88,7 +88,7 @@ export function DocumentTemplateBuilder({
                 id="template-name"
                 value={settings.template_name}
                 onChange={(e) => handleChange("template_name", e.target.value)}
-                placeholder="e.g., Standard Invoice"
+                placeholder="e.g., Standard Repayment Receipt"
               />
             </div>
             <div className="space-y-2">
