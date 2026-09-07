@@ -205,7 +205,19 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-- **Completed**: audit, classification, taxonomy, wave plan (this document).
-- **Remaining**: Waves 1–8.
-- **Current issue**: `get_effective_company_config` is broken in production — Wave 1 must land first.
-- **Next action**: implement Wave 1 (rewrite the resolver, verify both edge-function callers, re-render one lending document).
+I stopped here — Wave 2 is finished and verified, and Wave 5 was mid-way through investigation only (no changes made to templates yet).
+
+Completed this session
+
+Verified the earlier claims against the live code and database, not just the notes.
+Removed the leftover crypto icon, the card-payment gateway screen and its data hook, and dropped that screen from the Company settings page.
+Narrowed the payment providers to M-Pesa only, removed the Till (Buy Goods) option so collections are PayBill-only, and removed the IBAN field from the bank details form.
+Removed the card, PayPal and PesaPal connection tests from the provider-test backend function.
+Database: deleted the empty card-gateway table, deleted the unused point-of-sale terminal brand list, and narrowed the payment channel list to Cash, Bank and Mobile money (the online-card and cryptocurrency options no longer exist).
+Typecheck passes clean; no crypto/Stripe/Till references remain outside explanatory comments.
+Remaining (unchanged plan, resume at Wave 3)
+
+Wave 3: the Cash / M-Pesa PayBill / Bank Transfer channel model.
+Wave 4: KES-only currency lock.
+Wave 5: remove the document-template editor. Investigation done and safe: the template table is empty, the six live document layouts don't reference it, so the editor screen, its builder, hook and type can go, along with the "show payment methods on documents" toggle inside the payment methods screen, then the table itself.
+Waves 6–8: microfinance document numbering, notification/email re-scope, legacy database cleanup.
