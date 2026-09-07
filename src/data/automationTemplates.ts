@@ -318,26 +318,6 @@ export const automationTemplates: AutomationTemplate[] = [
       },
     ],
   },
-  {
-    id: "recurring-invoice-notification",
-    name: "Recurring Invoice Reminder",
-    description: "Notify before recurring invoices are generated",
-    category: "accounting",
-    icon: Clock,
-    triggerType: "time_based",
-    targetModel: "recurring_invoices",
-    triggerConditions: { days_before: 3, field: "next_invoice_date" },
-    steps: [
-      {
-        actionType: "send_notification",
-        stepName: "Remind About Upcoming Invoice",
-        actionConfig: {
-          title: "Recurring Invoice Due",
-          message: "Recurring invoice for {{contact.name}} will be generated in 3 days",
-        },
-      },
-    ],
-  },
 ];
 
 export const getTemplatesByCategory = (category: string) => {

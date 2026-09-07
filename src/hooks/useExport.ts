@@ -278,40 +278,6 @@ export function useExport() {
     [exportToCSV]
   );
 
-  const exportRecurringInvoices = useCallback(
-    (recurringInvoices: any[]) => {
-      const data = recurringInvoices.map((ri) => ({
-        template_name: ri.template_name,
-        customer: ri.contact?.name || "",
-        frequency: ri.frequency,
-        start_date: ri.start_date,
-        next_run_date: ri.next_run_date,
-        end_date: ri.end_date || "",
-        is_active: ri.is_active ? "Yes" : "No",
-        auto_send: ri.auto_send ? "Yes" : "No",
-        invoices_generated: ri.invoices_generated || 0,
-        currency: ri.currency,
-      }));
-
-      exportToCSV(data, {
-        filename: `recurring_invoices_${new Date().toISOString().split("T")[0]}`,
-        headers: [
-          "template_name",
-          "customer",
-          "frequency",
-          "start_date",
-          "next_run_date",
-          "end_date",
-          "is_active",
-          "auto_send",
-          "invoices_generated",
-          "currency",
-        ],
-      });
-    },
-    [exportToCSV]
-  );
-
   const exportEstimates = useCallback(
     (estimates: any[]) => {
       const data = estimates.map((e) => ({
@@ -523,7 +489,6 @@ export function useExport() {
     exportPayments,
     exportBills,
     exportProducts,
-    exportRecurringInvoices,
     exportEstimates,
     exportCreditNotes,
     exportPurchaseOrders,
