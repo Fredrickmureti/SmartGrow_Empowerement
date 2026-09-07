@@ -63,7 +63,6 @@ const ENTITY_TYPE_OVERRIDES: Record<string, string> = {
   attendance: "Attendance record",
   estimates: "Quote",
   proforma_invoices: "Proforma invoice",
-  recurring_invoices: "Recurring invoice",
   tax_rates: "Tax rate",
   accounts: "GL account",
   approval_requests: "Approval request",

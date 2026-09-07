@@ -102,7 +102,6 @@ describe("Architecture: branch_id stamping on accounting writes", () => {
     "journal_entries",         // discouraged direct insert; RPC propagates
     "estimates",
     "proforma_invoices",
-    "recurring_invoices",
     "vendor_credit_notes",
   ];
 

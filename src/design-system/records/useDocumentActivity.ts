@@ -35,7 +35,6 @@ const ENTITY_TYPE: Partial<Record<DocumentKind, string>> = {
   proforma: "proforma_invoice",
   credit_note: "credit_note",
   customer_payment: "payment",
-  recurring_invoice: "recurring_invoice",
   statement: "customer_statement",
   bill: "bill",
   purchase_order: "purchase_order",

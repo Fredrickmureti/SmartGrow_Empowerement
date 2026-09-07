@@ -160,13 +160,6 @@ export const queryKeys = {
       ['proforma-invoices', orgId, businessId] as const,
   },
 
-  // ========== Recurring Invoices ==========
-  recurringInvoices: {
-    all: (orgId: string) => ['recurring-invoices', orgId] as const,
-    list: (orgId: string, businessId?: string | null) => 
-      ['recurring-invoices', orgId, businessId] as const,
-  },
-
   // ========== Sales Returns ==========
   salesReturns: {
     all: (orgId: string) => ['sales-returns', orgId] as const,
