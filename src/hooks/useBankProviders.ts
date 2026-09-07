@@ -1,6 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+/**
+ * Bank feed providers — retired.
+ *
+ * The inherited ERP shipped a platform-level catalogue of open-banking
+ * aggregators (`platform_bank_providers`). That table has been removed: this
+ * single-institution Kenyan microfinance deployment reconciles its bank
+ * accounts manually (branch deposits, bank statements, M-Pesa PayBill), and
+ * there is no platform-admin persona to configure aggregator credentials.
+ *
+ * The hook is kept as an inert stub so the bank-account creation flow keeps
+ * its "manual account" path and its existing types without a redesign. It
+ * always reports an empty provider list.
+ */
+import { useCallback } from "react";
 import type { Json } from "@/integrations/supabase/types";
 
 export interface BankProvider {
@@ -49,115 +60,18 @@ export interface BankProviderUpdateData {
   logo_url?: string | null;
 }
 
+const NO_PROVIDERS: BankProvider[] = [];
+
 export function useBankProviders() {
-  const [providers, setProviders] = useState<BankProvider[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  // Prevent refetching on tab focus
-  const hasFetchedRef = useRef(false);
-
-  const fetchProviders = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      
-      // Single-institution deployment: providers are read through RLS with
-      // the caller's own privileges; there is no platform-admin persona.
-      const { data, error } = await supabase
-        .from("platform_bank_providers")
-        .select("*")
-        .order("provider_name");
-
-      if (error) throw error;
-      setProviders((data as BankProvider[]) || []);
-    } catch (error: unknown) {
-      console.error("Error fetching bank providers:", error);
-      toast.error("Failed to load bank providers");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetchProviders();
-  }, [fetchProviders]);
-
-  const updateProvider = async (id: string, data: BankProviderUpdateData) => {
-    try {
-      setIsSaving(true);
-      const { error } = await supabase
-        .from("platform_bank_providers")
-        .update({
-          ...data,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-
-      if (error) throw error;
-      
-      toast.success("Bank provider updated successfully");
-      await fetchProviders();
-    } catch (error: unknown) {
-      console.error("Error updating bank provider:", error);
-      toast.error("Failed to update bank provider");
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const toggleProvider = async (id: string, isEnabled: boolean) => {
-    try {
-      setIsSaving(true);
-      const { error } = await supabase
-        .from("platform_bank_providers")
-        .update({ is_enabled: isEnabled, updated_at: new Date().toISOString() })
-        .eq("id", id);
-
-      if (error) throw error;
-      
-      toast.success(`Bank provider ${isEnabled ? "enabled" : "disabled"}`);
-      await fetchProviders();
-    } catch (error: unknown) {
-      console.error("Error toggling bank provider:", error);
-      toast.error("Failed to toggle bank provider");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const testConnection = async (providerId: string): Promise<boolean> => {
-    try {
-      // Call edge function to test the bank connection
-      const { data, error } = await supabase.functions.invoke("provider-test", {
-        body: { kind: "bank", provider_id: providerId },
-      });
-
-      if (error) throw error;
-      
-      if (data?.success) {
-        toast.success("Connection test successful!");
-        return true;
-      } else {
-        toast.error(data?.message || "Connection test failed");
-        return false;
-      }
-    } catch (error: unknown) {
-      console.error("Error testing bank connection:", error);
-      toast.error("Failed to test connection");
-      return false;
-    }
-  };
+  const noop = useCallback(async () => {}, []);
 
   return {
-    providers,
-    isLoading,
-    isSaving,
-    fetchProviders,
-    updateProvider,
-    toggleProvider,
-    testConnection,
+    providers: NO_PROVIDERS,
+    isLoading: false,
+    isSaving: false,
+    fetchProviders: noop,
+    updateProvider: async (_id: string, _data: BankProviderUpdateData) => {},
+    toggleProvider: async (_id: string, _isEnabled: boolean) => {},
+    testConnection: async (_providerId: string): Promise<boolean> => false,
   };
 }
