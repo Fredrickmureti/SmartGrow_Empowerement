@@ -203,8 +203,15 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-I've set up automatic reference numbering in the database, but ran out of room before finishing the app side.
+I'll start by reading the plan file to see exactly where execution stopped.
 
-Done: every new client, loan application, loan and repayment receipt now gets its number from your company's numbering settings (LN-000123, APP-0001, CL-0001, RCP-000001), with counters continuing from the highest numbers already in use so nothing repeats.
+I stopped part-way. Here's where things stand.
 
-Still to do: the create forms still show an editable, guessed number that will no longer match the one actually saved — they need to show "assigned automatically" instead; and the Settings screen for editing the prefixes and digit lengths hasn't been built yet.
+Verified as genuinely done: the automatic numbering is real in the database — the rules table, the counters, the number-issuing function and the triggers on clients, applications, loans and repayments all exist, so every new record already gets its number assigned automatically.
+
+What I completed this session: a new Settings screen for reference numbering, where you set the prefix and the number length for clients, applications, loans, receipts and disbursements, with a live example of how each number will look.
+
+What still remains:
+- Add that screen as a tab on the Company settings page (it isn't linked yet, so you can't reach it).
+- Fix the two create forms (new client, new loan application) — they still show an editable, guessed number that won't match the one actually saved; they should say "assigned automatically" instead.
+- Run the type check and confirm the pages load.
