@@ -116,7 +116,8 @@ export interface MfApplicationAssessment {
 
 export interface MfLoanApplicationInput {
   branch_id: string;
-  application_number: string;
+  /** Assigned server-side by the numbering trigger; never sent on create. */
+  application_number?: string;
   client_id: string;
   group_id?: string | null;
   product_id: string;
@@ -194,7 +195,7 @@ export function useMfApplications(options?: {
           ...input,
           business_id: businessId,
           created_by: auth.user?.id ?? null,
-        })
+        } as never)
         .select(APPLICATION_SELECT)
         .single();
       if (error) throw error;

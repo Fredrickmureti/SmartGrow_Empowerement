@@ -214,7 +214,6 @@ export function ClientsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         client={editing}
-        existingClients={clients}
         onCreate={async (input) => createClient.mutateAsync(input)}
         onUpdate={async (id, patch) => {
           await updateClient.mutateAsync({ id, ...patch });

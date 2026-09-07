@@ -270,7 +270,6 @@ export function ApplicationsPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         application={editing}
-        existing={applications}
         onCreate={async (input) => {
           await createApplication.mutateAsync(input);
         }}
