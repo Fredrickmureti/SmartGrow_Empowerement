@@ -291,26 +291,24 @@ Surviving, real tables the assistant reads: `accounts`, `bank_accounts`, `bank_t
 ### Wave 9b — sales chain drop
 Unchanged from above: the six 0-row sales tables plus their 32/13/12 dependent functions, in FK order, one migration per table group.
 
+### Wave 9a (part 2) — AI assistant ERP decoupling — DONE 2026-09-07 (late)
+
+Finished the leftovers logged by the interrupted session, and verified the earlier claims rather than trusting them:
+- `ai-assistant/index.ts`: `analyze_invoice`, `match_transactions`, `document_text` removed from `featureMap`; the `document_text` system-prompt selection, message-building branch and response block deleted; JSON-parse list reduced to `["categorize_expense", "suggest_actions"]`.
+- `src/hooks/useAIAssistant.ts`: `analyzeInvoice` removed (implementation, export, and `analyze_invoice` from the request-type union).
+- `src/lib/ai/actionBlocks.ts`: `fix_gl_mappings` action removed (type member, validator case, prompt section, header examples) — payroll no longer exists in this system.
+- `src/components/ai/AIAssistantChat.tsx`: dropped the `fix_gl_mappings` icon branch and the unused `Wrench` import.
+- Verified (checked, not assumed): `dataTools.ts` and `capabilities.ts` are already microfinance-scoped — `DATA_TABLES` covers `mf_clients`, `mf_groups`, `mf_loan_applications`, `mf_loans`, `mf_repayments`, payments, contacts, accounting; no products/invoices/sales-order/payroll/POS/warehouse tables remain in either file.
+- Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; `deno check` on the assistant entry file clean.
+
+### Remaining work (exact, in order)
+1. **Wave 9a part 3** — remaining sales-chain consumers: `sales_order*` references in the `send-document-email` edge function, `src/hooks/useExport`, `src/hooks/realtime/useUnifiedRealtimeSync`, plus `delivery_notes.sales_order_id` / `delivery_note_items.sales_order_item_id`.
+2. **Wave 9b** — drop the six 0-row sales tables plus their 32/13/12 dependent functions, in FK order, one migration per table group.
+3. **Wave 9c** — remaining legacy table groups (POS, projects, consolidation, payroll, inventory) with their attached trigger functions; grep the app and edge functions immediately before each drop.
+4. **Wave 10** — security posture pass (pre-existing backlog: `EXECUTE` grants to `authenticated`, missing `search_path`, leaked-password protection).
+
+`payment_requests`: RETAIN — live M-Pesa flow (`mpesa-outbound`, `mpesa-callback`).
+
 ### Next action
-
-Execute Wave 9a part 2 exactly as specified above, starting with `capabilities.ts` (smallest, defines the contract), then `dataTools.ts`, then the `index.ts` snapshot and prompt pass.
-
-### Next action
-
-Ran out of budget mid-way through the AI assistant cleanup. Here's exactly where things stand.
-
-Done this session (in supabase/functions/ai-assistant/index.ts):
-
-FinancialContext, CONTEXT_FIELD_MODULE and CONTEXT_SUMMARY_MODULE rewritten to microfinance modules (clients, loans, applications, repayments, accounting, treasury, team).
-Request type union reduced to categorize_expense | financial_insights | chat | suggest_actions | email_assist.
-Deleted the invoice-analysis and bank-matching prompts; reworded the email helper for lending documents.
-Replaced the old ERP chat prompt with a microfinance one (borrowers, groups, applications, loans, repayments, treasury), including the rule never to present disbursed principal as an outstanding balance and no portal/self-service/POS suggestions.
-Removed the document notes/terms prompts.
-Still to finish (same file, leftovers that will break the build if left):
-
-line ~1464 analyze_invoice, ~1469 match_transactions, ~1470 document_text entries in featureMap
-lines ~1508–1512 the document_text system-prompt selection
-lines ~1563–1590 the document_text message-building branch
-line ~1666 remove analyze_invoice and match_transactions from the JSON-parse list
-lines ~1691–1697 the document_text response block
+Wave 9a part 3: remove the sales-order reads from `send-document-email`, `useExport` and `useUnifiedRealtimeSync`, then decide delivery notes (repoint or drop) before any table drop.
 Then, still open from the plan: drop analyzeInvoice from src/hooks/useAIAssistant.ts; remove fix_gl_mappings from src/lib/ai/actionBlocks.ts; wave 9a part 3 (remaining sales-chain consumers); wave 9b (six empty sales tables); wave 9c (legacy table groups); wave 10 (security posture pass). I did not get to update .lovable/plan.md with this status.
