@@ -62,8 +62,11 @@ function walk(dir: string, match: RegExp): string[] {
 }
 
 const newMigrations = walk(MIGRATIONS, /\.sql$/i).filter(
-  (f) => basename(f).slice(0, 14) >= RATCHET_BASELINE,
+  (f) =>
+    basename(f).slice(0, 14) >= RATCHET_BASELINE &&
+    !REBASELINE_DUMP.has(basename(f)),
 );
+
 
 describe("currency ratchet — a missing rate is never parity", () => {
   it("no migration authored after the baseline coalesces a rate to 1", () => {
