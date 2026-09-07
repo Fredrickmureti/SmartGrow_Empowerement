@@ -7130,6 +7130,102 @@ export type Database = {
         }
         Relationships: []
       }
+      document_number_counters: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          current_value: number
+          id: string
+          period_key: string
+          sequence_key: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          current_value?: number
+          id?: string
+          period_key?: string
+          sequence_key: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          current_value?: number
+          id?: string
+          period_key?: string
+          sequence_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_number_counters_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_number_counters_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_number_rules: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          created_at: string
+          id: string
+          padding: number
+          period_reset: string
+          prefix: string
+          sequence_key: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          padding?: number
+          period_reset?: string
+          prefix: string
+          sequence_key: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          padding?: number
+          period_reset?: string
+          prefix?: string
+          sequence_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_number_rules_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_number_rules_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_print_policies: {
         Row: {
           auto_print: boolean | null
