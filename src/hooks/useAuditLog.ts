@@ -44,7 +44,6 @@ export type EntityType =
   | "purchase_return"
   | "credit_note"
   | "proforma_invoice"
-  | "recurring_invoice"
   | "bank_account"
   | "bank_transaction"
   | "customer_group"

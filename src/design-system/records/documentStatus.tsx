@@ -29,7 +29,6 @@ export type DocumentKind =
   | "proforma"
   | "credit_note"
   | "customer_payment"
-  | "recurring_invoice"
   | "statement"
   | "customer"
   | "bill"
@@ -103,13 +102,6 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
   customer_payment: {
     partial: { label: "Partially allocated", tone: "warning" },
     completed: { label: "Received", tone: "success" },
-  },
-  recurring_invoice: {
-    active: { label: "Active", tone: "success" },
-    inactive: { label: "Paused", tone: "warning" },
-    paused: { label: "Paused", tone: "warning" },
-    cancelled: { label: "Cancelled", tone: "danger" },
-    completed: { label: "Completed", tone: "neutral" },
   },
   journal_entry: {
     // A posted entry has hit the ledger and can no longer be edited freely.

@@ -183,11 +183,6 @@ const TABLE_HANDLERS: Record<string, TableHandler> = {
     queryKeys.proformaInvoices.list(orgId, businessId),
   ]),
 
-  recurring_invoices: createDefaultHandler((orgId, businessId) => [
-    queryKeys.recurringInvoices.all(orgId),
-    queryKeys.recurringInvoices.list(orgId, businessId),
-  ]),
-
 };
 
 const SUBSCRIBED_TABLES = Object.keys(TABLE_HANDLERS);
@@ -262,7 +257,7 @@ export function useUnifiedRealtimeSync(): void {
       ['trial-balance'], ['aging-report'], ['cash-flow-report'], ['budget-vs-actual'],
       ['depreciation-schedules'],
       ['estimates'],
-      ['proforma-invoices'], ['recurring-invoices'],
+      ['proforma-invoices'],
     ];
 
     const qc = queryClientRef.current;
