@@ -56,25 +56,12 @@ import {
   type AttendanceFilters,
 } from "../_shared/reports/attendanceData.ts";
 import {
-  buildPayrollReport,
-  type PayrollReportKey,
-  type PayrollFilters,
-} from "../_shared/reports/payrollData.ts";
-import {
-  buildPayrollExtendedReport,
-  type PayrollExtendedReportKey,
-  type PayrollExtendedFilters,
-} from "../_shared/reports/payrollExtendedData.ts";
-import {
+
   buildProjectReport,
   type ProjectReportKey,
   type ProjectFilters,
 } from "../_shared/reports/projectsData.ts";
-import {
-  buildInventoryReport,
-  type InventoryReportKey,
-  type InventoryFilters,
-} from "../_shared/reports/inventoryData.ts";
+
 
 
 const corsHeaders = {
@@ -98,10 +85,8 @@ export type ReportType =
   | "depreciation_schedule"
   | "audit_trail"
   | AttendanceReportKey
-  | PayrollReportKey
-  | PayrollExtendedReportKey
-  | ProjectReportKey
-  | InventoryReportKey;
+  | ProjectReportKey;
+
 
 
 /**
@@ -517,41 +502,7 @@ serve(async (req) => {
       ] as const
     ).includes(reportType as AttendanceReportKey);
 
-    const isPayroll = (
-      [
-        "payroll_register",
-        "payroll_summary",
-        "employer_contributions",
-        "statutory_liabilities",
-        "employee_earnings",
-        "branch_payroll_cost",
-        "department_payroll_cost",
-        "payroll_overtime",
-        "payroll_variance",
-      ] as const
-    ).includes(reportType as PayrollReportKey);
-
-    const isPayrollExtended = (
-      [
-        "payroll_gl_posting",
-        "payroll_audit_trail",
-        "payroll_work_entries",
-      ] as const
-    ).includes(reportType as PayrollExtendedReportKey);
-
     const isProject = typeof reportType === "string" && reportType.startsWith("project_");
-
-    const isInventory = (
-      [
-        "stock_ledger",
-        "inventory_valuation",
-        "inventory_aging",
-        "inventory_gl_reconciliation",
-        "lot_traceability",
-      ] as const
-    ).includes(reportType as InventoryReportKey);
-
-
 
     const result = isAttendance
       ? await buildAttendanceReport(
@@ -563,26 +514,6 @@ serve(async (req) => {
           dateTo,
           (body?.filters ?? {}) as AttendanceFilters,
         )
-      : isPayroll
-      ? await buildPayrollReport(
-          supabase,
-          reportType as PayrollReportKey,
-          organizationId,
-          businessId,
-          dateFrom,
-          dateTo,
-          (body?.filters ?? {}) as PayrollFilters,
-        )
-      : isPayrollExtended
-      ? await buildPayrollExtendedReport(
-          supabase,
-          reportType as PayrollExtendedReportKey,
-          organizationId,
-          businessId,
-          dateFrom,
-          dateTo,
-          (body?.filters ?? {}) as PayrollExtendedFilters,
-        )
       : isProject
       ? await buildProjectReport(
           supabase,
@@ -593,16 +524,7 @@ serve(async (req) => {
           dateTo,
           (body?.filters ?? {}) as ProjectFilters,
         )
-      : isInventory
-      ? await buildInventoryReport(
-          supabase,
-          reportType as InventoryReportKey,
-          organizationId,
-          businessId,
-          dateFrom,
-          dateTo,
-          (body?.filters ?? {}) as InventoryFilters,
-        )
+
 
       : await buildReportData(
           supabase,
