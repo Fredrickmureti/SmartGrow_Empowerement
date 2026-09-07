@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Sparkles, Send, Loader2, Trash2, Bot, ArrowRight, Wrench, Package, History, Plus } from "lucide-react";
+import { Sparkles, Send, Loader2, Trash2, Bot, ArrowRight, Package, History, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/common/MarkdownRenderer";
 import { getContextualPrompts } from "@/lib/ai/contextualPrompts";
@@ -314,7 +314,7 @@ function ActionBlocks({ actions, onClose }: { actions: ActionBlock[]; onClose: (
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {actions.map((a, i) => {
-        const Icon = a.type === "fix_gl_mappings" ? Wrench : a.type === "open_install_dialog" ? Package : ArrowRight;
+        const Icon = a.type === "open_install_dialog" ? Package : ArrowRight;
         return (
           <Button
             key={i}

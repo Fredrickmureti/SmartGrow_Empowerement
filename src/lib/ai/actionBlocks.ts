@@ -4,8 +4,8 @@
  * action lives on its own line.
  *
  * Wire format (one per line):
- *   ::action {"type":"open_path","path_id":"payroll.gl_mappings","label":"Open GL Mapping fixer"}
- *   ::action {"type":"fix_gl_mappings","label":"Apply all suggested mappings"}
+ *   ::action {"type":"open_path","path_id":"loans.list","label":"Open loans"}
+ *   ::action {"type":"open_install_dialog","app_id":"microfinance","label":"Install Microfinance"}
  *
  * The server validates `path_id` against ROUTE_CATALOG before forwarding.
  * The client renders each action as a Button.
@@ -18,12 +18,6 @@ export type ActionBlock =
       type: "open_path";
       path_id: RouteCatalogId;
       label: string;
-    }
-  | {
-      type: "fix_gl_mappings";
-      label: string;
-      /** Optional run id — when present the dialog opens with run-specific missing rows. */
-      payroll_run_id?: string;
     }
   | {
       type: "open_install_dialog";
@@ -46,15 +40,6 @@ function validate(raw: any): ActionBlock | null {
     case "open_path":
       if (typeof raw.path_id === "string" && isCatalogId(raw.path_id) && typeof raw.label === "string") {
         return { type: "open_path", path_id: raw.path_id as RouteCatalogId, label: raw.label };
-      }
-      return null;
-    case "fix_gl_mappings":
-      if (typeof raw.label === "string") {
-        const out: ActionBlock = { type: "fix_gl_mappings", label: raw.label };
-        if (typeof raw.payroll_run_id === "string" && raw.payroll_run_id.length > 0) {
-          out.payroll_run_id = raw.payroll_run_id;
-        }
-        return out;
       }
       return null;
     case "open_install_dialog":
@@ -108,12 +93,7 @@ Supported action types:
 1) Navigate to a known destination — pick path_id ONLY from the AVAILABLE_NAVIGATION_TARGETS list:
    ::action {"type":"open_path","path_id":"<id>","label":"<short button text>"}
 
-2) Open the GL mapping fixer dialog (when payroll posting is blocked by missing mappings):
-   ::action {"type":"fix_gl_mappings","label":"Fix payroll mappings now"}
-   When LIVE_PAYROLL_DIAGNOSTICS lists a "Latest blocked run" with an id, ALWAYS include that id:
-   ::action {"type":"fix_gl_mappings","label":"Fix mappings for PAY-0001","payroll_run_id":"<uuid>"}
-
-3) Open the app install/activate dialog for a specific app id:
+2) Open the app install/activate dialog for a specific app id:
    ::action {"type":"open_install_dialog","app_id":"<app id>","label":"Install <App>"}
 
 Rules:

@@ -1461,13 +1461,10 @@ serve(async (req) => {
 
     const featureMap: Record<string, string> = {
       categorize_expense: "expense_categorization_enabled",
-      analyze_invoice: "invoice_analysis_enabled",
       financial_insights: "financial_insights_enabled",
       chat: "chat_enabled",
       suggest_actions: "financial_insights_enabled",
       email_assist: "chat_enabled",
-      match_transactions: "expense_categorization_enabled",
-      document_text: "chat_enabled",
     };
 
     const featureKey = featureMap[type];
@@ -1504,12 +1501,6 @@ serve(async (req) => {
 
     let systemPrompt = systemPrompts[type] || systemPrompts.chat;
 
-    
-    // Handle document_text request type with specific prompts
-    if (type === "document_text" && data) {
-      const fieldType = data.fieldType || "notes";
-      systemPrompt = systemPrompts[`document_text_${fieldType}`] || systemPrompts.document_text_notes;
-    }
     
     // The currency rule is universal: it is prepended to every request type
     // before any task-specific context.
@@ -1560,34 +1551,6 @@ serve(async (req) => {
         role: "user", 
         content: data.prompt 
       });
-    } else if (type === "document_text" && data) {
-      // Build document context prompt
-      const docType = data.documentType || "document";
-      const action = data.action || "generate";
-      const fieldType = data.fieldType || "notes";
-      
-      let userPrompt = "";
-      
-      if (action === "generate") {
-        userPrompt = `Generate professional ${fieldType} for a ${docType.replace("_", " ")}.`;
-      } else if (action === "improve") {
-        userPrompt = `Improve the following ${fieldType} text while keeping the same meaning:\n\n"${data.currentText}"`;
-      } else if (action === "professional") {
-        userPrompt = `Rewrite the following ${fieldType} to be more professional and polished:\n\n"${data.currentText}"`;
-      }
-      
-      // Add context
-      const contextParts: string[] = [];
-      if (data.customerName) contextParts.push(`Customer: ${data.customerName}`);
-      if (data.documentNumber) contextParts.push(`Document: ${data.documentNumber}`);
-      if (data.lineItemsSummary) contextParts.push(`Items: ${data.lineItemsSummary}`);
-      if (data.totalAmount && data.currency) contextParts.push(`Total: ${data.currency} ${data.totalAmount.toLocaleString()}`);
-      
-      if (contextParts.length > 0) {
-        userPrompt += `\n\nContext:\n${contextParts.join("\n")}`;
-      }
-      
-      aiMessages.push({ role: "user", content: userPrompt });
     } else if (data) {
       aiMessages.push({ 
         role: "user", 
@@ -1663,7 +1626,7 @@ serve(async (req) => {
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
 
-    if (["categorize_expense", "analyze_invoice", "suggest_actions", "match_transactions"].includes(type)) {
+    if (["categorize_expense", "suggest_actions"].includes(type)) {
       try {
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         const jsonStr = jsonMatch ? jsonMatch[1] : content;
@@ -1688,13 +1651,6 @@ serve(async (req) => {
       );
     }
 
-    // Document text returns the generated text directly
-    if (type === "document_text") {
-      return new Response(
-        JSON.stringify({ success: true, data: { content: content.trim(), text: content.trim() } }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     return new Response(
       JSON.stringify({ success: true, data: { content } }),
