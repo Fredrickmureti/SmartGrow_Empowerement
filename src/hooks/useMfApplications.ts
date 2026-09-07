@@ -195,7 +195,7 @@ export function useMfApplications(options?: {
           ...input,
           business_id: businessId,
           created_by: auth.user?.id ?? null,
-        })
+        } as never)
         .select(APPLICATION_SELECT)
         .single();
       if (error) throw error;
