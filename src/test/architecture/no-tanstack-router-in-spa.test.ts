@@ -22,6 +22,9 @@ const ALLOWED = [
   /^routeTree\.gen\.ts$/,
   /^main\.tsx$/,
   /^test\/architecture\/no-tanstack-router-in-spa\.test\.ts$/,
+  // Test files may assert on router wiring.
+  /^__tests__\//,
+  /\.test\.tsx?$/,
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
