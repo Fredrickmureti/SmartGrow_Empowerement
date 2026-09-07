@@ -27,6 +27,7 @@ import { OfficerCollectionsReport } from "./reports/OfficerCollectionsReport";
 import { ProductPerformanceReport } from "./reports/ProductPerformanceReport";
 import { ClientExposureReport } from "./reports/ClientExposureReport";
 import { ParAgingReport } from "./reports/ParAgingReport";
+import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
 const SURFACES: Array<{
   path: string;
@@ -116,7 +117,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <PortfolioReport />
+              <ReportFilterProvider><PortfolioReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -126,7 +127,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <ArrearsReport />
+              <ReportFilterProvider><ArrearsReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -136,7 +137,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <CollectionsReport />
+              <ReportFilterProvider><CollectionsReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -146,7 +147,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <ClientStatementReport />
+              <ReportFilterProvider><ClientStatementReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -156,7 +157,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <OfficerCollectionsReport />
+              <ReportFilterProvider><OfficerCollectionsReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -166,7 +167,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <ProductPerformanceReport />
+              <ReportFilterProvider><ProductPerformanceReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -176,7 +177,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <ClientExposureReport />
+              <ReportFilterProvider><ClientExposureReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -186,7 +187,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <ParAgingReport />
+              <ReportFilterProvider><ParAgingReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
@@ -196,7 +197,7 @@ export function LendingApp() {
           element={
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
-              <DisbursementsReport />
+              <ReportFilterProvider><DisbursementsReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
