@@ -23857,10 +23857,6 @@ export type Database = {
         }[]
       }
       build_invoice_je_lines: { Args: { p_invoice_id: string }; Returns: Json }
-      business_currency_readiness: {
-        Args: { p_business_id: string }
-        Returns: Json
-      }
       calculate_leave_days: {
         Args: {
           p_end_date: string
@@ -23922,15 +23918,6 @@ export type Database = {
         Returns: Json
       }
       canonicalize_role_key: { Args: { _key: string }; Returns: string }
-      change_business_base_currency: {
-        Args: {
-          p_business_id: string
-          p_confirm_impacts?: boolean
-          p_new_currency: string
-          p_reason: string
-        }
-        Returns: Json
-      }
       check_automation_circuit_breaker: {
         Args: {
           _automation_id: string
@@ -23960,10 +23947,6 @@ export type Database = {
           _entry_date: string
           _org_id: string
         }
-        Returns: Json
-      }
-      check_contact_dependencies: {
-        Args: { p_contact_id: string }
         Returns: Json
       }
       check_leave_overlap: {
@@ -25491,15 +25474,6 @@ export type Database = {
           line_id: string
         }[]
       }
-      find_invoice_contact_business_mismatches: {
-        Args: never
-        Returns: {
-          contact_business_id: string
-          contact_id: string
-          invoice_business_id: string
-          invoice_id: string
-        }[]
-      }
       fiscal_transmission_resend: {
         Args: { p_transmission_id: string }
         Returns: boolean
@@ -25540,26 +25514,6 @@ export type Database = {
           _to_currency: string
         }
         Returns: number
-      }
-      fx_rate_coverage: {
-        Args: { p_business_id: string }
-        Returns: {
-          coverage_start: string
-          currency: string
-          document_count: number
-          first_used_on: string
-          last_used_on: string
-          latest_rate: number
-          latest_rate_date: string
-          latest_source: string
-          rate_dates: number
-          status: string
-          uncovered_documents: number
-        }[]
-      }
-      fx_rate_coverage_summary: {
-        Args: { p_business_id: string }
-        Returns: Json
       }
       fx_rate_on: {
         Args: {
@@ -26403,14 +26357,6 @@ export type Database = {
           p_register_id?: string
         }
         Returns: Json
-      }
-      get_sample_data_counts: {
-        Args: { org_id: string }
-        Returns: {
-          sample_count: number
-          table_name: string
-          total_count: number
-        }[]
       }
       get_sms_config_masked: {
         Args: { p_organization_id: string }
@@ -27769,22 +27715,6 @@ export type Database = {
         }[]
       }
       preview_organization_reset: { Args: { org_id: string }; Returns: Json }
-      preview_reversal_consequences: {
-        Args: { _document_id: string; _document_type: string }
-        Returns: Json
-      }
-      preview_reversal_consequences_core: {
-        Args: { _document_id: string; _document_type: string }
-        Returns: Json
-      }
-      preview_reversal_extras_customer_refund: {
-        Args: { _document_id: string }
-        Returns: Json
-      }
-      preview_reversal_extras_expense: {
-        Args: { _document_id: string }
-        Returns: Json
-      }
       print_job_insert: {
         Args: {
           p_branch_id: string
@@ -29220,10 +29150,6 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
-      }
-      set_business_active_currency: {
-        Args: { p_business_id: string; p_currency: string; p_enabled: boolean }
-        Returns: undefined
       }
       set_email_provider_settings: {
         Args: {
