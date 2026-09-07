@@ -204,7 +204,7 @@ export function FinanceAccountingControls({ accounts }: FinanceAccountingControl
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <Input placeholder="Rule name" value={ruleDraft.name} onChange={(event) => setRuleDraft((draft) => ({ ...draft, name: event.target.value }))} />
-              <Input placeholder="Description pattern, e.g. %Stripe%" value={ruleDraft.description_pattern} onChange={(event) => setRuleDraft((draft) => ({ ...draft, description_pattern: event.target.value }))} />
+              <Input placeholder="Description pattern, e.g. %MPESA%" value={ruleDraft.description_pattern} onChange={(event) => setRuleDraft((draft) => ({ ...draft, description_pattern: event.target.value }))} />
               <Select value={ruleDraft.bank_account_id || "all"} onValueChange={(value) => setRuleDraft((draft) => ({ ...draft, bank_account_id: value === "all" ? "" : value }))}>
                 <SelectTrigger><SelectValue placeholder="Bank account" /></SelectTrigger>
                 <SelectContent>
