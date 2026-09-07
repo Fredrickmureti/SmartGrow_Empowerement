@@ -42,15 +42,6 @@ function validate(raw: any): ActionBlock | null {
         return { type: "open_path", path_id: raw.path_id as RouteCatalogId, label: raw.label };
       }
       return null;
-    case "fix_gl_mappings":
-      if (typeof raw.label === "string") {
-        const out: ActionBlock = { type: "fix_gl_mappings", label: raw.label };
-        if (typeof raw.payroll_run_id === "string" && raw.payroll_run_id.length > 0) {
-          out.payroll_run_id = raw.payroll_run_id;
-        }
-        return out;
-      }
-      return null;
     case "open_install_dialog":
       if (typeof raw.app_id === "string" && typeof raw.label === "string") {
         return { type: "open_install_dialog", app_id: raw.app_id, label: raw.label };
