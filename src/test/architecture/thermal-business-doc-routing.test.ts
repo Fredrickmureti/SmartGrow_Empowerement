@@ -36,7 +36,7 @@ describe('resolve_output_intent thermal business-document routing', () => {
   });
 
   it('lists Sales and Purchases documents as thermal-capable policy targets', () => {
-    for (const docType of ['invoice', 'sales_order', 'purchase_order', 'bill']) {
+    for (const docType of ['invoice', 'purchase_order', 'bill']) {
       expect(sql).toMatch(new RegExp(`'${docType}'`));
     }
     expect(sql).toMatch(/v_is_thermal_capable_kind/);

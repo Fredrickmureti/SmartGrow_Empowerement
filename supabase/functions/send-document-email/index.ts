@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "bill" | "receipt" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -59,7 +59,7 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   
   purchase_order: { table: "purchase_orders", numberField: "po_number", statusField: "status", itemsTable: "purchase_order_items", contactField: "vendor_id" },
   bill: { table: "bills", numberField: "bill_number", statusField: "status", itemsTable: "bill_items", contactField: "vendor_id" },
-  customer_statement: { table: "customer_statements", numberField: "id", statusField: undefined, itemsTable: undefined, contactField: "contact_id" },
+  
   receipt: { table: "customer_payments", numberField: "receipt_number", statusField: undefined, itemsTable: undefined },
   
   // Purchase (vendor) return / RMA. `statusField` is deliberately omitted:
@@ -94,7 +94,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   
   purchase_order: "Purchase Order",
   bill: "Bill",
-  customer_statement: "Customer Statement",
+  
   receipt: "Payment Receipt",
   
   purchase_return: "Purchase Return",
@@ -583,8 +583,6 @@ const handler = async (req: Request): Promise<Response> => {
       selectQuery = `*, contact:contacts!purchase_orders_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
     } else if (documentType === "bill") {
       selectQuery = `*, contact:contacts!bills_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
-    } else if (documentType === "customer_statement") {
-      selectQuery = `*, contact:contacts!customer_statements_contact_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "purchase_return") {
     // The counterparty on a return is the supplier that shipped the goods.
     selectQuery = `*, contact:contacts!purchase_returns_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
@@ -737,9 +735,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error(`Email provider (${emailProvider}) is not configured. Please configure it in Admin Settings.`);
     }
 
-    const docNumber = documentType === "customer_statement"
-      ? `${document.contact?.name || "Customer"} (${new Date(document.period_start).toLocaleDateString()} – ${new Date(document.period_end).toLocaleDateString()})`
-      : documentType === "contract_letter"
+    const docNumber = documentType === "contract_letter"
         ? (document.contract_reference || `CONTRACT-${String(resolvedDocumentId).slice(0, 8).toUpperCase()}`)
       : documentType === "payslip"
         // Prefer the human-readable payslip_number; fall back to run + employee for legacy rows.
@@ -1019,13 +1015,6 @@ const handler = async (req: Request): Promise<Response> => {
       await supabaseClient
         .from(tableConfig.table)
         .update({ sent_at: new Date().toISOString() })
-        .eq("id", resolvedDocumentId);
-    }
-    // For customer statements, mark as sent
-    if (documentType === "customer_statement") {
-      await supabaseClient
-        .from("customer_statements")
-        .update({ sent_at: new Date().toISOString(), sent_to: recipientEmail })
         .eq("id", resolvedDocumentId);
     }
 
