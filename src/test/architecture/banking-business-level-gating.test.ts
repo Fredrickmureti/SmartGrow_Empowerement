@@ -27,7 +27,8 @@ describe("Phase 11 — Banking is gated by finance.manage_bank_accounts", () => 
 
   it("useBankAccounts filters SELECT by branch_id when a branch is active", () => {
     const src = read("src/hooks/useBankAccounts.ts");
-    expect(src).toMatch(/branch_id\.eq\.\$\{scope\.branchId\},branch_id\.is\.null/);
+    // Branch scoping now runs through the getBankAccounts service seam.
+    expect(src).toMatch(/getBankAccounts\([\s\S]{0,200}?scope\.branchId\s*\?\?\s*null/);
   });
 
   it("useBankAccounts stamps branch_id from the active scope on insert", () => {

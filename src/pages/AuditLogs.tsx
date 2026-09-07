@@ -227,10 +227,13 @@ export default function AuditLogs() {
                 <Download className="mr-2 h-4 w-4" />
                 Export CSV
               </Button>
-              {isAdmin && auditLogs.length > 0 && (
-                <AlertDialog>
+              <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="destructive" disabled={isClearing}>
+                    <Button
+                      variant="destructive"
+                      disabled={isClearing}
+                      className={isAdmin && auditLogs.length > 0 ? undefined : "hidden"}
+                    >
                       {isClearing ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
@@ -257,8 +260,7 @@ export default function AuditLogs() {
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
-                </AlertDialog>
-              )}
+              </AlertDialog>
             </div>
           )}
         </div>

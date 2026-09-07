@@ -32,19 +32,13 @@ describe("Finance settings cards — permission gates", () => {
     expect(src).toMatch(/disabled=\{isSaving\s*\|\|\s*readOnly\}/);
   });
 
-  it("FinanceAccountingControls gates journals/rules/fx by distinct perms", () => {
+  it("FinanceAccountingControls gates journals and rules by distinct perms", () => {
     const src = read("src/components/finance/FinanceAccountingControls.tsx");
-    expect(src).toMatch(
-      /useFinancePermission\(["']finance\.manage_settings["']\)/,
-    );
-    expect(src).toMatch(
-      /useFinancePermission\(["']finance\.manage_je["']\)/,
-    );
-    expect(src).toMatch(
-      /useFinancePermission\(["']finance\.reconcile_bank["']\)/,
-    );
+    // One batched permission round-trip (FX was retired with the multi-currency UI).
+    expect(src).toMatch(/useFinancePermissions\(\[/);
+    expect(src).toMatch(/["']finance\.manage_settings["']/);
+    expect(src).toMatch(/["']finance\.reconcile_bank["']/);
     expect(src).toMatch(/journalsReadOnly/);
     expect(src).toMatch(/rulesReadOnly/);
-    expect(src).toMatch(/fxReadOnly/);
   });
 });
