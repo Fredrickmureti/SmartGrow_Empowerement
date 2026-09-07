@@ -13665,8 +13665,10 @@ export type Database = {
           is_reconciled: boolean | null
           last_name: string | null
           match_reason: string | null
+          matched_client_id: string | null
           matched_contact_id: string | null
-          matched_pos_transaction_id: string | null
+          matched_loan_id: string | null
+          matched_repayment_id: string | null
           middle_name: string | null
           msisdn: string | null
           org_account_balance: number | null
@@ -13692,8 +13694,10 @@ export type Database = {
           is_reconciled?: boolean | null
           last_name?: string | null
           match_reason?: string | null
+          matched_client_id?: string | null
           matched_contact_id?: string | null
-          matched_pos_transaction_id?: string | null
+          matched_loan_id?: string | null
+          matched_repayment_id?: string | null
           middle_name?: string | null
           msisdn?: string | null
           org_account_balance?: number | null
@@ -13719,8 +13723,10 @@ export type Database = {
           is_reconciled?: boolean | null
           last_name?: string | null
           match_reason?: string | null
+          matched_client_id?: string | null
           matched_contact_id?: string | null
-          matched_pos_transaction_id?: string | null
+          matched_loan_id?: string | null
+          matched_repayment_id?: string | null
           middle_name?: string | null
           msisdn?: string | null
           org_account_balance?: number | null
@@ -13744,10 +13750,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mpesa_c2b_transactions_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
             columns: ["matched_contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_loan_id_fkey"
+            columns: ["matched_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_loan_id_fkey"
+            columns: ["matched_loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_repayment_id_fkey"
+            columns: ["matched_repayment_id"]
+            isOneToOne: false
+            referencedRelation: "mf_repayments"
             referencedColumns: ["id"]
           },
           {

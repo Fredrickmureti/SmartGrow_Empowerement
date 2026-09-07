@@ -152,7 +152,7 @@ async function handleValidation(req: Request): Promise<Response> {
   try {
     const auth = await authenticateMpesaCallback(req, supabase, "mpesa_c2b");
     if (!auth.ok) return auth.response;
-    const matchingConfig = { config: auth.ctx.config, organization_id: auth.ctx.organizationId };
+    
 
     const body = await req.json();
     console.log("M-Pesa C2B Validation received for org:", auth.ctx.organizationId);
@@ -166,21 +166,22 @@ async function handleValidation(req: Request): Promise<Response> {
     }
 
     if (BillRefNumber) {
-      const { data: invoice } = await supabase
-        .from("invoices")
-        .select("id, invoice_number, total, status")
-        .eq("organization_id", matchingConfig.organization_id)
-        .ilike("invoice_number", `%${BillRefNumber}%`)
-        .single();
+      // BillRefNumber is the loan reference (or the client reference). We only
+      // log mismatches here — validation must never reject a genuine payment.
+      const { data: loan } = await supabase
+        .from("mf_loans")
+        .select("id, loan_number, status")
+        .eq("loan_number", BillRefNumber)
+        .maybeSingle();
 
-      if (invoice) {
-        const invoiceAmount = parseFloat(invoice.total);
-        const transAmount = parseFloat(TransAmount);
-        if (Math.abs(invoiceAmount - transAmount) > 1) {
-          console.log(`Amount mismatch: Invoice ${invoiceAmount}, Transaction ${transAmount}`);
-        }
+      if (!loan) {
+        console.log(`[mpesa-c2b/validation] no exact loan for BillRef ${BillRefNumber}`);
+      } else if (loan.status !== "active" && loan.status !== "disbursed") {
+        console.log(`[mpesa-c2b/validation] loan ${loan.loan_number} is ${loan.status}`);
       }
+      console.log(`Validation amount ${TransAmount} for BillRef ${BillRefNumber}`);
     }
+
 
     console.log(`Validated C2B transaction: ${TransID} for ${TransAmount} from ${MSISDN}`);
     return json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -237,80 +238,80 @@ async function handleConfirmation(req: Request): Promise<Response> {
     }
 
     const maskedMsisdn = MSISDN ? MSISDN.substring(0, 6) + "****" + MSISDN.substring(MSISDN.length - 2) : null;
-    const transactionType =
-      TransactionType?.toLowerCase().includes("paybill") || TransactionType?.toLowerCase().includes("pay bill")
-        ? "paybill"
-        : "till";
+    // PayBill-only institution: collections are received on the PayBill
+    // short code. Till is not part of this operating model.
+    const transactionType = "paybill";
+    if (TransactionType && !`${TransactionType}`.toLowerCase().replace(/\s+/g, "").includes("paybill")) {
+      console.warn(`[mpesa-c2b/confirmation] unexpected transaction type: ${TransactionType}`);
+    }
 
-    let matchedInvoiceId: string | null = null;
-    let matchedContactId: string | null = null;
-    let matchedPosTransactionId: string | null = null;
+
+    // ── Match the receipt to a loan ────────────────────────────────────
+    // Kenyan PayBill practice: the account/reference field carries the loan
+    // reference, or failing that the client reference. We never guess by
+    // amount — an unmatched receipt goes to the unmatched-receipts queue.
+    let matchedLoanId: string | null = null;
+    let matchedClientId: string | null = null;
     let matchReason: string | null = null;
 
-    if (BillRefNumber) {
-      const { data: invoice } = await supabase
-        .from("invoices")
-        .select("id, contact_id, invoice_number")
-        .eq("organization_id", organizationId)
-        .eq("invoice_number", BillRefNumber)
+    const { data: orgBusinesses } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("organization_id", organizationId);
+    const businessIds = (orgBusinesses ?? []).map((b: { id: string }) => b.id);
+
+    const ref = typeof BillRefNumber === "string" ? BillRefNumber.trim() : "";
+
+    if (!ref) {
+      matchReason = "NO_BILL_REF";
+    } else if (businessIds.length === 0) {
+      matchReason = "NO_BUSINESS_IN_SCOPE";
+    } else {
+      const OPEN_STATUSES = ["active", "disbursed", "in_arrears", "overdue"];
+
+      const { data: loan } = await supabase
+        .from("mf_loans")
+        .select("id, client_id, loan_number, status")
+        .in("business_id", businessIds)
+        .eq("loan_number", ref)
         .maybeSingle();
 
-      if (invoice) {
-        matchedInvoiceId = invoice.id;
-        matchedContactId = invoice.contact_id;
-        matchReason = "AUTO_INVOICE";
+      if (loan) {
+        matchedLoanId = loan.id;
+        matchedClientId = loan.client_id;
+        matchReason = "AUTO_LOAN_REF";
       } else {
-        const { data: partialMatch } = await supabase
-          .from("invoices")
-          .select("id, contact_id, invoice_number")
-          .eq("organization_id", organizationId)
-          .ilike("invoice_number", `%${BillRefNumber}%`)
-          .limit(1)
+        // Client reference: settle only when the client has exactly one open loan.
+        const { data: client } = await supabase
+          .from("mf_clients")
+          .select("id")
+          .in("business_id", businessIds)
+          .eq("client_number", ref)
           .maybeSingle();
 
-        if (partialMatch) {
-          matchedInvoiceId = partialMatch.id;
-          matchedContactId = partialMatch.contact_id;
-          matchReason = "AUTO_INVOICE";
+        if (!client) {
+          matchReason = "NO_MATCH_FOR_REF";
+        } else {
+          matchedClientId = client.id;
+          const { data: openLoans } = await supabase
+            .from("mf_loans")
+            .select("id")
+            .eq("client_id", client.id)
+            .in("status", OPEN_STATUSES)
+            .limit(5);
+
+          if ((openLoans ?? []).length === 1) {
+            matchedLoanId = openLoans![0].id;
+            matchReason = "AUTO_CLIENT_REF";
+          } else if ((openLoans ?? []).length > 1) {
+            matchReason = "AMBIGUOUS_CLIENT_LOANS";
+          } else {
+            matchReason = "CLIENT_HAS_NO_OPEN_LOAN";
+          }
         }
       }
-    } else {
-      matchReason = "NO_BILL_REF";
     }
 
-    if (!matchedInvoiceId) {
-      const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const amt = parseFloat(TransAmount);
-      const { data: openSales } = await supabase
-        .from("pos_transactions")
-        .select("id, total, business_id, organization_id, created_at")
-        .eq("organization_id", organizationId)
-        .in("payment_status", ["pending", "partial"])
-        .gte("created_at", sinceIso)
-        .limit(50);
-
-      const candidates: string[] = [];
-      for (const sale of openSales ?? []) {
-        const { data: paid } = await supabase
-          .from("pos_transaction_payments")
-          .select("amount")
-          .eq("transaction_id", sale.id)
-          .eq("status", "completed");
-        const paidSum = (paid ?? []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-        const remaining = Number(sale.total || 0) - paidSum;
-        if (remaining > 0 && Math.abs(remaining - amt) < 0.01) candidates.push(sale.id);
-      }
-      if (candidates.length === 1) {
-        matchedPosTransactionId = candidates[0];
-        matchReason = "AUTO_POS";
-        console.log("Auto-matched C2B to POS transaction:", matchedPosTransactionId);
-      } else if (candidates.length > 1) {
-        matchReason = "AMBIGUOUS_CANDIDATES";
-        console.log(`Ambiguous POS match (${candidates.length} candidates) — leaving for cashier`);
-      } else {
-        matchReason = "NO_OPEN_SALE";
-      }
-    }
 
     const { data: insertedTx, error: insertError } = await supabase
       .from("mpesa_c2b_transactions")
@@ -328,11 +329,12 @@ async function handleConfirmation(req: Request): Promise<Response> {
         first_name: FirstName || null,
         middle_name: MiddleName || null,
         last_name: LastName || null,
-        matched_invoice_id: matchedInvoiceId,
-        matched_contact_id: matchedContactId,
-        matched_pos_transaction_id: matchedPosTransactionId,
-        is_reconciled: matchedPosTransactionId !== null,
-        reconciled_at: matchedPosTransactionId ? new Date().toISOString() : null,
+        matched_loan_id: matchedLoanId,
+        matched_client_id: matchedClientId,
+        matched_contact_id: null,
+        is_reconciled: false,
+        reconciled_at: null,
+
         match_reason: matchReason,
         raw_payload: body,
       })
@@ -352,52 +354,54 @@ async function handleConfirmation(req: Request): Promise<Response> {
         console.log("C2B transaction stored:", insertedTx?.id);
       }
 
-      // Deterministic idempotency key: one M-Pesa TransID can only ever
-      // produce one payment, no matter how many times it is redelivered.
-      const requestId = `mpesa:c2b:${TransID}`;
+      if (matchedLoanId) {
+        // Inbound PayBill settlement goes through the single canonical
+        // lending settlement engine (mf_record_repayment), which writes the
+        // repayment, allocates it across the schedule and posts the GL leg
+        // atomically. A webhook must never write settlement tables directly.
+        //
+        // Idempotency: one M-Pesa TransID can only ever produce one
+        // repayment, no matter how many times Safaricom redelivers.
+        const { data: existing } = await supabase
+          .from("mf_repayments")
+          .select("id")
+          .eq("loan_id", matchedLoanId)
+          .eq("reference", TransID)
+          .maybeSingle();
 
-      if (matchedInvoiceId) {
-        // Inbound C2B settlement goes through the single canonical AR
-        // settlement engine (record_multi_invoice_payment), which writes
-        // payments + payment_allocations and posts the GL leg atomically.
-        // A webhook must never write settlement tables directly.
-        const { data: inv, error: invError } = await supabase
-          .from("invoices")
-          .select("id, business_id, branch_id, total, amount_paid")
-          .eq("id", matchedInvoiceId)
-          .single();
-
-        if (invError || !inv) {
-          console.error("Could not load matched invoice for C2B settlement:", invError);
+        if (existing) {
+          console.log("C2B repayment already recorded, skipping:", TransID);
+          await supabase
+            .from("mpesa_c2b_transactions")
+            .update({
+              is_reconciled: true,
+              reconciled_at: new Date().toISOString(),
+              matched_repayment_id: existing.id,
+              match_reason: matchReason,
+            })
+            .eq("organization_id", organizationId)
+            .eq("trans_id", TransID);
         } else {
-          const amount = parseFloat(TransAmount);
-          const outstanding = Math.max(
-            0,
-            Number(inv.total || 0) - Number(inv.amount_paid || 0),
+          const { data: repaymentId, error: settleError } = await supabase.rpc(
+            "mf_record_repayment",
+            {
+              p_loan_id: matchedLoanId,
+              p_paid_on: transTime.toISOString().split("T")[0],
+              p_amount: parseFloat(TransAmount),
+              p_method: "mpesa",
+              p_reference: TransID,
+              p_batch_id: null,
+              p_notes:
+                `M-Pesa PayBill payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`
+                  .trim(),
+            } as any,
           );
-          const applied = Math.min(amount, outstanding);
-
-          const { error: settleError } = await supabase.rpc("record_multi_invoice_payment", {
-            _org_id: organizationId,
-            _business_id: inv.business_id ?? null,
-            _branch_id: inv.branch_id ?? null,
-            _contact_id: matchedContactId,
-            _allocations: applied > 0
-              ? [{ invoice_id: matchedInvoiceId, amount: applied }]
-              : [],
-            _total_amount: amount,
-            _payment_date: transTime.toISOString().split("T")[0],
-            _payment_method: "mpesa",
-            _reference: TransID,
-            _notes: `M-Pesa C2B payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`,
-            _request_id: requestId,
-          } as any);
 
           if (settleError) {
             // Cash arrived but could not be posted. Leave the row unreconciled
             // and flagged so it surfaces in the unmatched-receipts queue rather
             // than being silently swallowed.
-            console.error("Error recording C2B settlement:", settleError);
+            console.error("Error recording C2B loan repayment:", settleError);
             await supabase
               .from("mpesa_c2b_transactions")
               .update({
@@ -413,6 +417,7 @@ async function handleConfirmation(req: Request): Promise<Response> {
               .update({
                 is_reconciled: true,
                 reconciled_at: new Date().toISOString(),
+                matched_repayment_id: (repaymentId as string | null) ?? null,
                 match_reason: matchReason,
               })
               .eq("organization_id", organizationId)
@@ -421,52 +426,6 @@ async function handleConfirmation(req: Request): Promise<Response> {
         }
       }
 
-      if (matchedPosTransactionId) {
-        const { data: posTx } = await supabase
-          .from("pos_transactions")
-          .select("id, total, branch_id, business_id, organization_id")
-          .eq("id", matchedPosTransactionId)
-          .single();
-
-        if (posTx) {
-          // Guard against double-tendering on webhook redelivery.
-          const { data: existingTender } = await supabase
-            .from("pos_transaction_payments")
-            .select("id")
-            .eq("transaction_id", posTx.id)
-            .eq("mpesa_receipt_number", TransID)
-            .maybeSingle();
-
-          if (!existingTender) {
-            const { error: tenderError } = await supabase.from("pos_transaction_payments").insert({
-              transaction_id: posTx.id,
-              payment_method: "mobile_money",
-              amount: parseFloat(TransAmount),
-              reference: TransID,
-              mpesa_receipt_number: TransID,
-              status: "completed",
-              processed_at: new Date().toISOString(),
-              branch_id: posTx.branch_id,
-              organization_id: posTx.organization_id,
-              business_id: posTx.business_id,
-            });
-
-            if (tenderError) {
-              console.error("Error recording C2B POS tender:", tenderError);
-              await supabase
-                .from("mpesa_c2b_transactions")
-                .update({ is_reconciled: false, reconciled_at: null, match_reason: "SETTLEMENT_FAILED" })
-                .eq("organization_id", organizationId)
-                .eq("trans_id", TransID);
-            }
-          }
-
-          await supabase
-            .from("pos_transactions")
-            .update({ payment_status: "paid", status: "completed", updated_at: new Date().toISOString() })
-            .eq("id", posTx.id);
-        }
-      }
     }
 
 
