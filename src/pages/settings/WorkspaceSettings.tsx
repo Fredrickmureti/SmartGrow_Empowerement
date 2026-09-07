@@ -47,12 +47,9 @@ import {
   Palette,
   Bell,
   Shield,
-  Database,
   Users,
   Globe,
   ArrowRight,
-  DatabaseZap,
-  AppWindow,
   Image as ImageIcon,
 } from "lucide-react";
 
