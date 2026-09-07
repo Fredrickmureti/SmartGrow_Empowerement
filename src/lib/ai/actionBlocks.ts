@@ -4,8 +4,8 @@
  * action lives on its own line.
  *
  * Wire format (one per line):
- *   ::action {"type":"open_path","path_id":"payroll.gl_mappings","label":"Open GL Mapping fixer"}
- *   ::action {"type":"fix_gl_mappings","label":"Apply all suggested mappings"}
+ *   ::action {"type":"open_path","path_id":"loans.list","label":"Open loans"}
+ *   ::action {"type":"open_install_dialog","app_id":"microfinance","label":"Install Microfinance"}
  *
  * The server validates `path_id` against ROUTE_CATALOG before forwarding.
  * The client renders each action as a Button.
