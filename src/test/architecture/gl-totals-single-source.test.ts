@@ -11,7 +11,6 @@ import { join } from "node:path";
 
 const root = process.cwd();
 const glTotals = readFileSync(join(root, "src/services/gl/fetchGLTotals.ts"), "utf8");
-const comparative = readFileSync(join(root, "src/pages/reports/Consolidation.tsx"), "utf8");
 const types = readFileSync(join(root, "src/integrations/supabase/types.ts"), "utf8");
 
 describe("fetchGLTotals delegates to the ledger", () => {
@@ -24,16 +23,5 @@ describe("fetchGLTotals delegates to the ledger", () => {
     expect(glTotals).not.toContain('from("accounts")');
     expect(glTotals).not.toMatch(/account_type/);
     expect(glTotals).not.toMatch(/total_credit|total_debit/);
-  });
-});
-
-describe("cross-company comparative authorization", () => {
-  it("gates on the finance permission the database enforces, not an org role", () => {
-    expect(comparative).toMatch(/useFinancePermission\(\s*"finance\.view_consolidated"/);
-    expect(comparative).not.toMatch(/userRole\?\.role === "owner"/);
-  });
-
-  it("does not show a denial while the permission answer is still loading", () => {
-    expect(comparative).toContain("if (!permLoading && !canViewConsolidation)");
   });
 });

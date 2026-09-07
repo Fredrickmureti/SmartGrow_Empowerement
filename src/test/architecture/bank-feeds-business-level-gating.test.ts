@@ -33,7 +33,7 @@ describe("Phase 12 — Bank Feeds is branch-scoped end-to-end", () => {
     const src = read("src/hooks/useBankTransactions.ts");
     // The effect dep array must include scope.branchId
     expect(src).toMatch(
-      /\[\s*currentOrg\?\.id\s*,\s*currentBusiness\?\.id\s*,\s*scope\.branchId\s*,\s*JSON\.stringify\(filters\)\s*\]/,
+      /\[\s*currentOrg\?\.id\s*,\s*currentBusiness\?\.id\s*,\s*scope\.branchId\s*,\s*filtersKey\s*[,\]]/,
     );
   });
 

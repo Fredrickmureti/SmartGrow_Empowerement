@@ -60,9 +60,7 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Business event | DocumentData kind | Renderer | Status |
 |---|---|---|---|
 | Sales invoice | `invoice` | PdfBuilder | WIRED |
-| Sales order | `sales_order` | PdfBuilder | WIRED |
 | Estimate / quote | `estimate` | PdfBuilder | WIRED |
-| Delivery note | `delivery_note` | PdfBuilder | WIRED |
 | Credit note | `credit_note` | PdfBuilder | WIRED |
 | Proforma invoice | `proforma_invoice` | PdfBuilder | WIRED |
 | Customer statement | `customer_statement` | PdfBuilder | WIRED |
@@ -70,7 +68,6 @@ are printed via `renderLinesEscPos` (bytes) or `renderThermalPdf` (PDF).
 | Purchase order | `purchase_order` | PdfBuilder | WIRED |
 | Bill (vendor invoice) | `bill` | PdfBuilder | WIRED |
 | Purchase return | `purchase_return` | PdfBuilder | WIRED |
-| Sales return | `sales_return` | PdfBuilder | WIRED |
 | Payslip | `payslip` | PdfBuilder (statutory-pinned) | WIRED |
 | Employee tax certificate (P9 / eq.) | `tax_certificate` | PdfBuilder (statutory-pinned) | WIRED |
 | Statutory return (PAYE/NSSF/NHIF/SHIF/HL) | `statutory_return` | PdfBuilder (statutory-pinned) | WIRED |
