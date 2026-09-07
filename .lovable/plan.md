@@ -243,7 +243,19 @@ A `pg_proc` sweep for legacy-domain names returns ~150 functions (`_consolidatio
 4. **Wave 10 — security posture pass.** Pre-existing backlog only: functions with `EXECUTE` granted to `authenticated`, missing `search_path`, and leaked-password protection disabled in Supabase auth settings. Nothing here was introduced by the Settings waves.
 5. `payment_requests`: RETAIN — live M-Pesa flow (`mpesa-outbound`, `mpesa-callback`).
 
+### Wave 9a (part 1) — legacy `generate-document` retired — DONE 2026-09-07
+
+- Evidence it was dead: of the 45 tables its fetchers read, only 7 still exist (`businesses`, `legal_recipients`, `organization_payment_methods`, `payment_allocations`, `payments`, `profiles`, `user_roles`); no code in `src/` or `supabase/functions/` invokes it (`render.ts` header already declared the backend retired — every printable artifact goes through `document_records` → `render-document`).
+- Removed: `supabase/functions/generate-document/` (index + its 5 co-located Deno tests, ~4.5k lines), and the deployed Supabase edge function `generate-document`.
+- Removed tests that only existed to police that file: `src/test/architecture/generate-document-resolver.test.ts`, `legacy-generator-snapshot-first.test.ts`, `printing-coverage-matrix-integrity.test.ts` (the last one enforced parity between `FETCHER_MAP` and the ERP-era `docs/printing-event-coverage.md`).
+- Kept: the absence-guards (`adr-0086-generate-document-client-entrypoint`, `document-renderer-single-transport`, eslint `no-direct-generate-document-in-pages`) — they assert nobody reintroduces the path.
+- Shared helpers referenced by the deleted function (`_shared/pdfGenerator`, `templateRenderer`, `escpos/*`, `receipt/documentToInput`, `documents/persistArtifact`, `exports/statementCsv`) all have other live consumers and were left alone.
+- Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; printing architecture suite (4 files, 31 tests) green.
+
 ### Next action
+
+**Wave 9a (part 2) — AI assistant ERP decoupling.** `supabase/functions/ai-assistant` still builds its snapshot from tables that no longer exist. `sales_orders` is only one of them: `index.ts` queries `estimates`, `credit_notes`, `purchase_orders`, `pos_transactions`, `invoices` etc. in one positional `Promise.all` (results destructured at ~411-417, consumed at ~667-1011), and `dataTools.ts` / `capabilities.ts` register the same dead tables. Removing a single entry shifts the destructuring, so this must be done as one pass over the whole snapshot: strip every non-existent table from `TABLE_DEFS`/`TABLE_MODULE`, rebuild the `Promise.all` block and prompt assembly around the surviving finance + MFI tables, then re-run `src/__tests__/architecture.ai-assistant-boundary.test.ts`. Then `send-document-email` (`customer_statements`) and `src/hooks/{useExport,realtime/useUnifiedRealtimeSync}` before the Wave 9b table drops.
+
 
 
 I checked the previous session's claims independently and they hold up: the payment-gateway, card, crypto and document-template screens are genuinely gone (only stray comments mention them), the numbering, notification and audit work is in place, the nightly check no longer looks for sales invoices, supplier bills or payroll runs, and the project has no type errors. I also renamed one leftover example text in a bank-matching field from a card processor to M-Pesa.
