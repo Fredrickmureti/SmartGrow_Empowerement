@@ -92,7 +92,7 @@ export function useDocumentTemplates(templateType?: DocumentTemplateType) {
         show_company_email: input.show_company_email ?? true,
         show_tax_id: input.show_tax_id ?? false,
         header_text: input.header_text || null,
-        document_title_format: input.document_title_format || 'INVOICE',
+        document_title_format: input.document_title_format || 'REPAYMENT RECEIPT',
         
         // Content
         show_line_numbers: input.show_line_numbers ?? true,
