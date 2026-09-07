@@ -1,0 +1,13 @@
+DROP FUNCTION IF EXISTS public.change_business_base_currency(uuid, text, text, boolean);
+DROP FUNCTION IF EXISTS public.business_currency_readiness(uuid);
+DROP FUNCTION IF EXISTS public.set_business_active_currency(uuid, text, boolean);
+DROP FUNCTION IF EXISTS public.fx_rate_coverage_summary(uuid);
+DROP FUNCTION IF EXISTS public.fx_rate_coverage(uuid);
+DROP FUNCTION IF EXISTS public.get_sample_data_counts(uuid);
+DROP FUNCTION IF EXISTS public.check_contact_dependencies(uuid);
+DROP FUNCTION IF EXISTS public.preview_reversal_consequences(text, uuid);
+DROP FUNCTION IF EXISTS public.preview_reversal_consequences_core(text, uuid);
+DROP FUNCTION IF EXISTS public.preview_reversal_extras_expense(uuid);
+DROP FUNCTION IF EXISTS public.preview_reversal_extras_customer_refund(uuid);
+DROP FUNCTION IF EXISTS public.find_invoice_contact_business_mismatches();
+DROP FUNCTION IF EXISTS public.find_bill_vendor_business_mismatches();

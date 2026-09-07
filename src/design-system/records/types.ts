@@ -17,7 +17,7 @@ import type { DocumentMoney } from "./money";
 import type { DocumentActivityEntry, DocumentTotalsRow } from "./panels";
 import type { LineItemColumn, LineItemRow } from "./LineItemsGrid";
 import type { DetailField } from "./RecordBody";
-import type { LifecycleDocType } from "./DocumentLifecycleStrip";
+
 
 export interface DocumentRecordView {
   // ---- Identity -----------------------------------------------------
@@ -75,8 +75,6 @@ export interface DocumentRecordView {
    * e-signature, a conversion timestamp). Merged into the audit feed.
    */
   activityExtra?: DocumentActivityEntry[];
-  /** Order-to-cash traversal anchor. Omit for non-lifecycle documents. */
-  lifecycle?: { docType: LifecycleDocType; docId: string };
   /** Additional right-rail panels. */
   extraAside?: ReactNode;
 }
