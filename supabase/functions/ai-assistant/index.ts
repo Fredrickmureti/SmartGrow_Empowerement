@@ -1663,7 +1663,7 @@ serve(async (req) => {
     const result = await response.json();
     const content = result.choices?.[0]?.message?.content;
 
-    if (["categorize_expense", "analyze_invoice", "suggest_actions", "match_transactions"].includes(type)) {
+    if (["categorize_expense", "suggest_actions"].includes(type)) {
       try {
         const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
         const jsonStr = jsonMatch ? jsonMatch[1] : content;
