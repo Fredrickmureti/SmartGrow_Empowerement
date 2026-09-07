@@ -120,12 +120,25 @@ describe("pgcrypto extension-prefix guard", () => {
       .sort();
 
     const lastDef = new Map<string, FnBlock>();
+    // A function whose last definition is followed by a DROP is no longer
+    // deployed — the migration history still describes it, but the database
+    // does not have it. Dropped-domain functions (POS, attendance kiosk,
+    // dock scheduling) must not be judged against a live-runtime rule.
+    const dropped = new Set<string>();
     for (const f of files) {
       const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf-8");
       for (const block of extractFunctionBlocks(f, sql)) {
         lastDef.set(block.name, block);
+        dropped.delete(block.name);
+      }
+      for (const m of sql.matchAll(
+        /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-zA-Z_]\w*)/gi,
+      )) {
+        dropped.add(m[1]);
       }
     }
+    for (const name of dropped) lastDef.delete(name);
+
 
     type Violation = { file: string; fn: string; sqlFn: string; snippet: string };
     const violations: Violation[] = [];
