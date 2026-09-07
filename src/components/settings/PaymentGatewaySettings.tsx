@@ -108,7 +108,7 @@ export function PaymentGatewaySettings() {
             <div className="bg-muted/50 rounded-lg p-6">
               <h3 className="font-medium mb-2">Connect Your Stripe Account</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Enter your Stripe API keys to enable online invoice payments. 
+                Enter your Stripe API keys to enable online loan repayments. 
                 Payments will go directly to your Stripe account - we never hold your funds.
               </p>
               <Button onClick={() => setIsEditing(true)}>
@@ -262,8 +262,8 @@ export function PaymentGatewaySettings() {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Remove Stripe Connection?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will delete your Stripe API keys. Customers will no longer
-                        be able to pay invoices online until you reconnect.
+                        This will delete your Stripe API keys. Clients will no longer
+                        be able to repay online until you reconnect.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

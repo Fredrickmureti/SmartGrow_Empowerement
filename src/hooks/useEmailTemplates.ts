@@ -23,11 +23,11 @@ export interface EmailTemplate {
 }
 
 const DEFAULT_TEMPLATE_KEYS = [
-  "invoice_sent",
-  "payment_reminder",
-  "payment_receipt",
-  "estimate_sent",
-  "invoice_overdue",
+  "loan_approved",
+  "loan_disbursed",
+  "repayment_receipt",
+  "repayment_reminder",
+  "repayment_overdue",
 ] as const;
 
 export type TemplateKey = (typeof DEFAULT_TEMPLATE_KEYS)[number];

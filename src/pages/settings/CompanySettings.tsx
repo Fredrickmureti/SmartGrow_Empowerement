@@ -308,7 +308,7 @@ function EmailSettingsForm({ businessId, canEdit }: { businessId?: string; canEd
           disabled={!canEdit}
         />
         <p className="text-xs text-muted-foreground">
-          Sender name on outgoing emails (invoices, receipts, statements).
+          Sender name on outgoing emails (repayment receipts, statements, notices).
         </p>
       </div>
       <div className="space-y-2">

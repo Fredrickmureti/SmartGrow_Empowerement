@@ -1,10 +1,9 @@
 /**
  * Generic User Profile Page — App-Independent
  * 
- * This is the user's account profile, NOT the HR employee profile.
- * It works regardless of whether HR/Payroll is installed.
- * If the user has an employee record AND HR is installed, a link
- * to the HR employee portal is shown.
+ * This is the staff member's account profile — name, contact details,
+ * password and session preferences. It is independent of any app and of
+ * the lending role the user holds.
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -254,7 +254,7 @@ export function MpesaC2BProviderCard() {
               <h3 className="font-medium mb-2">Receive M-Pesa Payments</h3>
               <p className="text-sm text-muted-foreground mb-4">
                 Configure your Paybill or Till number to automatically receive and record
-                customer payments. Transactions are matched to invoices automatically.
+                client repayments. Transactions are matched to loan repayments automatically.
               </p>
               <Button onClick={() => setIsEditing(true)}>
                 <Building2 className="mr-2 h-4 w-4" />

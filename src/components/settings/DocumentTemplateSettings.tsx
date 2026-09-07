@@ -52,12 +52,11 @@ import type {
 import { DOCUMENT_TYPE_LABELS } from "@/types/documentTemplate";
 
 const TEMPLATE_TYPE_ICONS: Record<DocumentTemplateType, React.ReactNode> = {
-  invoice: <FileText className="h-5 w-5" />,
-  estimate: <FileCheck className="h-5 w-5" />,
-  proforma: <Receipt className="h-5 w-5" />,
-  credit_note: <CreditCard className="h-5 w-5" />,
-  receipt: <Receipt className="h-5 w-5" />,
-  purchase_order: <ShoppingCart className="h-5 w-5" />,
+  loan_agreement: <FileText className="h-5 w-5" />,
+  repayment_schedule: <FileCheck className="h-5 w-5" />,
+  loan_statement: <CreditCard className="h-5 w-5" />,
+  client_statement: <CreditCard className="h-5 w-5" />,
+  loan_payment_receipt: <Receipt className="h-5 w-5" />,
 };
 
 export function DocumentTemplateSettings() {
@@ -73,7 +72,7 @@ export function DocumentTemplateSettings() {
     setAsDefault 
   } = useDocumentTemplates();
 
-  const [activeType, setActiveType] = useState<DocumentTemplateType>("invoice");
+  const [activeType, setActiveType] = useState<DocumentTemplateType>("loan_agreement");
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<DocumentTemplate | null>(null);
@@ -134,7 +133,7 @@ export function DocumentTemplateSettings() {
                 Document Templates
               </CardTitle>
               <CardDescription>
-                Control which business information appears on your invoices, estimates, and other documents.
+                Control which institution information appears on loan agreements, repayment schedules, statements and repayment receipts.
               </CardDescription>
             </div>
             <Button onClick={handleCreateTemplate}>
@@ -146,25 +145,35 @@ export function DocumentTemplateSettings() {
         <CardContent>
           <Tabs value={activeType} onValueChange={(v) => setActiveType(v as DocumentTemplateType)}>
             <TabsList className="mb-4">
-              <TabsTrigger value="invoice" className="gap-2">
+              <TabsTrigger value="loan_agreement" className="gap-2">
                 <FileText className="h-4 w-4" />
-                Invoices
+                Loan Agreements
               </TabsTrigger>
-              <TabsTrigger value="estimate" className="gap-2">
+              <TabsTrigger value="repayment_schedule" className="gap-2">
                 <FileCheck className="h-4 w-4" />
-                Estimates
+                Repayment Schedules
               </TabsTrigger>
-              <TabsTrigger value="proforma" className="gap-2">
-                <Receipt className="h-4 w-4" />
-                Proforma
-              </TabsTrigger>
-              <TabsTrigger value="credit_note" className="gap-2">
+              <TabsTrigger value="loan_statement" className="gap-2">
                 <CreditCard className="h-4 w-4" />
-                Credit Notes
+                Loan Statements
+              </TabsTrigger>
+              <TabsTrigger value="client_statement" className="gap-2">
+                <CreditCard className="h-4 w-4" />
+                Client Statements
+              </TabsTrigger>
+              <TabsTrigger value="loan_payment_receipt" className="gap-2">
+                <Receipt className="h-4 w-4" />
+                Repayment Receipts
               </TabsTrigger>
             </TabsList>
 
-            {(["invoice", "estimate", "proforma", "credit_note"] as DocumentTemplateType[]).map((type) => (
+            {([
+              "loan_agreement",
+              "repayment_schedule",
+              "loan_statement",
+              "client_statement",
+              "loan_payment_receipt",
+            ] as DocumentTemplateType[]).map((type) => (
               <TabsContent key={type} value={type}>
                 {filteredTemplates.length === 0 ? (
                   <div className="text-center py-12 border rounded-lg border-dashed">
