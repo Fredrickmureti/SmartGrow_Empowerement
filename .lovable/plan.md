@@ -203,6 +203,8 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-Done now: the document-template editor removal is complete and confirmed compiling — the empty template table, its helper routines, the leftover link column and the stale branch-lookup entry are gone from the database. M-Pesa collection settings are now PayBill-only (Till option removed), and the plan records the corrected decision to adapt the existing payment-method catalogue in place instead of building a parallel one.
+I got the Kenya-shilling lock and the start of document numbering in place before stopping.
 
-Remaining: locking the institution to KES, document numbering, notification/email re-scoping, and the legacy database cleanup (Waves 4, 6, 7, 8), plus finishing the plan's status section for those.
+Done in this session: the exchange-rate/currency screens are gone and the institution is now locked to Kenyan Shillings in the database (the routines that could change the base currency or override rates can no longer be called from the app), and the numbering foundation is created — a table where you set the prefix and digit length for loans, loan applications, clients, receipts and disbursements, per company and optionally per branch, plus the internal counters behind it.
+
+Remaining: point loan, receipt and disbursement number creation at that new numbering service, add the Settings screen for editing the prefixes, re-scope notifications/email to microfinance events only, do the final legacy database tidy-up, and record all of this in the project status file.
