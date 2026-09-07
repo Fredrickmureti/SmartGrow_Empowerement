@@ -26,8 +26,6 @@ export interface Branch {
   logo_url?: string | null;
   receipt_header?: string | null;
   receipt_footer?: string | null;
-  invoice_prefix_suffix?: string | null;
-  default_warehouse_id?: string | null;
   // Additional fields from RPC
   is_primary_assignment?: boolean;
   can_manage?: boolean;
@@ -200,7 +198,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
           const branchIds = rpcRows.map((r) => r.id);
           const { data: identityData, error: identityError } = await supabase
             .from("branches")
-            .select("id, email, phone, address, city, state, postal_code, country, logo_url, receipt_header, receipt_footer, invoice_prefix_suffix, default_warehouse_id, created_at, updated_at")
+            .select("id, email, phone, address, city, state, postal_code, country, logo_url, receipt_header, receipt_footer, created_at, updated_at")
             .in("id", branchIds);
 
           if (identityError) throw identityError;
@@ -227,8 +225,6 @@ export function BranchProvider({ children }: { children: ReactNode }) {
               logo_url: identity.logo_url ?? null,
               receipt_header: identity.receipt_header ?? null,
               receipt_footer: identity.receipt_footer ?? null,
-              invoice_prefix_suffix: identity.invoice_prefix_suffix ?? null,
-              default_warehouse_id: identity.default_warehouse_id ?? null,
               is_headquarters: b.is_headquarters ?? false,
               is_active: b.is_active ?? true,
               created_at: identity.created_at ?? new Date().toISOString(),

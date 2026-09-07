@@ -23,9 +23,6 @@ export interface Business {
   base_currency: string | null;
   /** Vertical captured at signup/onboarding; drives UX defaults (see industryProfiles). */
   industry?: string | null;
-  invoice_prefix: string | null;
-  estimate_prefix: string | null;
-  bill_prefix: string | null;
   is_active: boolean;
   week_starts_on?: number | null;
   weekly_hours_target?: number | null;
@@ -48,9 +45,6 @@ export interface CreateBusinessInput {
   postal_code?: string;
   country?: string;
   base_currency?: string;
-  invoice_prefix?: string;
-  estimate_prefix?: string;
-  bill_prefix?: string;
 }
 
 interface BusinessAccessInfo {

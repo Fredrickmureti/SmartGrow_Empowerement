@@ -3847,10 +3847,8 @@ export type Database = {
           code: string | null
           country: string | null
           created_at: string
-          default_warehouse_id: string | null
           email: string | null
           id: string
-          invoice_prefix_suffix: string | null
           is_active: boolean | null
           is_headquarters: boolean | null
           logo_url: string | null
@@ -3870,10 +3868,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
-          default_warehouse_id?: string | null
           email?: string | null
           id?: string
-          invoice_prefix_suffix?: string | null
           is_active?: boolean | null
           is_headquarters?: boolean | null
           logo_url?: string | null
@@ -3893,10 +3889,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
-          default_warehouse_id?: string | null
           email?: string | null
           id?: string
-          invoice_prefix_suffix?: string | null
           is_active?: boolean | null
           is_headquarters?: boolean | null
           logo_url?: string | null
@@ -4727,11 +4721,8 @@ export type Database = {
       businesses: {
         Row: {
           address: string | null
-          allow_duplicate_vendor_invoice_numbers: boolean
           archived_at: string | null
           base_currency: string
-          bill_prefix: string | null
-          block_bill_approval_on_match_exception: boolean
           business_type: string | null
           city: string | null
           cost_model: string
@@ -4743,24 +4734,18 @@ export type Database = {
           email: string | null
           email_display_name: string | null
           email_reply_to: string | null
-          estimate_prefix: string | null
           finance_readiness: string
           finance_readiness_checked_at: string | null
           finance_readiness_reason: string | null
           fiscal_year_start: number | null
           id: string
           industry: string | null
-          invoice_prefix: string | null
           is_active: boolean | null
           legal_name: string | null
           logo_url: string | null
           name: string
           number_format: string | null
           organization_id: string
-          payroll_overtime_multiplier: number | null
-          payroll_self_approval_policy: string
-          payroll_standard_hours_per_day: number | null
-          payroll_standard_working_days: number | null
           phone: string | null
           postal_code: string | null
           proforma_prefix: string | null
@@ -4768,9 +4753,7 @@ export type Database = {
           receipt_settings: Json
           receipt_theme: Json | null
           registration_number: string | null
-          require_bill_approval: boolean
           require_product_physical_attributes: boolean
-          sales_return_prefix: string | null
           sample_data_prompt_dismissed: boolean | null
           setup_wizard_completed: boolean | null
           setup_wizard_step: number | null
@@ -4785,11 +4768,8 @@ export type Database = {
         }
         Insert: {
           address?: string | null
-          allow_duplicate_vendor_invoice_numbers?: boolean
           archived_at?: string | null
           base_currency?: string
-          bill_prefix?: string | null
-          block_bill_approval_on_match_exception?: boolean
           business_type?: string | null
           city?: string | null
           cost_model?: string
@@ -4801,24 +4781,18 @@ export type Database = {
           email?: string | null
           email_display_name?: string | null
           email_reply_to?: string | null
-          estimate_prefix?: string | null
           finance_readiness?: string
           finance_readiness_checked_at?: string | null
           finance_readiness_reason?: string | null
           fiscal_year_start?: number | null
           id?: string
           industry?: string | null
-          invoice_prefix?: string | null
           is_active?: boolean | null
           legal_name?: string | null
           logo_url?: string | null
           name: string
           number_format?: string | null
           organization_id: string
-          payroll_overtime_multiplier?: number | null
-          payroll_self_approval_policy?: string
-          payroll_standard_hours_per_day?: number | null
-          payroll_standard_working_days?: number | null
           phone?: string | null
           postal_code?: string | null
           proforma_prefix?: string | null
@@ -4826,9 +4800,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
-          require_bill_approval?: boolean
           require_product_physical_attributes?: boolean
-          sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
           setup_wizard_step?: number | null
@@ -4843,11 +4815,8 @@ export type Database = {
         }
         Update: {
           address?: string | null
-          allow_duplicate_vendor_invoice_numbers?: boolean
           archived_at?: string | null
           base_currency?: string
-          bill_prefix?: string | null
-          block_bill_approval_on_match_exception?: boolean
           business_type?: string | null
           city?: string | null
           cost_model?: string
@@ -4859,24 +4828,18 @@ export type Database = {
           email?: string | null
           email_display_name?: string | null
           email_reply_to?: string | null
-          estimate_prefix?: string | null
           finance_readiness?: string
           finance_readiness_checked_at?: string | null
           finance_readiness_reason?: string | null
           fiscal_year_start?: number | null
           id?: string
           industry?: string | null
-          invoice_prefix?: string | null
           is_active?: boolean | null
           legal_name?: string | null
           logo_url?: string | null
           name?: string
           number_format?: string | null
           organization_id?: string
-          payroll_overtime_multiplier?: number | null
-          payroll_self_approval_policy?: string
-          payroll_standard_hours_per_day?: number | null
-          payroll_standard_working_days?: number | null
           phone?: string | null
           postal_code?: string | null
           proforma_prefix?: string | null
@@ -4884,9 +4847,7 @@ export type Database = {
           receipt_settings?: Json
           receipt_theme?: Json | null
           registration_number?: string | null
-          require_bill_approval?: boolean
           require_product_physical_attributes?: boolean
-          sales_return_prefix?: string | null
           sample_data_prompt_dismissed?: boolean | null
           setup_wizard_completed?: boolean | null
           setup_wizard_step?: number | null
