@@ -31,7 +31,6 @@ import { useMfClients } from "@/hooks/useMfClients";
 import { useMfGroups } from "@/hooks/useMfGroups";
 import { useMfLoanProducts, useMfLoanProductVersions } from "@/hooks/useMfLoanProducts";
 import {
-  nextApplicationNumber,
   type MfLoanApplication,
   type MfLoanApplicationInput,
 } from "@/hooks/useMfApplications";
@@ -42,7 +41,6 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   application: MfLoanApplication | null;
-  existing: MfLoanApplication[];
   onCreate: (input: MfLoanApplicationInput) => Promise<void>;
   onUpdate: (id: string, patch: Partial<MfLoanApplicationInput>) => Promise<void>;
 }
@@ -51,7 +49,6 @@ export function ApplicationFormDialog({
   open,
   onOpenChange,
   application,
-  existing,
   onCreate,
   onUpdate,
 }: Props) {
@@ -92,7 +89,7 @@ export function ApplicationFormDialog({
       });
     } else {
       setForm({
-        application_number: nextApplicationNumber(existing),
+        application_number: "",
         branch_id: branches[0]?.id ?? "",
         client_id: "",
         group_id: NONE,
@@ -103,7 +100,7 @@ export function ApplicationFormDialog({
         purpose: "",
       });
     }
-  }, [open, application, existing, branches]);
+  }, [open, application, branches]);
 
   const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -128,7 +125,6 @@ export function ApplicationFormDialog({
   const amount = Number(form.requested_amount);
   const term = Number(form.requested_term_installments);
   const valid =
-    form.application_number.trim() !== "" &&
     form.branch_id !== "" &&
     form.client_id !== "" &&
     form.product_id !== "" &&
@@ -142,7 +138,6 @@ export function ApplicationFormDialog({
     setSaving(true);
     try {
       const payload: MfLoanApplicationInput = {
-        application_number: form.application_number.trim(),
         branch_id: form.branch_id,
         client_id: form.client_id,
         group_id: form.group_id === NONE ? null : form.group_id,
@@ -177,8 +172,9 @@ export function ApplicationFormDialog({
             <Label htmlFor="application_number">Reference</Label>
             <Input
               id="application_number"
-              value={form.application_number}
-              onChange={(e) => set("application_number", e.target.value)}
+              value={application ? form.application_number : "Assigned automatically"}
+              readOnly
+              disabled
             />
           </div>
           <div className="space-y-1.5">

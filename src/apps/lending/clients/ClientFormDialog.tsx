@@ -30,7 +30,6 @@ import { useOrgMembers } from "@/hooks/useOrgMembers";
 import {
   MF_CLIENT_STATUSES,
   MF_KYC_COLUMN,
-  nextClientNumber,
   removeKycImage,
   uploadKycImage,
   type MfClient,
@@ -48,7 +47,6 @@ interface ClientFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client: MfClient | null;
-  existingClients: Array<{ client_number: string }>;
   onCreate: (input: MfClientInput) => Promise<MfClient>;
   onUpdate: (id: string, patch: Partial<MfClientInput>) => Promise<void>;
 }
@@ -101,7 +99,6 @@ export function ClientFormDialog({
   open,
   onOpenChange,
   client,
-  existingClients,
   onCreate,
   onUpdate,
 }: ClientFormDialogProps) {
@@ -141,18 +138,16 @@ export function ClientFormDialog({
     } else {
       setForm({
         ...EMPTY,
-        client_number: nextClientNumber(existingClients),
         branch_id: branches[0]?.id ?? "",
       });
     }
-  }, [open, client, branches, existingClients]);
+  }, [open, client, branches]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
   const canSave =
     form.full_name.trim() !== "" &&
-    form.client_number.trim() !== "" &&
     form.branch_id !== "";
 
   const handleSave = async () => {
@@ -160,7 +155,6 @@ export function ClientFormDialog({
     setSaving(true);
     try {
       const payload: MfClientInput = {
-        client_number: form.client_number.trim(),
         full_name: form.full_name.trim(),
         branch_id: form.branch_id,
         national_id: orNull(form.national_id),
@@ -242,8 +236,9 @@ export function ClientFormDialog({
               <Label htmlFor="client_number">Client number</Label>
               <Input
                 id="client_number"
-                value={form.client_number}
-                onChange={(e) => set("client_number", e.target.value)}
+                value={client ? form.client_number : "Assigned automatically"}
+                readOnly
+                disabled
               />
             </div>
             <div className="space-y-1.5">
