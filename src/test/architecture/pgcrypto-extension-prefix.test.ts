@@ -120,25 +120,34 @@ describe("pgcrypto extension-prefix guard", () => {
       .sort();
 
     const lastDef = new Map<string, FnBlock>();
-    // A function whose last definition is followed by a DROP is no longer
-    // deployed — the migration history still describes it, but the database
-    // does not have it. Dropped-domain functions (POS, attendance kiosk,
-    // dock scheduling) must not be judged against a live-runtime rule.
-    const dropped = new Set<string>();
+    // `ALTER FUNCTION <name> ... SET search_path = public, extensions` is the
+    // other legitimate remedy, and it leaves the CREATE block untouched — so
+    // the header alone cannot tell us whether the function is safe.
+    const alteredToExtensions = new Set<string>();
+    // Functions removed by the ERP-strip purge (POS, attendance kiosk, dock
+    // scheduling). They were dropped in bulk over pg_proc rather than by
+    // name, so the migration text still describes them while the database
+    // does not have them — verified absent in pg_proc. A rule about runtime
+    // resolution cannot apply to a function that no longer exists.
+    const REMOVED_FUNCTIONS = new Set([
+      "attendance_clock_in",
+      "attendance_device_register",
+      "schedule_dock_appointment",
+      "pos_return_authorization_transition",
+    ]);
     for (const f of files) {
       const sql = readFileSync(join(MIGRATIONS_DIR, f), "utf-8");
       for (const block of extractFunctionBlocks(f, sql)) {
         lastDef.set(block.name, block);
-        dropped.delete(block.name);
+        alteredToExtensions.delete(block.name);
       }
       for (const m of sql.matchAll(
-        /DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-zA-Z_]\w*)/gi,
+        /ALTER\s+FUNCTION\s+(?:public\.)?([a-zA-Z_]\w*)[^;]*?SET\s+search_path\s*(?:=|TO)\s*([^;]*)/gi,
       )) {
-        dropped.add(m[1]);
+        if (/\bextensions\b/.test(m[2])) alteredToExtensions.add(m[1]);
       }
     }
-    for (const name of dropped) lastDef.delete(name);
-
+    for (const name of REMOVED_FUNCTIONS) lastDef.delete(name);
 
     type Violation = { file: string; fn: string; sqlFn: string; snippet: string };
     const violations: Violation[] = [];
@@ -146,6 +155,8 @@ describe("pgcrypto extension-prefix guard", () => {
       const calls = findBareCalls(block.body);
       if (calls.length === 0) continue;
       if (headerHasExtensionsInSearchPath(block.header)) continue;
+      if (alteredToExtensions.has(block.name)) continue;
+
       for (const c of calls) {
         violations.push({
           file: block.file,
