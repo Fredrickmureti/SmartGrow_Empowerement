@@ -19,17 +19,18 @@
 
 /** Modules the assistant can read from. Mirrors `permission_group_rules.module`. */
 export const AI_MODULES = [
-  "contacts",
-  "products",
-  "sales",
-  "purchases",
-  "financials",
-  "hr",
-  "payroll",
-  "pos",
-  "inventory",
-  "projects",
-  "leave",
+  "clients",
+  "loans",
+  "applications",
+  "repayments",
+  "collections",
+  "loan_products",
+  "accounting",
+  "treasury",
+  "branches",
+  "team",
+  "reports",
+  "audit",
   "settings",
 ] as const;
 
@@ -41,51 +42,30 @@ export type AiModule = typeof AI_MODULES[number];
  * the table unreachable rather than public.
  */
 export const TABLE_MODULE: Record<string, AiModule> = {
-  invoices: "sales",
-  credit_notes: "sales",
-  estimates: "sales",
-  sales_orders: "sales",
-  payments: "sales",
-  crm_leads: "sales",
+  // Microfinance core
+  mf_clients: "clients",
+  mf_groups: "clients",
+  contacts: "clients",
 
-  bills: "purchases",
-  purchase_orders: "purchases",
+  mf_loans: "loans",
+  mf_loan_applications: "applications",
+  mf_repayments: "repayments",
 
-  expenses: "financials",
-  bank_accounts: "financials",
-  bank_transactions: "financials",
-  accounts: "financials",
-  fixed_assets: "financials",
-  exchange_rates: "financials",
+  // Finance / accounting
+  expenses: "accounting",
+  payments: "accounting",
+  accounts: "accounting",
+  journal_entries: "accounting",
+  fixed_assets: "accounting",
 
-  contacts: "contacts",
+  // Treasury
+  bank_accounts: "treasury",
+  bank_transactions: "treasury",
+  exchange_rates: "treasury",
 
-  products: "products",
-  product_categories: "products",
-  product_packaging: "products",
-  units_of_measure: "products",
-  uom_categories: "products",
-
-  warehouses: "inventory",
-  stock_locations: "inventory",
-  warehouse_stock: "inventory",
-  stock_quants: "inventory",
-  stock_lots: "inventory",
-  warehouse_stock_lots: "inventory",
-  stock_serials: "inventory",
-  stock_movements: "inventory",
-  stock_reservations: "inventory",
-  stock_adjustments: "inventory",
-  stock_transfers: "inventory",
-  product_reorder_rules: "inventory",
-
-  employees: "hr",
-  leave_requests: "leave",
-
-  projects: "projects",
-  project_tasks: "projects",
-
-  branches: "settings",
+  // Organisation & configuration
+  branches: "branches",
+  employees: "team",
   businesses: "settings",
   business_active_currencies: "settings",
 };
@@ -100,10 +80,8 @@ export const TOOL_MODULE: Record<string, AiModule | null> = {
   get_currency_context: null,
   query_data: null, // gated by the table's module instead
   count_rows: null, // gated by the table's module instead
-  get_inventory_overview: "inventory",
-  list_products: "products",
-  get_product_inventory: "inventory",
 };
+
 
 export interface CapabilitySet {
   /** Modules this caller may read. */
