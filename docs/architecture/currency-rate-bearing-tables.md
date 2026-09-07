@@ -60,3 +60,5 @@ Table | Rate column | Why no stamping trigger
 `fx_revaluation_lines` | `old_rate`, `new_rate` | Historical evidence of a posted revaluation run, written only by `revalue_fx_balances`. Rows are append-only and must never be re-stamped.
 `exchange_rates` | `rate` | This *is* the rate book. Rows are immutable once published; writes are finance-manager gated.
 `journal_entry_lines` | `original_*` | Amounts are stamped by the posting engine from the source document's already-stamped rate; a second stamping would re-open a posted period.
+`consolidation_exchange_rates` | `rate` | This is the group consolidation rate book, not a document. A row is a period-keyed closing/average/historical rate entered by a group finance manager, unique on `(group_id, from_currency, to_currency, rate_type, period_start, period_end)` and consumed by the consolidation engine; there is no document currency to stamp, so a stamping trigger would have nothing to act on.
+
