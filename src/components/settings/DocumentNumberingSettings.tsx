@@ -65,6 +65,7 @@ export function DocumentNumberingSettings() {
   const [saving, setSaving] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [initial, setInitial] = useState<Record<string, Draft>>({});
+  const [ruleIds, setRuleIds] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let cancelled = false;
