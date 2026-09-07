@@ -330,9 +330,8 @@ export function MpesaC2BProviderCard() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="businessShortCode">Business Short Code *</Label>
+            <div className="space-y-2">
+                <Label htmlFor="businessShortCode">PayBill Number *</Label>
                 <Input
                   id="businessShortCode"
                   value={businessShortCode}
