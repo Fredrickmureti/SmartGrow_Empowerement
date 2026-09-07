@@ -110726,6 +110726,11 @@ export type Database = {
         | "cashier"
         | "portal"
         | "internal"
+        | "branch_manager"
+        | "loan_officer"
+        | "credit_officer"
+        | "collections_officer"
+        | "auditor"
       application_stage:
         | "applied"
         | "screen"
@@ -111920,6 +111925,11 @@ export const Constants = {
         "cashier",
         "portal",
         "internal",
+        "branch_manager",
+        "loan_officer",
+        "credit_officer",
+        "collections_officer",
+        "auditor",
       ],
       application_stage: [
         "applied",
