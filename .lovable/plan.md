@@ -1,85 +1,211 @@
-# Authorization convergence — status (2026-09-07)
+# Settings Domain Reconstruction — Kenyan Microfinance
 
-## Completed and verified (do NOT repeat)
+Audit date: 2026-09-07. Scope: Settings domain only. Loans, Payments/Settlement, Accounting, Reports and Access Groups are **not** redesigned — they are only touched where Settings depends on them.
 
-- Access-group seeding, governance registry parity, module registry pruning,
-  settings/document/email vocabulary rewrite in `src/`.
-- Wave S-4 vocabulary fixes (`documentTemplate.ts`, `useDocumentTemplates.ts`,
-  `DocumentTemplateBuilder.tsx`); `tsgo --noEmit` clean.
-- Wave G-5 checks: settings vocabulary clean, branch isolation on `mf_loans` /
-  `mf_loan_applications` / `mf_repayments`, Loan Officer cannot
-  approve/disburse, Branch Manager scope — all PASS.
-- `permission_group_rules.module` values are microfinance-only.
+---
 
-## Wave G-6 — lending self-action guards — DONE
+## 0. Audit Summary
 
-Three small migrations added `BEFORE UPDATE` guards calling
-`governance_assert_not_self`, organization resolved via
-`businesses.organization_id`:
+### 0.1 Live database reality (verified against the running DB, not migrations)
 
-- `sod_mf_loan_applications_guard` — `loan.approve` on transitions to
-  `approved` / `rejected`; subject = `submitted_by` ?? `created_by`.
-- `sod_mf_loans_guard` — `loan.disburse` / `loan.restructure`
-  (`pending_disbursement → active`, keyed on `lineage_kind`) and
-  `loan.write_off` (`→ written_off`).
-- `sod_mf_repayments_guard` — `repayment.reverse` (`→ reversed`);
-  subject = `received_by` ?? `created_by`.
+- No `pos_*`, `invoice*`, `product*`, `inventory*`, `payroll*`, `warehouse*` tables exist any more. Migrations still reference them historically, but the objects are gone.
+- Residual legacy commercial tables that DO still exist and are empty: `sales_orders`, `sales_order_items`, `sales_returns`, `sales_return_items`, `sales_return_cost_basis`, `sales_document_idempotency`, `payment_requests` (0 rows), `mpesa_c2b_transactions` (0 rows).
+- Microfinance is the live domain: `mf_clients` (4), `mf_loans` (6), `accounts` (108), `bank_accounts` (1).
+- Currency: `currencies` and `business_active_currencies` contain **only KES**.
+- `branch_overridable_settings` holds 6 keys (`receipt_header`, `receipt_footer`, `contact_email`, `contact_phone`, `document_logo_url`, `document_address`); `branch_setting_overrides` is **empty**.
+- `document_templates` and `email_templates` are **empty**.
 
-EXECUTE revoked from PUBLIC/anon/authenticated on the new functions.
-Coverage locked by `src/test/architecture/sod-trigger-coverage.test.ts`
-(registry snapshot → guarded-table snapshot); passes together with
-`governance-action-registry-parity.test.ts`.
+### 0.2 Critical defect found (blocking, fix first)
 
-## Wave G-7 — app catalogue — DONE
+`public.get_effective_company_config(p_business_id, p_branch_id)` still selects `biz.invoice_prefix`, `biz.estimate_prefix`, `biz.bill_prefix` and `branches.default_warehouse_id`. **None of those columns exist any more** (dropped in `20260907093125`). The function therefore raises at runtime for every call.
 
-`platform_apps` already had every ERP row `is_available=false`,
-`is_visible_in_signup=false`; only leftover **active installs** for `sales` and
-`purchases` remained — set `is_active=false` (rows kept for history).
-`src/features/resources/appOptions.ts` rewritten to Clients, Lending,
-Collections, Finance, Reports.
+Callers:
+- `supabase/functions/_shared/branding/getOrganizationBranding.ts:127`
+- `supabase/functions/generate-document/index.ts:107`
 
-## Wave G-8 — legacy settings retirement — DONE
+Consequence: any branch-scoped document branding resolution fails. This is Wave 1 and everything else queues behind it.
 
-1. Stopped reading: `BusinessContext` (`invoice_prefix`, `estimate_prefix`,
-   `bill_prefix` removed from `Business` + `CreateBusinessInput`),
-   `BranchContext` (`invoice_prefix_suffix`, `default_warehouse_id` removed
-   from type, select list and identity mapping).
-2. `pg_depend` check returned no view/rule dependency.
-3. Dropped `businesses.invoice_prefix / estimate_prefix / bill_prefix /
-   sales_return_prefix / require_bill_approval /
-   allow_duplicate_vendor_invoice_numbers /
-   block_bill_approval_on_match_exception / payroll_overtime_multiplier /
-   payroll_standard_hours_per_day / payroll_standard_working_days /
-   payroll_self_approval_policy` and `branches.invoice_prefix_suffix /
-   default_warehouse_id`.
-4. Dropped `reset_module__hr / pos / sales / costing / events`
-   (`governance_modules` references none of them).
+### 0.3 Settings surface inventory
 
-`tsgo --noEmit` clean afterwards. The only remaining match for those names is
-the FORBIDDEN regex in
-`src/test/architecture/no-org-identity-reads.test.ts` — intentional guard.
+Hubs: `/settings/workspace` (org-scoped) and `/settings/company` (business-scoped, behind `CompanyScopeGate`), plus standalone routes registered in `src/App.tsx:185-194`. Nav lives in `src/apps/platform/nav.ts`.
 
-## Wave G-9 — signed-in end-to-end walk — STILL BLOCKED
+---
 
-External Supabase, no mintable session in this environment. Needs a human
-pass with the owner account plus one Loan Officer account: sidebar/dashboard
-visibility, direct-URL block, approve/disburse refusal, branch A vs B
-isolation, access-group administration refusal, and an audit row per refusal.
+## 1. Classification of every setting
 
-## Known pre-existing test failures (not caused by this work)
+Verdicts: **RETAIN** (correct as-is) / **ADAPT** (keep concept, rework for Kenyan MFI) / **REPLACE** (concept valid, implementation wrong) / **REMOVE** (ERP contamination) / **DEFER** (out of this wave).
 
-12 architecture suites fail on inherited AccrualFlow migrations/SPA rules:
-`gl-totals-single-source`, `bank-feeds-business-level-gating`,
-`banking-business-level-gating`, `currency-ratchet`,
-`finance-settings-permission-gated`, `je-description-no-uuid`,
-`no-conditional-radix-overlay`, `no-tanstack-router-in-spa`,
-`pgcrypto-extension-prefix`, `po-billed-quantity-single-writer`,
-`single-audit-trigger-per-table`, `sql-businesses-currency-column`.
+### Workspace hub (`src/pages/settings/WorkspaceSettings.tsx`)
 
-## Deferred (unchanged)
+| Setting | Surface | Verdict | Rationale |
+|---|---|---|---|
+| Profile | `profiles` | RETAIN | User identity, domain-neutral. |
+| Appearance / theme | `ThemeSettings.tsx`, `next-themes`, no backend | RETAIN | Client preference only. |
+| Workspace name | `organizations.name` | RETAIN | Legitimate org-level config. |
+| Notifications | `EnhancedNotificationSettings.tsx`, `notification_preferences`, `notification_alert_settings` | ADAPT | Keep channel prefs in Settings; retarget event catalogue to MFI events (repayment due/overdue, disbursement, approval). Delivery logic stays in the notification domain. |
+| Security (PIN, devices, login history) | `SecuritySettings.tsx`, `user_pins`, `user_devices`, `login_history`, `security_alerts`, `user_security_preferences` | RETAIN | Session security, not a second RBAC model. |
+| Access Groups | `AccessGroups.tsx` | RETAIN | Central RBAC — the only permission model. No Settings-local permissions. |
+| Governance / SoD | `GovernanceModeCard.tsx`, `SelfActionPolicy.tsx`, `BlockedAttemptsQueue.tsx`, `self_action_policy`, `governance_action_registry` | RETAIN | Maker–checker is core to a lender. |
+| Email delivery provider | `EmailProviderSettings.tsx`, `get/set_email_provider_settings` | RETAIN | Real infrastructure config. |
 
-Infrastructure-level `invoice`/`estimate` identifiers in
-`src/lib/queryKeys.ts`, `src/lib/payments/deriveInvoiceFromAllocations.ts`,
-`src/lib/migration/sourceSystemPresets.ts`, `SessionContext.invoices_count`,
-`src/test/architecture/support/enumStatusLiterals.ts`,
-`src/pages/reports/JournalReport.tsx`.
+### Company hub (`src/pages/settings/CompanySettings.tsx`)
+
+| Setting | Surface | Verdict | Rationale |
+|---|---|---|---|
+| Business + branch CRUD | `BusinessBranchSettings.tsx`, `BusinessLogoUpload.tsx` | RETAIN | Institution + branch network is MFI master data. |
+| Branch overrides engine | `BranchConfiguration.tsx`, `branch_overridable_settings`, `branch_setting_overrides`, `set_branch_setting`, `clear_branch_setting`, `resolve_branch_setting` | RETAIN (repair) | Sound inheritance architecture; whitelist must be re-scoped to MFI keys. |
+| Effective config resolver | `get_effective_company_config` | REPLACE | Currently broken (dropped columns). Rewrite around MFI keys only. |
+| Bank accounts | `BranchOperations.tsx`, `bank_accounts`, `bank_account_update` | ADAPT | Bank accounts are **finance master data**, not Settings. Settings keeps only the *selection* of which account backs a payment channel. |
+| Currency | `CurrencySettings.tsx`, `FxRateCoverageCard.tsx`, `change_business_base_currency`, `set_business_active_currency`, `set_exchange_rate_override` | ADAPT | KES-only verdict: lock base currency to KES and hide FX/multi-currency UI. Keep the underlying multi-currency tables (accounting already references them) but remove the user-facing switch. |
+| M-Pesa provider (STK/C2B) | `MpesaProviderCard.tsx`, `MpesaC2BProviderCard.tsx`, `payment_provider_configs`, edge fns `mpesa-c2b`/`mpesa-callback`/`mpesa-outbound` | ADAPT | Core Kenyan channel. Restrict to **PayBill**; drop `CustomerBuyGoodsOnline` (Till). |
+| Stripe gateway | `PaymentGatewaySettings.tsx`, `usePaymentGateway.ts`, `organization_payment_gateways`, vault RPCs | REMOVE | No international card acquiring in a Kenyan MFI. |
+| Payments debugger | `PaymentsDebugger.tsx`, `payment_requests` | DEFER | Keep as internal diagnostics until M-Pesa rework lands, then re-point or delete. |
+| Payment methods (display) | `PaymentMethodsSettings.tsx`, `AddPaymentMethodDialog.tsx`, `organization_payment_methods`, enum `payment_method_type` | REPLACE | Replace the generic bank/mobile_money/online/cash/**crypto** catalogue with a fixed MFI **payment channel** model: Cash, M-Pesa PayBill, Bank Transfer/Deposit. |
+| Crypto payment methods | `src/types/paymentMethod.ts`, enum value `crypto`, BTC/ETH/USDT/USDC | REMOVE | Hard constraint. |
+| Online/PayPal/Wise/Payoneer/Venmo/CashApp | `src/types/paymentMethod.ts` | REMOVE | Not Kenyan MFI channels. |
+| POS terminal providers (`pos_terminal_provider`: `stripe_terminal`, `adyen`, `verifone`, `square_terminal`) | enum only | REMOVE | Orphan enum, zero consumers. |
+| Email sender identity | inline `EmailSettingsForm` → `businesses.email_display_name`, `email_reply_to` | RETAIN | Legitimate. |
+| Email templates | `EmailTemplateEditor.tsx`, `email_templates`, `ensure_default_email_templates` | ADAPT | Keep, but fix the key set to MFI events only (`loan_approved`, `loan_disbursed`, `repayment_receipt`, `repayment_reminder`, `repayment_overdue`). |
+| Document templates | `DocumentTemplateSettings.tsx`, `DocumentTemplateBuilder.tsx`, `useDocumentTemplates.ts`, `document_templates`, `templateRenderer.ts` | REMOVE | See §2. |
+| Document numbering | no UI today | REPLACE | See §3. |
+
+---
+
+## 2. Document templates verdict
+
+Findings:
+- The canonical engine is `render-document` → `resolveTemplateAst` (`document_kinds`, `document_template_ast`, `document_theme`, `document_header_footer`, `document_records`, `document_artifacts`, `document_print_policies`), with **body layout hard-coded in TypeScript** per `kind_code` (`supabase/functions/_shared/pdf/layouts/lending.ts`: loan agreement, repayment schedule, loan statement, payment receipt, client statement). A runtime guard rejects any AST declaring a layout with no registered renderer.
+- `document_templates` is a **second, older, parallel system** read only by `_shared/templateRenderer.ts`. It offers show/hide toggles and free-text header/footer. Its own type docstring admits cosmetic styling is hardcoded server-side. The table is **empty in production**.
+
+Decision: **Remove the user-editable template surface; keep the document-generation engine intact.** Microfinance documents are statutory/contractual — they must be standardised with server-side data injection, not user-editable. Removing `document_templates` also removes the ambiguity of two renderers disagreeing.
+
+Kept: `document_kinds`, `document_template_ast`, `document_theme`, `document_header_footer`, `document_records`, `document_artifacts`, `document_print_policies`, `render-document`, all `pdf/layouts/*`.
+Removed: `DocumentTemplateSettings.tsx`, `DocumentTemplateBuilder.tsx`, `PaymentMethodSelector.tsx`, `useDocumentTemplates.ts`, `src/types/documentTemplate.ts`, the `document_templates` table, `businesses.show_payment_methods_on_documents`, and the `document_templates` branch of `templateRenderer.ts`.
+Branding (logo, address, contact, receipt header/footer) survives via `getOrganizationBranding.ts` + the repaired effective-config resolver — that is the only user-controllable document surface that remains.
+
+---
+
+## 3. Document numbering verdict
+
+Current state: ~35 `get_next_*_number` functions survive; almost all are ERP/warehouse/HR (`invoice`, `estimate`, `bill`, `po`, `rfq`, `grn`, `asn`, `wave`, `carton`, `manifest`, `employee`, `leave_request`, `project`, `task`, `lead`, `asset`, `draft_transaction`, `opening_stock`, `adjustment`, `recall_reference`, `contract_reference`, `sales_return`, `so`, `credit_note`, `proforma`, `delivery`, `receipt`, `expense`). Only `get_next_journal_entry_number` has a live accounting consumer. There is **no** MFI numbering UI and no `get_next_loan_number` in the live DB.
+
+Decision: introduce one generic, concurrency-safe sequence service scoped organization → branch, with a Settings UI for prefixes/format only.
+
+Target objects:
+- `document_number_sequences(id, organization_id, business_id, branch_id NULL, sequence_key, prefix, padding, period_reset, current_value, updated_at)` with a unique index on `(organization_id, business_id, coalesce(branch_id,'…'), sequence_key, period_key)`.
+- `sequence_key` domain: `loan`, `loan_application`, `client`, `branch`, `repayment`, `receipt`, `disbursement`.
+- `get_next_number(p_org, p_business, p_branch, p_key)` — `pg_advisory_xact_lock` on a hash of the scope key, increment-then-return, gap-tolerant (gaps allowed and documented; numbers are never reused).
+- All changes to prefix/format recorded in the existing audit log; `current_value` is never user-editable.
+
+---
+
+## 4. Effective-value resolution
+
+Deterministic order, unchanged conceptually, repaired in implementation:
+
+```text
+branch_setting_overrides  ->  business (businesses row)  ->  organization default  ->  none
+```
+
+New MFI whitelist for `branch_overridable_settings` (replacing the ERP prefix keys already deleted):
+`receipt_header`, `receipt_footer`, `contact_email`, `contact_phone`, `document_logo_url`, `document_address`, `mpesa_paybill_number`, `default_bank_account_id`, plus per-branch numbering prefixes for `loan`, `receipt`, `disbursement`.
+Never overridable: base currency, tax identity, chart-of-accounts mappings, fiscal year, RBAC.
+
+---
+
+## 5. Payment channels
+
+Target model (`organization_payment_channels`, replacing `organization_payment_methods`):
+
+| Channel | Config | Notes |
+|---|---|---|
+| Cash | active flag, GL cash account | Branch-scoped. |
+| M-Pesa PayBill | paybill (shortcode), account-reference convention, credentials in vault, reconciliation account, active flag | Till (`CustomerBuyGoodsOnline`) not retained — an MFI collects to a PayBill with the loan/client number as account reference. |
+| Bank Transfer / Deposit | `bank_account_id` FK into `bank_accounts`, active flag | Bank account records stay finance master data; Settings only selects and activates. |
+
+Removed enum values/types: `crypto`, `online`, `pos_terminal_provider`, Stripe/Flutterwave/Paystack/PayPal/Pesapal provider literals.
+
+---
+
+## 6. Waves
+
+Each wave is independently shippable and reversible.
+
+### Wave 1 — Repair the effective-config resolver (blocking)
+- **Objective**: make `get_effective_company_config` executable again.
+- **Current state**: references `businesses.invoice_prefix|estimate_prefix|bill_prefix` and `branches.default_warehouse_id`; all dropped.
+- **Decision**: rewrite the function to return only surviving keys: `logo_url`, `document_address`, `contact_email`, `contact_phone`, `receipt_header`, `receipt_footer`, `base_currency`, `tax_id`, `fiscal_year_start`, `timezone`.
+- **Files**: `supabase/functions/_shared/branding/getOrganizationBranding.ts`, `supabase/functions/generate-document/index.ts`.
+- **DB**: `CREATE OR REPLACE FUNCTION public.get_effective_company_config`.
+- **Migration order**: replace function → regenerate types → verify callers.
+- **Tests**: call the RPC for every business with and without a branch; render one loan agreement and one repayment receipt.
+- **Acceptance**: no runtime error; branded PDF still carries logo/address/contact.
+- **Risk**: a caller depends on a removed key. **Rollback**: re-create the previous definition (it is already non-functional, so rollback is safe).
+
+### Wave 2 — Remove Stripe and crypto
+- **Objective**: eliminate non-Kenyan payment configuration.
+- **Files**: delete `PaymentGatewaySettings.tsx`, `usePaymentGateway.ts`; strip `stripe`/`flutterwave`/`paystack` from `usePaymentProviders.ts`; strip crypto/online types from `src/types/paymentMethod.ts`; remove crypto branches in `AddPaymentMethodDialog.tsx`, `PaymentMethodsSettings.tsx`, `_shared/pdfGenerator.ts:592`, `_shared/templateRenderer.ts:157`; remove the Stripe branch of `supabase/functions/provider-test/index.ts`.
+- **DB**: drop `organization_payment_gateways`, `set_payment_gateway_secret`, `delete_payment_gateway_secret`; purge vault entries; drop enum value `crypto` (via type recreation) and the `pos_terminal_provider` type.
+- **Migration order**: frontend removal → edge-function removal → RPC drop → table drop → enum recreation.
+- **Tests**: settings page renders; no `stripe`/`crypto` matches in `src/` or `supabase/functions/`.
+- **Acceptance**: no crypto or card-acquiring concept exists anywhere.
+- **Risk**: enum recreation touches dependent columns — do it inside one transaction with explicit `ALTER TABLE ... TYPE ... USING`.
+
+### Wave 3 — Payment channels (Cash / M-Pesa PayBill / Bank Transfer)
+- **Objective**: replace the generic method catalogue with the MFI channel model.
+- **Files**: `PaymentMethodsSettings.tsx` → `PaymentChannelsSettings.tsx`, `AddPaymentMethodDialog.tsx`, `usePaymentMethods.ts`, `MpesaProviderCard.tsx`, `MpesaC2BProviderCard.tsx`, `BranchOperations.tsx`.
+- **DB**: create `organization_payment_channels` (+ RLS mirroring `organization_payment_methods`, branch/business consistency trigger, FK to `bank_accounts`); backfill; drop `organization_payment_methods` and `businesses.show_payment_methods_on_documents`.
+- **Dependencies**: repayment recording reads channel → must be migrated before the old table is dropped.
+- **Tests**: create/activate/deactivate each channel; record a repayment against each; C2B callback still reconciles.
+- **Acceptance**: exactly three channel kinds are configurable; Till is unavailable; deactivating a channel hides it from repayment capture.
+- **Rollback**: keep the old table for one release behind a feature flag before dropping.
+
+### Wave 4 — KES-only currency
+- **Objective**: lock the institution to KES.
+- **Files**: `CurrencySettings.tsx`, `FxRateCoverageCard.tsx`.
+- **Decision**: hide base-currency change, active-currency management and FX override UI; keep `currencies`, `business_active_currencies` and the FX tables because accounting still joins them.
+- **DB**: revoke/guard `change_business_base_currency` and `set_exchange_rate_override`; add a check that `businesses.base_currency = 'KES'`.
+- **Acceptance**: no UI path can produce a non-KES amount; accounting queries unaffected.
+
+### Wave 5 — Remove the document-template builder
+- **Objective**: standardise MFI documents.
+- **Files**: delete `DocumentTemplateSettings.tsx`, `DocumentTemplateBuilder.tsx`, `PaymentMethodSelector.tsx`, `useDocumentTemplates.ts`, `src/types/documentTemplate.ts`; remove the templates tab from `CompanySettings.tsx`; remove the `document_templates` lookup in `_shared/templateRenderer.ts`.
+- **DB**: drop `document_templates` (empty) after confirming `document_template_ast` rows in use key off `kind_code`, not `template_id`.
+- **Tests**: render all five lending documents through `render-document`; byte-hash comparison before/after.
+- **Acceptance**: documents render identically; no template-editing UI remains; the engine is untouched.
+- **Risk**: an AST row still FKs `template_id` — verify and re-key before dropping.
+
+### Wave 6 — Document numbering
+- **Objective**: organization/branch numbering for MFI documents.
+- **Files**: new `src/components/settings/DocumentNumberingSettings.tsx` + hook; wire loan, application, client, receipt, disbursement creation paths to `get_next_number`.
+- **DB**: create `document_number_sequences` + `get_next_number`; seed defaults per organization; add numbering prefixes to `branch_overridable_settings`.
+- **Migration order**: table + function → seed → migrate consumers one at a time → UI.
+- **Tests**: concurrency test (parallel `get_next_number` calls yield unique, monotonic values); uniqueness constraint violation test; audit-log entry on prefix change.
+- **Acceptance**: changing a prefix in Settings changes the next generated loan/receipt number.
+
+### Wave 7 — Notifications and email templates re-scope
+- **Objective**: MFI-only event catalogue.
+- **Files**: `EnhancedNotificationSettings.tsx`, `EmailTemplateEditor.tsx`.
+- **DB**: prune non-MFI rows from `notification_alert_settings`; fix `ensure_default_email_templates` key set.
+- **Acceptance**: only lending events are configurable; toggling a channel changes actual delivery.
+
+### Wave 8 — Legacy DB cleanup
+- **Objective**: no dead ERP objects behind Settings.
+- **DB**: drop the empty legacy commercial tables (`sales_orders`, `sales_order_items`, `sales_returns`, `sales_return_items`, `sales_return_cost_basis`, `sales_document_idempotency`, `payment_requests` if the debugger is deleted) and the ERP `get_next_*_number` functions with no consumers, plus `businesses.credit_note_prefix` / `proforma_prefix`.
+- **Guard**: run a consumer grep across `src/` and `supabase/functions/` for each object immediately before dropping.
+- **Acceptance**: `information_schema` shows no ERP-only Settings objects; app builds and all tests pass.
+
+---
+
+## 7. Cross-cutting rules
+
+- **Permissions**: all new Settings surfaces gate on existing `usePermissions` flags (`canEditSettings`, `canManageBusiness`, `canManageOrganization`). No new permission model.
+- **Audit**: every setting mutation writes to the existing audit-log architecture, including branch override set/clear and numbering prefix changes.
+- **Never drop before migrating consumers.** Each wave's drop step is the last step of that wave.
+
+## 8. Execution status
+
+- **Completed**: audit, classification, taxonomy, wave plan (this document).
+- **Remaining**: Waves 1–8.
+- **Current issue**: `get_effective_company_config` is broken in production — Wave 1 must land first.
+- **Next action**: implement Wave 1 (rewrite the resolver, verify both edge-function callers, re-render one lending document).
