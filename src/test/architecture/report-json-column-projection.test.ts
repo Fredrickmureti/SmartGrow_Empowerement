@@ -72,9 +72,13 @@ describe("architecture: report column projection", () => {
   it("every server-built reportType has a registry column spec", () => {
     const specs = specKeys();
     const keys = builderKeys();
-    expect(keys.length).toBeGreaterThan(10);
+    // The ERP report families (payroll, extended payroll, inventory) were
+    // removed with the Microfinance reconstruction, so the guard only
+    // asserts that builders exist and every one is registered.
+    expect(keys.length).toBeGreaterThan(0);
     expect(keys.filter((k) => !specs.has(k))).toEqual([]);
   });
+
 
   it("no registry spec declares an empty column list", () => {
     const empty = [...specSrc.matchAll(/^ {2}([a-z0-9_]+):\s*\{[\s\S]{0,400}?columns:\s*\[\s*\]/gm)].map(
