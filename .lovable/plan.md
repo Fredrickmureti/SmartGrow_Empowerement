@@ -329,3 +329,31 @@ Functions that referenced these tables are now orphans (plpgsql late binding, no
 ### Next action
 Add the five missing lending roles to the `app_role` enum, re-run `bunx tsgo --noEmit -p tsconfig.app.json`, then start Wave 9c.
 Then, still open from the plan: drop analyzeInvoice from src/hooks/useAIAssistant.ts; remove fix_gl_mappings from src/lib/ai/actionBlocks.ts; wave 9a part 3 (remaining sales-chain consumers); wave 9b (six empty sales tables); wave 9c (legacy table groups); wave 10 (security posture pass). I did not get to update .lovable/plan.md with this status.
+---
+
+## Session log — 2026-09-07 (late, resumed after credit pause)
+
+### DONE — Residual "recurring invoice" vocabulary purge (Wave 9b)
+Verified the previous session's claims (bank-feed removal, recurring/UoM/transaction-queue drops) and finished the label sweep it stopped before:
+- `src/lib/queryKeys.ts` — removed `recurringInvoices` key factory.
+- `src/hooks/realtime/useUnifiedRealtimeSync.ts` — removed the `recurring_invoices` realtime handler and the `['recurring-invoices']` invalidation key.
+- `src/pages/audit-logs/format.ts` — removed `recurring_invoices` plus every other entity label for tables that no longer exist (payroll/payslip/employee-loan/product/POS/stock/leave/attendance/proforma/tax_rates/invoices/estimates/goods_receipts).
+- `src/hooks/useAuditLog.ts` — dropped `recurring_invoice` from the entity union.
+- `src/design-system/records/documentStatus.tsx` + `useDocumentActivity.ts` — dropped the `recurring_invoice` DocumentKind and its status map.
+- `src/data/automationTemplates.ts` — deleted the `recurring-invoice-notification` template.
+- `src/hooks/useExport.ts` — deleted `exportRecurringInvoices`.
+- `src/components/studio/ScheduledReportsManager.tsx` — REPORT_TYPES reduced to reports that exist (financial statements, ledgers, journal, depreciation, management, audit trail, aged payables, expenses); removed sales/CRM/contacts/stock/tax/payroll/leave/attendance/POS/partner-ledger/budget entries.
+- `src/test/architecture/branch-id-stamping.test.ts` — removed the dead table from the stamping list.
+Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; build OK.
+
+### DONE — Database hardening pass (Wave 9c)
+- Dropped empty employee-loan (payroll-era) leftovers: tables `loan_repayments`, `loan_repayment_schedule`; functions `tg_employee_loan_autogenerate_schedule`, `generate_loan_schedule`, `_loan_deallocate_schedule`. `employee_loans` was already gone, so these had no live consumers (only SQL fixtures and two architecture tests' comments).
+- `signup_cleanup_log` (edge-function-only): grants revoked from `anon`/`authenticated`, service-role-only RLS policy added.
+- Revoked `EXECUTE` on every public-schema function from `anon` and `PUBLIC` (explicitly granting `authenticated`/`service_role` first), plus a default-privileges revoke for `anon`. Linter: anon-executable SECURITY DEFINER findings 581 → 0; total findings 1789 → 1203.
+
+### REMAINING
+1. **Leaked-password protection** — dashboard toggle, user action: Supabase → Authentication → Policies.
+2. **49 functions with mutable `search_path`** — set `search_path = public` per function; do in small batches (one migration per group), lowest risk last.
+3. **5 SECURITY DEFINER views** — review each; convert to `security_invoker = true` where the underlying RLS suffices.
+4. **1144 "signed-in users can execute SECURITY DEFINER function"** — expected by design (these are the app's RPCs, each enforcing access internally). No blanket action; revisit only for functions that should be service-role-only.
+5. **Next wave — remaining SaaS/platform tables from the old ERP** (user-requested): `platform_exchange_rates`, `platform_apps`, `platform_demo_videos`, `platform_integration_*`, `organization_installed_apps`, `app_*` install/launch tables, `org_usage_counters`, and their consumers. This is a single-tenant institution, not a SaaS: audit consumers first (`publish_platform_rates()` cron reads `platform_exchange_rates` and feeds `exchange_rates` — do NOT drop it before the FX publishing path is re-pointed or retired), then remove in dependency order.
