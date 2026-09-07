@@ -115,39 +115,8 @@ serve(async (req: Request) => {
       console.error("[process-scheduled-automations] Email flush failed:", e);
     }
 
-    // ── Customer statement send-queue flush ──
-    // Bulk statement delivery is durable and retried here, never in a browser
-    // loop; the queue's idempotency key prevents duplicate sends.
-    try {
-      const { flushStatementSendOutbox } = await import(
-        "../_shared/flushStatementSendOutbox.ts"
-      );
-      const stmtResult = await flushStatementSendOutbox(supabaseUrl, supabaseServiceKey);
-      if (stmtResult.processed > 0) {
-        console.log(
-          `[process-scheduled-automations] Statement sends — ${stmtResult.sent}/${stmtResult.processed} sent, ${stmtResult.failed} failed`,
-        );
-      }
-    } catch (e) {
-      console.error("[process-scheduled-automations] Statement send flush failed:", e);
-    }
 
-    // ── Vendor statement send-queue flush ──
-    // AP delivery is durable on exactly the same terms as AR: the queue owns
-    // idempotency and retries, so no browser loop ever emails suppliers.
-    try {
-      const { flushVendorStatementSendOutbox } = await import(
-        "../_shared/flushVendorStatementSendOutbox.ts"
-      );
-      const vendorResult = await flushVendorStatementSendOutbox(supabaseUrl, supabaseServiceKey);
-      if (vendorResult.processed > 0) {
-        console.log(
-          `[process-scheduled-automations] Vendor statement sends — ${vendorResult.sent}/${vendorResult.processed} sent, ${vendorResult.failed} failed`,
-        );
-      }
-    } catch (e) {
-      console.error("[process-scheduled-automations] Vendor statement send flush failed:", e);
-    }
+
 
 
 

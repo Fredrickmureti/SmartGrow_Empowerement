@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "bill" | "receipt" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "bill" | "receipt" | "report" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -72,8 +72,6 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   // emailing must never stamp a commercial state.
   vendor_credit_note: { table: "vendor_credit_notes", numberField: "credit_note_number", statusField: undefined, itemsTable: "vendor_credit_note_items", contactField: "vendor_id" },
   
-  // Payroll — number is synthesized from payroll_runs.payroll_number; recipient is the employee's work_email/email.
-  payslip: { table: "payslips", numberField: "payslip_number", statusField: "status", itemsTable: undefined, contactField: "employee_id" },
   // POS receipt — A4 invoice-style receipt, generated via the unified generate-document engine (already supports pos_receipt).
   // HR letters — employment contract. Recipient is the employee (work_email
   // first). `statusField` is deliberately omitted: contract status is a
@@ -101,7 +99,7 @@ const documentLabels: Record<EmailDocumentType, string> = {
   vendor_credit_note: "Vendor Credit Note",
   
   report: "Report",
-  payslip: "Payslip",
+  
   pos_receipt: "Sales Receipt",
   contract_letter: "Employment Contract",
   rfq: "Request for Quotation",
@@ -590,11 +588,6 @@ const handler = async (req: Request): Promise<Response> => {
     // The counterparty on a vendor credit note is the supplier we are
     // claiming against.
     selectQuery = `*, contact:contacts!vendor_credit_notes_vendor_id_fkey(*), organization:organizations(id, name), ${businessJoin}`;
-  } else if (documentType === "payslip") {
-    // Payslip recipient is the employee — there is no `contacts` row. We
-    // alias the employee join as `contact` so the rest of the pipeline
-    // (recipient resolution, branding, etc.) works unchanged.
-    selectQuery = `*, contact:employees!payslips_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), payroll_run:payroll_runs(id, payroll_number, pay_period_start, pay_period_end), organization:organizations(id, name), ${businessJoin}`;
   } else if (documentType === "contract_letter") {
     // Same shape as payslips: the recipient is an employee, not a contact.
     selectQuery = `*, contact:employees!employee_contracts_employee_id_fkey(id, first_name, last_name, work_email, email, employee_number), organization:organizations(id, name), ${businessJoin}`;
@@ -678,7 +671,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!recipientEmail) {
       const contact = document.contact;
       const resolved =
-        documentType === "payslip" || documentType === "contract_letter"
+        documentType === "contract_letter"
           ? (contact?.work_email || contact?.email)
           : (contact?.email);
       if (!resolved) {
@@ -737,11 +730,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const docNumber = documentType === "contract_letter"
         ? (document.contract_reference || `CONTRACT-${String(resolvedDocumentId).slice(0, 8).toUpperCase()}`)
-      : documentType === "payslip"
-        // Prefer the human-readable payslip_number; fall back to run + employee for legacy rows.
-        ? (document.payslip_number
-            || `${document.payroll_run?.payroll_number || "Payslip"} · ${document.contact?.first_name || ""} ${document.contact?.last_name || ""}`.trim())
-        : document[tableConfig.numberField];
+      : document[tableConfig.numberField];
+
     const docLabel = documentLabels[documentType];
     // Customer-facing emails must NEVER leak the workspace/tenant name (Odoo/
     // Xero/QuickBooks rule: documents and their emails carry the legal-entity
@@ -776,44 +766,8 @@ const handler = async (req: Request): Promise<Response> => {
     if (autoGeneratePdf) {
       console.log("Auto-generating PDF for", documentType, docNumber);
       try {
-        if (documentType === "payslip") {
-          // Payslips use the dedicated branded engine.
-          console.log("Generating payslip PDF for", resolvedDocumentId);
-          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-          const pdfResponse = await fetch(`${supabaseUrl}/functions/v1/generate-payslip-pdf`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${userJwt}`,
-            },
-            body: JSON.stringify({ payslip_id: resolvedDocumentId }),
-          });
+        {
 
-          if (!pdfResponse.ok) {
-            const errText = await pdfResponse.text();
-            throw new Error(`Payslip PDF generation failed: ${errText}`);
-          }
-
-          const pdfArrayBuffer = await pdfResponse.arrayBuffer();
-          const pdfBytes = new Uint8Array(pdfArrayBuffer);
-          // `btoa(String.fromCharCode(...bytes))` overflows the argument
-          // limit on multi-page PDFs; the std encoder streams instead.
-          const pdfBase64Content = encodeBase64(pdfBytes);
-
-
-          const safeDocNumber = String(docNumber || resolvedDocumentId).replace(/[^a-zA-Z0-9_-]/g, "_");
-          const autoFilename = `payslip-${safeDocNumber}.pdf`;
-          attachments.push({ filename: autoFilename, content: pdfBase64Content });
-          pdfFileSize = pdfBytes.length;
-
-          const storagePath = `${document.organization_id}/payslip/${resolvedDocumentId}/${Date.now()}.pdf`;
-          const { error: uploadError } = await supabaseClient.storage
-            .from("document-pdfs")
-            .upload(storagePath, pdfBytes, { contentType: "application/pdf", upsert: true });
-
-          if (uploadError) console.error("Failed to store payslip PDF:", uploadError);
-          else { pdfStoragePath = storagePath; console.log("Payslip PDF stored at:", storagePath); }
-        } else {
           // Enterprise invariant: email ATTACHES the canonical artifact, it
           // does not render one of its own. `resolveCanonicalPdf` returns the
           // archived `document_artifacts` bytes when they exist, otherwise

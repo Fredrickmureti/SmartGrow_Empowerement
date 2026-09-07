@@ -10,7 +10,6 @@
 
 import type { AstBlock, RenderContext, ResolvedTemplate } from "../types.ts";
 import { generateDocumentPdf, generateStatementPdf } from "../../pdfGenerator.ts";
-import { renderPayslipSnapshotToPdf } from "../../payslip/payslipSnapshot.ts";
 
 /**
  * Kinds whose layout is a statement of computed amounts rather than a
@@ -21,9 +20,8 @@ import { renderPayslipSnapshotToPdf } from "../../payslip/payslipSnapshot.ts";
 const STATEMENT_LAYOUTS: Record<
   string,
   (snapshot: Record<string, unknown>) => Promise<Uint8Array>
-> = {
-  "payroll.payslip": renderPayslipSnapshotToPdf,
-};
+> = {};
+
 
 /**
  * Account statements (AR / AP / legal recipient) are a period ledger —
