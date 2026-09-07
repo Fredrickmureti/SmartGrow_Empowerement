@@ -297,14 +297,20 @@ Execute Wave 9a part 2 exactly as specified above, starting with `capabilities.t
 
 ### Next action
 
-Done this session
+Ran out of budget mid-way through the AI assistant cleanup. Here's exactly where things stand.
 
-Read the saved progress notes and confirmed the real remaining item: the AI assistant was left mid-rewrite after retiring the old ERP/payroll parts.
-Verified the app itself has no code errors right now.
-Confirmed the old staff/payroll pages the assistant was still pointing at no longer exist in the app.
-Rewrote the assistant's list of allowed destinations so it now only offers real pages: borrowers, groups, loans, applications, repayments, collections, loan products, lending accounting mapping, the lending reports, the finance pages, and the settings hubs (companies & branches, numbering, payment channels, audit logs).
-Still outstanding (next step, in order)
+Done this session (in supabase/functions/ai-assistant/index.ts):
 
-In the assistant's server file: remove the leftover payroll diagnostics helper (now unused), replace its old destination list with the same lending/finance/settings list, drop the "fix payroll mappings" action, and update its data-shape definition plus the two permission maps so they name borrowers/loans/applications/repayments instead of products, projects and invoices.
-Run the checks and the assistant tests, then add the planned tests (a lending question answered from live data, and a denied-permission case).
-Then continue the plan: remove the remaining sales-order references from the email/export/sync code, drop the six empty sales tables and their dependent functions, finish the legacy clean-up groups, and do the final security pass.
+FinancialContext, CONTEXT_FIELD_MODULE and CONTEXT_SUMMARY_MODULE rewritten to microfinance modules (clients, loans, applications, repayments, accounting, treasury, team).
+Request type union reduced to categorize_expense | financial_insights | chat | suggest_actions | email_assist.
+Deleted the invoice-analysis and bank-matching prompts; reworded the email helper for lending documents.
+Replaced the old ERP chat prompt with a microfinance one (borrowers, groups, applications, loans, repayments, treasury), including the rule never to present disbursed principal as an outstanding balance and no portal/self-service/POS suggestions.
+Removed the document notes/terms prompts.
+Still to finish (same file, leftovers that will break the build if left):
+
+line ~1464 analyze_invoice, ~1469 match_transactions, ~1470 document_text entries in featureMap
+lines ~1508–1512 the document_text system-prompt selection
+lines ~1563–1590 the document_text message-building branch
+line ~1666 remove analyze_invoice and match_transactions from the JSON-parse list
+lines ~1691–1697 the document_text response block
+Then, still open from the plan: drop analyzeInvoice from src/hooks/useAIAssistant.ts; remove fix_gl_mappings from src/lib/ai/actionBlocks.ts; wave 9a part 3 (remaining sales-chain consumers); wave 9b (six empty sales tables); wave 9c (legacy table groups); wave 10 (security posture pass). I did not get to update .lovable/plan.md with this status.
