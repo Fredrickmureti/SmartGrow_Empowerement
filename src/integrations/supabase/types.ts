@@ -8078,13 +8078,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "employees_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
-            referencedColumns: ["id"]
-          },
         ]
       }
       entity_field_configs: {
@@ -19596,57 +19589,6 @@ export type Database = {
           },
         ]
       }
-      work_locations: {
-        Row: {
-          address: string | null
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          created_by: string | null
-          geofence_radius_m: number | null
-          id: string
-          is_active: boolean
-          latitude: number | null
-          location_type: Database["public"]["Enums"]["work_location_type"]
-          longitude: number | null
-          name: string
-          organization_id: string
-          updated_at: string
-        }
-        Insert: {
-          address?: string | null
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          geofence_radius_m?: number | null
-          id?: string
-          is_active?: boolean
-          latitude?: number | null
-          location_type?: Database["public"]["Enums"]["work_location_type"]
-          longitude?: number | null
-          name: string
-          organization_id: string
-          updated_at?: string
-        }
-        Update: {
-          address?: string | null
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          geofence_radius_m?: number | null
-          id?: string
-          is_active?: boolean
-          latitude?: number | null
-          location_type?: Database["public"]["Enums"]["work_location_type"]
-          longitude?: number | null
-          name?: string
-          organization_id?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
     }
     Views: {
       analytic_distributions: {
@@ -20044,13 +19986,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "employees_work_location_id_fkey"
-            columns: ["work_location_id"]
-            isOneToOne: false
-            referencedRelation: "work_locations"
             referencedColumns: ["id"]
           },
         ]
