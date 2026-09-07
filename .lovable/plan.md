@@ -364,15 +364,20 @@ Linter posture now: 1149 findings, all WARN — 1144 "signed-in users can execut
 
 ### REMAINING
 
+I removed the dead company-creation step and cleared out several retired code paths, but the session stopped mid-way through one file, so please read this before continuing.
 
 Done this session
 
-Verified the previous notes against the live database rather than trusting them.
-Removed the five leftover automatic rules from the retired retail, payroll and warehouse modules (company creation seeding old till/payment defaults, two payroll accounting guards, a warehouse counting hook, and a branch-copying rule on payments). Each pointed at records or routines that no longer exist, so any save touching them would have failed.
-Repaired M-Pesa PayBill receipts: they now record the matched loan, client and repayment, and the obsolete point-of-sale match column is gone.
-Rewrote the M-Pesa PayBill handler so an incoming payment is matched by loan reference (falling back to client reference when the client has exactly one open loan) and settled through the loan repayment engine, with duplicate deliveries from Safaricom safely ignored. Previously it looked for sales invoices and wrote to a column that no longer exists — every PayBill receipt would have been lost. Ambiguous or unrecognised references are now left unreconciled with a clear reason instead of being guessed at by amount.
-Still open
+Company creation no longer calls the old till/payment defaults step (that routine was deleted long ago, so the call was silently failing).
+Checked all 166 behind-the-scenes routines the app calls against the live database: 26 no longer exist. Full list is above in my investigation; the relevant ones are payroll, statement queues, inventory reports, label printing, plus bank feeds, app trials, legal orders, automation counters and platform invitations.
+Deleted the retired code: payslip generation, the bank payroll acknowledgement endpoint, the customer and supplier statement send queues, and the inventory and payroll report builders.
+Left in a broken state — must be fixed first Three files still import the code I just deleted, so the affected background jobs will not start until they're cleaned:
 
-Removing the company-creation step that still seeds old till/payment defaults (seed_pos_defaults_for_business in the company context) — the database routine is already gone, so it's a harmless failed call today.
-Six other code paths still calling deleted routines: the customer and supplier statement send queues, the payslip snapshot, the bank payroll acknowledgement, the inventory and payroll report helpers, and the label-template lookup.
-Typecheck plus the M-Pesa test suite have not been run since my last edits, so those changes are unverified.
+supabase/functions/render-report/index.ts — remove the payroll, extended-payroll and inventory imports (lines 58-77), their entries in the ReportType union (lines 101-104), and the isPayroll / isPayrollExtended / isInventory dispatch branches (lines 520-604).
+supabase/functions/_shared/rendering/renderers/pdf.ts — remove the payslip import (line 13) and the "payroll.payslip" entry (line 25).
+supabase/functions/process-scheduled-automations/index.ts — remove the two statement-queue flush blocks (lines 118-149).
+Also still open
+
+send-document-email/index.ts still has a whole payslip branch pointing at deleted payroll tables.
+The remaining missing routines I did not touch: bank feeds (useBankAccounts.ts), app trials and install previews, legal-order notifications, the automation counter, localization-pack rollback, and platform-admin invitations — each needs a keep-or-remove verdict.
+Typecheck and the M-Pesa suite are still unrun since the previous session's edits.
