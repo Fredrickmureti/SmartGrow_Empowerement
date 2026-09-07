@@ -165,7 +165,7 @@ export interface DocumentTemplateInput {
  * Default template values
  */
 export const DEFAULT_TEMPLATE: DocumentTemplateInput = {
-  template_type: 'invoice',
+  template_type: 'loan_payment_receipt',
   template_name: 'Default Template',
   is_default: true,
   is_active: true,
@@ -177,7 +177,7 @@ export const DEFAULT_TEMPLATE: DocumentTemplateInput = {
   show_company_email: true,
   show_tax_id: false,
   header_text: null,
-  document_title_format: 'INVOICE',
+  document_title_format: 'REPAYMENT RECEIPT',
   
   // Content
   show_line_numbers: true,

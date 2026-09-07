@@ -88,7 +88,7 @@ export function DocumentTemplateBuilder({
                 id="template-name"
                 value={settings.template_name}
                 onChange={(e) => handleChange("template_name", e.target.value)}
-                placeholder="e.g., Standard Invoice"
+                placeholder="e.g., Standard Repayment Receipt"
               />
             </div>
             <div className="space-y-2">
@@ -97,7 +97,7 @@ export function DocumentTemplateBuilder({
                 id="document-title"
                 value={settings.document_title_format || ''}
                 onChange={(e) => handleChange("document_title_format", e.target.value)}
-                placeholder="e.g., INVOICE, TAX INVOICE"
+                placeholder="e.g., REPAYMENT RECEIPT, LOAN STATEMENT"
               />
             </div>
           </div>
@@ -323,7 +323,7 @@ export function DocumentTemplateBuilder({
                 <Textarea
                   value={settings.payment_instructions || ''}
                   onChange={(e) => handleChange("payment_instructions", e.target.value || null)}
-                  placeholder="e.g., Payment due within 30 days. Please include invoice number."
+                  placeholder="e.g., Please quote your loan number on every repayment."
                   rows={2}
                 />
               </div>
