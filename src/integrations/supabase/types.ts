@@ -15431,90 +15431,6 @@ export type Database = {
           },
         ]
       }
-      organization_payment_gateways: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          created_at: string | null
-          display_name: string | null
-          id: string
-          is_active: boolean | null
-          is_test_mode: boolean | null
-          organization_id: string
-          provider: string
-          publishable_key: string | null
-          secret_key_encrypted: string | null
-          updated_at: string | null
-          webhook_secret_encrypted: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          created_at?: string | null
-          display_name?: string | null
-          id?: string
-          is_active?: boolean | null
-          is_test_mode?: boolean | null
-          organization_id: string
-          provider?: string
-          publishable_key?: string | null
-          secret_key_encrypted?: string | null
-          updated_at?: string | null
-          webhook_secret_encrypted?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string | null
-          display_name?: string | null
-          id?: string
-          is_active?: boolean | null
-          is_test_mode?: boolean | null
-          organization_id?: string
-          provider?: string
-          publishable_key?: string | null
-          secret_key_encrypted?: string | null
-          updated_at?: string | null
-          webhook_secret_encrypted?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "organization_payment_gateways_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "organization_payment_gateways_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "organization_payment_gateways_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "organization_payment_gateways_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "organization_payment_gateways_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       organization_payment_methods: {
         Row: {
           bank_account_id: string | null
@@ -31998,12 +31914,7 @@ export type Database = {
         | "credit_card"
         | "mobile_money"
         | "other"
-      payment_method_type:
-        | "bank"
-        | "mobile_money"
-        | "online"
-        | "cash"
-        | "crypto"
+      payment_method_type: "bank" | "mobile_money" | "cash"
       payment_reversal_reason:
         | "data_entry_error"
         | "duplicate_payment"
@@ -32152,11 +32063,6 @@ export type Database = {
         | "paid"
         | "closed"
       pos_terminal_mode: "test" | "live"
-      pos_terminal_provider:
-        | "stripe_terminal"
-        | "adyen"
-        | "verifone"
-        | "square_terminal"
       print_job_status:
         | "queued"
         | "sent"
@@ -33200,7 +33106,7 @@ export const Constants = {
         "mobile_money",
         "other",
       ],
-      payment_method_type: ["bank", "mobile_money", "online", "cash", "crypto"],
+      payment_method_type: ["bank", "mobile_money", "cash"],
       payment_reversal_reason: [
         "data_entry_error",
         "duplicate_payment",
@@ -33360,12 +33266,6 @@ export const Constants = {
       ],
       pos_table_session_status: ["open", "ordered", "served", "paid", "closed"],
       pos_terminal_mode: ["test", "live"],
-      pos_terminal_provider: [
-        "stripe_terminal",
-        "adyen",
-        "verifone",
-        "square_terminal",
-      ],
       print_job_status: [
         "queued",
         "sent",

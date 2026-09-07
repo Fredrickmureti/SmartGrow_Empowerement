@@ -44,7 +44,6 @@ import {
 } from "lucide-react";
 
 import { CurrencySettings } from "@/components/settings/CurrencySettings";
-import { PaymentGatewaySettings } from "@/components/settings/PaymentGatewaySettings";
 import { MpesaProviderCard } from "@/components/settings/MpesaProviderCard";
 import { MpesaC2BProviderCard } from "@/components/settings/MpesaC2BProviderCard";
 import { BusinessBranchSettings } from "@/components/settings/BusinessBranchSettings";
@@ -174,7 +173,6 @@ function CompanySettingsInner() {
                 <MpesaC2BProviderCard />
               </>
             )}
-            <PaymentGatewaySettings />
             <PaymentsDebugger />
           </TabsContent>
 

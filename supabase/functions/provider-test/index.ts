@@ -152,29 +152,9 @@ Deno.serve(async (req) => {
           if (r.ok && (await r.json()).access_token) { await updateResult("success", null); return json({ success: true, message: "M-Pesa credentials verified", environment: env }); }
           await updateResult("failed", "Invalid credentials"); return json({ success: false, error: "Invalid M-Pesa credentials" });
         }
-        if (provider === "stripe") {
-          const key = (cfg.config as Record<string, string>)?.secret_key;
-          if (!key) return json({ success: false, error: "Missing Stripe secret key" });
-          const r = await fetch("https://api.stripe.com/v1/account", { headers: { Authorization: `Bearer ${key}` } });
-          if (r.ok) { const a = await r.json(); await updateResult("success", null); return json({ success: true, message: "Stripe verified", account_id: a.id }); }
-          await updateResult("failed", "Invalid Stripe API key"); return json({ success: false, error: "Invalid Stripe API key" });
-        }
-        if (provider === "paypal") {
-          const c = cfg.config as { client_id: string; client_secret: string; mode: "sandbox" | "live" };
-          if (!c.client_id || !c.client_secret) return json({ success: false, error: "Missing PayPal client_id/secret" });
-          const baseUrl = c.mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
-          const r = await fetch(`${baseUrl}/v1/oauth2/token`, { method: "POST", headers: { Authorization: `Basic ${btoa(`${c.client_id}:${c.client_secret}`)}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" });
-          if (r.ok) { await updateResult("success", null); return json({ success: true, message: "PayPal verified", environment: c.mode }); }
-          await updateResult("failed", "Invalid PayPal credentials"); return json({ success: false, error: "Invalid PayPal credentials" });
-        }
-        if (provider === "pesapal") {
-          const c = cfg.config as { consumer_key: string; consumer_secret: string; mode: "sandbox" | "live" };
-          if (!c.consumer_key || !c.consumer_secret) return json({ success: false, error: "Missing PesaPal key/secret" });
-          const baseUrl = c.mode === "live" ? "https://pay.pesapal.com/v3" : "https://cybqa.pesapal.com/pesapalv3";
-          const r = await fetch(`${baseUrl}/api/Auth/RequestToken`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ consumer_key: c.consumer_key, consumer_secret: c.consumer_secret }) });
-          if (r.ok && (await r.json()).token) { await updateResult("success", null); return json({ success: true, message: "PesaPal verified", environment: c.mode }); }
-          await updateResult("failed", "Invalid PesaPal credentials"); return json({ success: false, error: "Invalid PesaPal credentials" });
-        }
+        // Card acquiring (Stripe), PayPal and PesaPal were removed with the
+        // ERP payment-gateway configuration. This is a Kenya-only MFI:
+        // collections are M-Pesa PayBill, bank transfer/deposit and cash.
         if (provider === "bank_transfer" || provider === "cash") {
           await updateResult("success", null);
           return json({ success: true, message: `${provider} configured. Manual payment method.` });

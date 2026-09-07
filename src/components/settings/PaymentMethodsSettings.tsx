@@ -46,8 +46,7 @@ import {
   CreditCard, 
   Banknote,
   QrCode,
-  ArrowUpDown,
-  Bitcoin
+  ArrowUpDown
 } from "lucide-react";
 import { AddPaymentMethodDialog } from "./AddPaymentMethodDialog";
 import { 
