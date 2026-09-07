@@ -421,52 +421,42 @@ export async function fetchCustomFields(
 }
 
 /**
- * Fetch the active default document template for an organization.
- * Falls back to org-level template if no business-specific template found.
+ * Resolve the document presentation settings for an institution.
+ *
+ * Microfinance documents (loan agreement, repayment schedule, loan statement,
+ * client statement, repayment receipt) are STANDARDISED: they are contractual
+ * and statutory instruments, so their layout is owned by the server-side
+ * renderers, not by a user-editable template record. The former
+ * `document_templates` table (a second, parallel ERP-era renderer) has been
+ * retired — see `.lovable/plan.md` §2.
+ *
+ * The only institution-controlled presentation choice that survives is whether
+ * collection details (M-Pesa PayBill / bank account / cash instructions) are
+ * printed on documents, stored on `businesses.show_payment_methods_on_documents`.
+ * Branding (logo, address, contact, receipt header/footer) is resolved
+ * separately by `getOrganizationBranding`.
  */
 export async function fetchTemplate(
   // deno-lint-ignore no-explicit-any
   supabaseClient: any,
-  organizationId: string,
-  templateType: string,
+  _organizationId: string,
+  _templateType: string,
   businessId?: string | null,
 ): Promise<TemplateSettings> {
-  try {
-    if (businessId) {
-      const { data: bizTemplate } = await supabaseClient
-        .from("document_templates")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .eq("template_type", templateType)
-        .eq("is_active", true)
-        .eq("is_default", true)
-        .eq("business_id", businessId)
+  let showPaymentMethods = DEFAULT_TEMPLATE_SETTINGS.show_payment_methods;
+
+  if (businessId) {
+    try {
+      const { data } = await supabaseClient
+        .from("businesses")
+        .select("show_payment_methods_on_documents")
+        .eq("id", businessId)
         .maybeSingle();
-
-      if (bizTemplate) {
-        console.log("Using business template:", bizTemplate.template_name);
-        return { ...DEFAULT_TEMPLATE_SETTINGS, ...bizTemplate };
-      }
+      if (data) showPaymentMethods = data.show_payment_methods_on_documents === true;
+    } catch (err) {
+      console.error("Document settings fetch error (using defaults):", err);
     }
-
-    const { data: orgTemplate } = await supabaseClient
-      .from("document_templates")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .eq("template_type", templateType)
-      .eq("is_active", true)
-      .eq("is_default", true)
-      .is("business_id", null)
-      .maybeSingle();
-
-    if (orgTemplate) {
-      console.log("Using organization template:", orgTemplate.template_name);
-      return { ...DEFAULT_TEMPLATE_SETTINGS, ...orgTemplate };
-    }
-  } catch (err) {
-    console.error("Template fetch error (using default):", err);
   }
 
-  console.log("Using default template");
-  return { ...DEFAULT_TEMPLATE_SETTINGS };
+  return { ...DEFAULT_TEMPLATE_SETTINGS, show_payment_methods: showPaymentMethods };
 }
