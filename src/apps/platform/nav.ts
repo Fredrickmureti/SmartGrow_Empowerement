@@ -15,7 +15,6 @@ import {
   UserCog,
   History,
 
-  ShieldCheck,
 } from "lucide-react";
 import type { WorkspaceNav } from "@/components/layout/shell/types";
 
