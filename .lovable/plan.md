@@ -301,14 +301,31 @@ Finished the leftovers logged by the interrupted session, and verified the earli
 - Verified (checked, not assumed): `dataTools.ts` and `capabilities.ts` are already microfinance-scoped — `DATA_TABLES` covers `mf_clients`, `mf_groups`, `mf_loan_applications`, `mf_loans`, `mf_repayments`, payments, contacts, accounting; no products/invoices/sales-order/payroll/POS/warehouse tables remain in either file.
 - Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; `deno check` on the assistant entry file clean.
 
+### Wave 9a part 3 — DONE 2026-09-07 (late)
+- Verified (not assumed): `src/hooks/useExport.ts` and `src/hooks/realtime/useUnifiedRealtimeSync.ts` already carry **no** `sales_order` references — the earlier log was stale.
+- `supabase/functions/send-document-email/index.ts`: `customer_statement` fully removed (type union, `documentTableMap` entry, label, select-query branch, docNumber branch, post-send `customer_statements` update).
+- `src/test/architecture/thermal-business-doc-routing.test.ts`: `sales_order` dropped from the doc-type loop.
+- Delivery notes **verdict: DROP** (0 rows, no app consumer; only label maps in the generic PDF/receipt engines reference the string).
+- Remaining `sales_order`/`delivery_note` occurrences are inert label/enum maps in `_shared/pdfGenerator.ts`, `_shared/receipt/documentToInput.ts`, `_shared/templateRenderer.ts`, `_shared/documents/persistArtifact.ts`, `outbox-dispatcher/index.ts` — cosmetic, fold into Wave 9c.
+
+### Wave 9b — DONE 2026-09-07 (late) — three migrations
+1. sales-returns chain: dropped `sales_return_cost_allocations`, `sales_return_cost_basis`, `sales_return_items`, `sales_returns`; dropped `credit_notes.source_return_id` + trigger `trg_wms_backlink_return_credit_note` and `_wms_backlink_return_credit_note()`.
+2. delivery chain: dropped `delivery_proofs`, `delivery_note_events`, `delivery_note_items`, `delivery_notes`; dropped `invoice_items.delivery_note_item_id`, `invoices.source_delivery_note_id`, `wms_loading_manifests.delivery_note_id`.
+3. sales-order chain: dropped `wms_crossdock_opportunities`, `backorders`, `sales_order_items`, `sales_orders`, `sales_document_idempotency`; dropped `estimates.converted_sales_order_id`, `invoices.source_sales_order_id`, `invoice_items.sales_order_item_id`, `projects.source_sales_order_id`, `wms_pick_wave_lines.sales_order_id|sales_order_item_id`.
+
+Functions that referenced these tables are now orphans (plpgsql late binding, no live caller) — purge in Wave 9d.
+
+### Current issue (pre-existing, NOT caused by Wave 9)
+`bunx tsgo --noEmit -p tsconfig.app.json` fails in `src/lib/permissions.ts`, `src/hooks/usePermissions.ts`, `src/pages/Team.tsx`: the regenerated `app_role` enum in `src/integrations/supabase/types.ts` lacks `branch_manager`, `loan_officer`, `credit_officer`, `collections_officer`, `auditor`. Root cause is the Supabase project reconnect (the lending roles were never added to `app_role` on this database), not the table drops.
+
 ### Remaining work (exact, in order)
-1. **Wave 9a part 3** — remaining sales-chain consumers: `sales_order*` references in the `send-document-email` edge function, `src/hooks/useExport`, `src/hooks/realtime/useUnifiedRealtimeSync`, plus `delivery_notes.sales_order_id` / `delivery_note_items.sales_order_item_id`.
-2. **Wave 9b** — drop the six 0-row sales tables plus their 32/13/12 dependent functions, in FK order, one migration per table group.
-3. **Wave 9c** — remaining legacy table groups (POS, projects, consolidation, payroll, inventory) with their attached trigger functions; grep the app and edge functions immediately before each drop.
-4. **Wave 10** — security posture pass (pre-existing backlog: `EXECUTE` grants to `authenticated`, missing `search_path`, leaked-password protection).
+1. **Fix `app_role`** — migration adding `branch_manager`, `loan_officer`, `credit_officer`, `collections_officer`, `auditor` to the `public.app_role` enum, then re-run the typecheck. Blocks everything else.
+2. **Wave 9c** — remaining legacy table groups (POS, projects, consolidation, payroll, inventory) plus the inert `sales_order`/`delivery_note` label-map entries listed above; grep app + edge functions immediately before each drop.
+3. **Wave 9d** — orphan function purge (sales/delivery/WMS `*_atomic`, `get_next_so_number`, `get_next_delivery_number`, `*sales_return*`).
+4. **Wave 10** — security posture pass (pre-existing backlog: `EXECUTE` grants, missing `search_path`, leaked-password protection).
 
 `payment_requests`: RETAIN — live M-Pesa flow (`mpesa-outbound`, `mpesa-callback`).
 
 ### Next action
-Wave 9a part 3: remove the sales-order reads from `send-document-email`, `useExport` and `useUnifiedRealtimeSync`, then decide delivery notes (repoint or drop) before any table drop.
+Add the five missing lending roles to the `app_role` enum, re-run `bunx tsgo --noEmit -p tsconfig.app.json`, then start Wave 9c.
 Then, still open from the plan: drop analyzeInvoice from src/hooks/useAIAssistant.ts; remove fix_gl_mappings from src/lib/ai/actionBlocks.ts; wave 9a part 3 (remaining sales-chain consumers); wave 9b (six empty sales tables); wave 9c (legacy table groups); wave 10 (security posture pass). I did not get to update .lovable/plan.md with this status.

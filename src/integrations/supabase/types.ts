@@ -4528,140 +4528,6 @@ export type Database = {
           },
         ]
       }
-      backorders: {
-        Row: {
-          allocated_at: string | null
-          business_id: string
-          created_at: string
-          fulfilled_at: string | null
-          id: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_order_id: string
-          sales_order_item_id: string
-          status: string
-        }
-        Insert: {
-          allocated_at?: string | null
-          business_id: string
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          organization_id: string
-          product_id: string
-          quantity?: number
-          sales_order_id: string
-          sales_order_item_id: string
-          status?: string
-        }
-        Update: {
-          allocated_at?: string | null
-          business_id?: string
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          organization_id?: string
-          product_id?: string
-          quantity?: number
-          sales_order_id?: string
-          sales_order_item_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "backorders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "backorders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "backorders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "backorders_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "backorders_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
-          },
-        ]
-      }
       bank_accounts: {
         Row: {
           access_token_encrypted: string | null
@@ -12540,13 +12406,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "credit_note_applications_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["credit_note_id"]
-          },
-          {
             foreignKeyName: "credit_note_applications_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -12661,13 +12520,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "credit_note_items_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["credit_note_id"]
-          },
-          {
             foreignKeyName: "credit_note_items_display_uom_id_fkey"
             columns: ["display_uom_id"]
             isOneToOne: false
@@ -12686,13 +12538,6 @@ export type Database = {
             columns: ["invoice_item_id"]
             isOneToOne: false
             referencedRelation: "v_invoice_creditable_qty"
-            referencedColumns: ["invoice_item_id"]
-          },
-          {
-            foreignKeyName: "credit_note_items_invoice_item_id_fkey"
-            columns: ["invoice_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_returnable_qty"
             referencedColumns: ["invoice_item_id"]
           },
           {
@@ -12766,7 +12611,6 @@ export type Database = {
           refund_date: string | null
           refund_method: string | null
           source_payment_id: string | null
-          source_return_id: string | null
           status: Database["public"]["Enums"]["credit_note_status"]
           submitted_at: string | null
           submitted_by: string | null
@@ -12808,7 +12652,6 @@ export type Database = {
           refund_date?: string | null
           refund_method?: string | null
           source_payment_id?: string | null
-          source_return_id?: string | null
           status?: Database["public"]["Enums"]["credit_note_status"]
           submitted_at?: string | null
           submitted_by?: string | null
@@ -12850,7 +12693,6 @@ export type Database = {
           refund_date?: string | null
           refund_method?: string | null
           source_payment_id?: string | null
-          source_return_id?: string | null
           status?: Database["public"]["Enums"]["credit_note_status"]
           submitted_at?: string | null
           submitted_by?: string | null
@@ -12950,27 +12792,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "payments"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_notes_source_return_id_fkey"
-            columns: ["source_return_id"]
-            isOneToOne: false
-            referencedRelation: "sales_returns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "credit_notes_source_return_id_fkey"
-            columns: ["source_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["sales_return_id"]
-          },
-          {
-            foreignKeyName: "credit_notes_source_return_id_fkey"
-            columns: ["source_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_returns_integrity"
-            referencedColumns: ["sales_return_id"]
           },
         ]
       }
@@ -14215,13 +14036,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "customer_credit_movements_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["credit_note_id"]
-          },
-          {
             foreignKeyName: "customer_credit_movements_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -14529,13 +14343,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "credit_notes"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "customer_refunds_source_credit_note_id_fkey"
-            columns: ["source_credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["credit_note_id"]
           },
           {
             foreignKeyName: "customer_refunds_source_payment_id_fkey"
@@ -15272,579 +15079,6 @@ export type Database = {
           role_key?: string | null
         }
         Relationships: []
-      }
-      delivery_note_events: {
-        Row: {
-          actor_id: string | null
-          business_id: string
-          delivery_note_id: string
-          event_type: string
-          id: string
-          notes: string | null
-          occurred_at: string
-          organization_id: string
-          payload: Json | null
-        }
-        Insert: {
-          actor_id?: string | null
-          business_id: string
-          delivery_note_id: string
-          event_type: string
-          id?: string
-          notes?: string | null
-          occurred_at?: string
-          organization_id: string
-          payload?: Json | null
-        }
-        Update: {
-          actor_id?: string | null
-          business_id?: string
-          delivery_note_id?: string
-          event_type?: string
-          id?: string
-          notes?: string | null
-          occurred_at?: string
-          organization_id?: string
-          payload?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_note_events_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      delivery_note_items: {
-        Row: {
-          cost_at_shipment: number | null
-          created_at: string
-          delivery_note_id: string
-          description: string
-          discount_percent: number | null
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number | null
-          lot_allocations: Json | null
-          lot_number: string | null
-          packaging_id: string | null
-          product_id: string | null
-          product_name_snapshot: string | null
-          product_sku_snapshot: string | null
-          quantity_delivered: number
-          quantity_ordered: number
-          sales_order_item_id: string | null
-          serial_number: string | null
-          sort_order: number | null
-          tax_amount: number | null
-          tax_rate: number | null
-          unit_price: number | null
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          cost_at_shipment?: number | null
-          created_at?: string
-          delivery_note_id: string
-          description: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number | null
-          lot_allocations?: Json | null
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          product_name_snapshot?: string | null
-          product_sku_snapshot?: string | null
-          quantity_delivered?: number
-          quantity_ordered?: number
-          sales_order_item_id?: string | null
-          serial_number?: string | null
-          sort_order?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          unit_price?: number | null
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          cost_at_shipment?: number | null
-          created_at?: string
-          delivery_note_id?: string
-          description?: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number | null
-          lot_allocations?: Json | null
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          product_name_snapshot?: string | null
-          product_sku_snapshot?: string | null
-          quantity_delivered?: number
-          quantity_ordered?: number
-          sales_order_item_id?: string | null
-          serial_number?: string | null
-          sort_order?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          unit_price?: number | null
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_packaging_id_fkey"
-            columns: ["packaging_id"]
-            isOneToOne: false
-            referencedRelation: "product_packaging"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
-          },
-        ]
-      }
-      delivery_notes: {
-        Row: {
-          accounts_resolved: Json | null
-          auto_invoice_on_complete: boolean
-          backorder_of_dn_id: string | null
-          branch_id: string | null
-          business_id: string
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          carrier_id: string | null
-          contact_id: string | null
-          created_at: string
-          created_by: string | null
-          delivered_at: string | null
-          delivery_date: string
-          delivery_number: string
-          dispatch_instructions: string | null
-          dispatch_officer_id: string | null
-          dispatch_route: string | null
-          dispatched_at: string | null
-          driver_name: string | null
-          freight_cost: number | null
-          freight_currency: string | null
-          id: string
-          is_backorder: boolean
-          is_return: boolean
-          is_sample_data: boolean
-          manifest_id: string | null
-          notes: string | null
-          organization_id: string
-          ready_at: string | null
-          received_by: string | null
-          received_by_contact_id: string | null
-          received_by_user_id: string | null
-          return_of_dn_id: string | null
-          sales_order_id: string | null
-          ship_to_contact_id: string | null
-          shipping_address: string | null
-          shipping_method: string | null
-          source_invoice_id: string | null
-          spawned_invoice_id: string | null
-          status: string
-          tracking_number: string | null
-          updated_at: string
-          vehicle_number: string | null
-          warehouse_id: string | null
-        }
-        Insert: {
-          accounts_resolved?: Json | null
-          auto_invoice_on_complete?: boolean
-          backorder_of_dn_id?: string | null
-          branch_id?: string | null
-          business_id: string
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          carrier_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          delivered_at?: string | null
-          delivery_date?: string
-          delivery_number: string
-          dispatch_instructions?: string | null
-          dispatch_officer_id?: string | null
-          dispatch_route?: string | null
-          dispatched_at?: string | null
-          driver_name?: string | null
-          freight_cost?: number | null
-          freight_currency?: string | null
-          id?: string
-          is_backorder?: boolean
-          is_return?: boolean
-          is_sample_data?: boolean
-          manifest_id?: string | null
-          notes?: string | null
-          organization_id: string
-          ready_at?: string | null
-          received_by?: string | null
-          received_by_contact_id?: string | null
-          received_by_user_id?: string | null
-          return_of_dn_id?: string | null
-          sales_order_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_method?: string | null
-          source_invoice_id?: string | null
-          spawned_invoice_id?: string | null
-          status?: string
-          tracking_number?: string | null
-          updated_at?: string
-          vehicle_number?: string | null
-          warehouse_id?: string | null
-        }
-        Update: {
-          accounts_resolved?: Json | null
-          auto_invoice_on_complete?: boolean
-          backorder_of_dn_id?: string | null
-          branch_id?: string | null
-          business_id?: string
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          carrier_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          delivered_at?: string | null
-          delivery_date?: string
-          delivery_number?: string
-          dispatch_instructions?: string | null
-          dispatch_officer_id?: string | null
-          dispatch_route?: string | null
-          dispatched_at?: string | null
-          driver_name?: string | null
-          freight_cost?: number | null
-          freight_currency?: string | null
-          id?: string
-          is_backorder?: boolean
-          is_return?: boolean
-          is_sample_data?: boolean
-          manifest_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          ready_at?: string | null
-          received_by?: string | null
-          received_by_contact_id?: string | null
-          received_by_user_id?: string | null
-          return_of_dn_id?: string | null
-          sales_order_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_method?: string | null
-          source_invoice_id?: string | null
-          spawned_invoice_id?: string | null
-          status?: string
-          tracking_number?: string | null
-          updated_at?: string
-          vehicle_number?: string | null
-          warehouse_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_notes_backorder_of_dn_id_fkey"
-            columns: ["backorder_of_dn_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_carrier_id_fkey"
-            columns: ["carrier_id"]
-            isOneToOne: false
-            referencedRelation: "carriers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_manifest_id_fkey"
-            columns: ["manifest_id"]
-            isOneToOne: false
-            referencedRelation: "wms_loading_manifests"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_return_of_dn_id_fkey"
-            columns: ["return_of_dn_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_source_invoice_id_fkey"
-            columns: ["source_invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_spawned_invoice_id_fkey"
-            columns: ["spawned_invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_warehouse_id_fkey"
-            columns: ["warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      delivery_proofs: {
-        Row: {
-          business_id: string
-          created_at: string
-          created_by: string | null
-          delivery_note_id: string
-          gps_lat: number | null
-          gps_lng: number | null
-          id: string
-          notes: string | null
-          organization_id: string
-          photo_urls: string[] | null
-          received_at: string
-          received_by_contact_id: string | null
-          received_by_name: string | null
-          signature_url: string | null
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          delivery_note_id: string
-          gps_lat?: number | null
-          gps_lng?: number | null
-          id?: string
-          notes?: string | null
-          organization_id: string
-          photo_urls?: string[] | null
-          received_at?: string
-          received_by_contact_id?: string | null
-          received_by_name?: string | null
-          signature_url?: string | null
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          delivery_note_id?: string
-          gps_lat?: number | null
-          gps_lng?: number | null
-          id?: string
-          notes?: string | null
-          organization_id?: string
-          photo_urls?: string[] | null
-          received_at?: string
-          received_by_contact_id?: string | null
-          received_by_name?: string | null
-          signature_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_proofs_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_proofs_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-        ]
       }
       demo_requests: {
         Row: {
@@ -22205,7 +21439,6 @@ export type Database = {
           contact_id: string | null
           converted_at: string | null
           converted_invoice_id: string | null
-          converted_sales_order_id: string | null
           created_at: string
           created_by: string | null
           currency: string | null
@@ -22243,7 +21476,6 @@ export type Database = {
           contact_id?: string | null
           converted_at?: string | null
           converted_invoice_id?: string | null
-          converted_sales_order_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
@@ -22281,7 +21513,6 @@ export type Database = {
           contact_id?: string | null
           converted_at?: string | null
           converted_invoice_id?: string | null
-          converted_sales_order_id?: string | null
           created_at?: string
           created_by?: string | null
           currency?: string | null
@@ -22365,13 +21596,6 @@ export type Database = {
             columns: ["converted_invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "estimates_converted_sales_order_id_fkey"
-            columns: ["converted_sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
             referencedColumns: ["id"]
           },
           {
@@ -26600,7 +25824,6 @@ export type Database = {
           analytic_account_id: string | null
           business_id: string | null
           created_at: string
-          delivery_note_item_id: string | null
           description: string
           discount_percent: number | null
           display_quantity: number | null
@@ -26618,7 +25841,6 @@ export type Database = {
           product_id: string | null
           project_id: string | null
           quantity: number
-          sales_order_item_id: string | null
           serial_number: string | null
           sort_order: number | null
           task_id: string | null
@@ -26635,7 +25857,6 @@ export type Database = {
           analytic_account_id?: string | null
           business_id?: string | null
           created_at?: string
-          delivery_note_item_id?: string | null
           description: string
           discount_percent?: number | null
           display_quantity?: number | null
@@ -26653,7 +25874,6 @@ export type Database = {
           product_id?: string | null
           project_id?: string | null
           quantity?: number
-          sales_order_item_id?: string | null
           serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
@@ -26670,7 +25890,6 @@ export type Database = {
           analytic_account_id?: string | null
           business_id?: string | null
           created_at?: string
-          delivery_note_item_id?: string | null
           description?: string
           discount_percent?: number | null
           display_quantity?: number | null
@@ -26688,7 +25907,6 @@ export type Database = {
           product_id?: string | null
           project_id?: string | null
           quantity?: number
-          sales_order_item_id?: string | null
           serial_number?: string | null
           sort_order?: number | null
           task_id?: string | null
@@ -26729,20 +25947,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_pos_holding_account_readiness"
             referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoice_items_delivery_note_item_id_fkey"
-            columns: ["delivery_note_item_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_note_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_delivery_note_item_id_fkey"
-            columns: ["delivery_note_item_id"]
-            isOneToOne: false
-            referencedRelation: "dn_line_balances"
-            referencedColumns: ["delivery_note_item_id"]
           },
           {
             foreignKeyName: "invoice_items_display_uom_id_fkey"
@@ -26799,27 +26003,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "invoice_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
           },
           {
             foreignKeyName: "invoice_items_task_id_fkey"
@@ -26959,12 +26142,10 @@ export type Database = {
           sent_at: string | null
           signed_at: string | null
           source: string | null
-          source_delivery_note_id: string | null
           source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
-          source_sales_order_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -27026,12 +26207,10 @@ export type Database = {
           sent_at?: string | null
           signed_at?: string | null
           source?: string | null
-          source_delivery_note_id?: string | null
           source_estimate_id?: string | null
           source_pos_transaction_id?: string | null
           source_proforma_invoice_id?: string | null
           source_recurring_id?: string | null
-          source_sales_order_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -27093,12 +26272,10 @@ export type Database = {
           sent_at?: string | null
           signed_at?: string | null
           source?: string | null
-          source_delivery_note_id?: string | null
           source_estimate_id?: string | null
           source_pos_transaction_id?: string | null
           source_proforma_invoice_id?: string | null
           source_recurring_id?: string | null
-          source_sales_order_id?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -27331,13 +26508,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoices_source_delivery_note_id_fkey"
-            columns: ["source_delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "invoices_source_estimate_id_fkey"
             columns: ["source_estimate_id"]
             isOneToOne: false
@@ -27363,13 +26533,6 @@ export type Database = {
             columns: ["source_recurring_id"]
             isOneToOne: false
             referencedRelation: "recurring_invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_source_sales_order_id_fkey"
-            columns: ["source_sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
             referencedColumns: ["id"]
           },
           {
@@ -57624,7 +56787,6 @@ export type Database = {
           project_number: string
           project_type: string | null
           source_lead_id: string | null
-          source_sales_order_id: string | null
           spent_hours: number | null
           start_date: string | null
           status: string | null
@@ -57670,7 +56832,6 @@ export type Database = {
           project_number: string
           project_type?: string | null
           source_lead_id?: string | null
-          source_sales_order_id?: string | null
           spent_hours?: number | null
           start_date?: string | null
           status?: string | null
@@ -57716,7 +56877,6 @@ export type Database = {
           project_number?: string
           project_type?: string | null
           source_lead_id?: string | null
-          source_sales_order_id?: string | null
           spent_hours?: number | null
           start_date?: string | null
           status?: string | null
@@ -57809,13 +56969,6 @@ export type Database = {
             columns: ["source_lead_id"]
             isOneToOne: false
             referencedRelation: "crm_leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "projects_source_sales_order_id_fkey"
-            columns: ["source_sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
             referencedColumns: ["id"]
           },
           {
@@ -62834,938 +61987,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_document_idempotency: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          document_id: string | null
-          document_type: string
-          id: string
-          idempotency_key: string
-          organization_id: string
-          response: Json
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          document_id?: string | null
-          document_type: string
-          id?: string
-          idempotency_key: string
-          organization_id: string
-          response?: Json
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          document_id?: string | null
-          document_type?: string
-          id?: string
-          idempotency_key?: string
-          organization_id?: string
-          response?: Json
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      sales_order_items: {
-        Row: {
-          backorder_eta: string | null
-          created_at: string
-          description: string
-          discount_percent: number | null
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number
-          lot_number: string | null
-          packaging_id: string | null
-          price_source: string | null
-          product_id: string | null
-          project_id: string | null
-          quantity: number
-          quantity_backordered: number | null
-          quantity_cancelled: number
-          quantity_fulfilled: number | null
-          quantity_invoiced: number
-          sales_order_id: string
-          serial_number: string | null
-          sort_order: number | null
-          task_id: string | null
-          tax_amount: number | null
-          tax_rate: number | null
-          tax_rate_id: string | null
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          backorder_eta?: string | null
-          created_at?: string
-          description: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          price_source?: string | null
-          product_id?: string | null
-          project_id?: string | null
-          quantity?: number
-          quantity_backordered?: number | null
-          quantity_cancelled?: number
-          quantity_fulfilled?: number | null
-          quantity_invoiced?: number
-          sales_order_id: string
-          serial_number?: string | null
-          sort_order?: number | null
-          task_id?: string | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tax_rate_id?: string | null
-          unit_price: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          backorder_eta?: string | null
-          created_at?: string
-          description?: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          price_source?: string | null
-          product_id?: string | null
-          project_id?: string | null
-          quantity?: number
-          quantity_backordered?: number | null
-          quantity_cancelled?: number
-          quantity_fulfilled?: number | null
-          quantity_invoiced?: number
-          sales_order_id?: string
-          serial_number?: string | null
-          sort_order?: number | null
-          task_id?: string | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tax_rate_id?: string | null
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_packaging_id_fkey"
-            columns: ["packaging_id"]
-            isOneToOne: false
-            referencedRelation: "product_packaging"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "project_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_tax_rate_id_fkey"
-            columns: ["tax_rate_id"]
-            isOneToOne: false
-            referencedRelation: "tax_rates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_orders: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          contact_id: string | null
-          converted_at: string | null
-          converted_invoice_id: string | null
-          created_at: string
-          created_by: string | null
-          currency: string | null
-          discount_amount: number | null
-          exchange_rate: number | null
-          expected_date: string | null
-          id: string
-          is_locked: boolean
-          is_sample_data: boolean
-          notes: string | null
-          order_date: string
-          organization_id: string
-          payment_term_id: string | null
-          project_id: string | null
-          salesperson_id: string | null
-          ship_to_contact_id: string | null
-          shipping_address: string | null
-          shipping_amount: number | null
-          so_number: string
-          source_estimate_id: string | null
-          source_lead_id: string | null
-          status: string
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          warehouse_id: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          contact_id?: string | null
-          converted_at?: string | null
-          converted_invoice_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          discount_amount?: number | null
-          exchange_rate?: number | null
-          expected_date?: string | null
-          id?: string
-          is_locked?: boolean
-          is_sample_data?: boolean
-          notes?: string | null
-          order_date?: string
-          organization_id: string
-          payment_term_id?: string | null
-          project_id?: string | null
-          salesperson_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_amount?: number | null
-          so_number: string
-          source_estimate_id?: string | null
-          source_lead_id?: string | null
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          warehouse_id?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          contact_id?: string | null
-          converted_at?: string | null
-          converted_invoice_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          discount_amount?: number | null
-          exchange_rate?: number | null
-          expected_date?: string | null
-          id?: string
-          is_locked?: boolean
-          is_sample_data?: boolean
-          notes?: string | null
-          order_date?: string
-          organization_id?: string
-          payment_term_id?: string | null
-          project_id?: string | null
-          salesperson_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_amount?: number | null
-          so_number?: string
-          source_estimate_id?: string | null
-          source_lead_id?: string | null
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          warehouse_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_converted_invoice_id_fkey"
-            columns: ["converted_invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_payment_term_id_fkey"
-            columns: ["payment_term_id"]
-            isOneToOne: false
-            referencedRelation: "payment_terms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_source_estimate_id_fkey"
-            columns: ["source_estimate_id"]
-            isOneToOne: false
-            referencedRelation: "estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_source_lead_id_fkey"
-            columns: ["source_lead_id"]
-            isOneToOne: false
-            referencedRelation: "crm_leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_warehouse_id_fkey"
-            columns: ["warehouse_id"]
-            isOneToOne: false
-            referencedRelation: "warehouses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_return_cost_allocations: {
-        Row: {
-          basis_id: string
-          business_id: string
-          consumption_id: string
-          created_at: string
-          id: string
-          layer_id: string
-          organization_id: string
-          qty: number
-          unit_cost: number
-        }
-        Insert: {
-          basis_id: string
-          business_id: string
-          consumption_id: string
-          created_at?: string
-          id?: string
-          layer_id: string
-          organization_id: string
-          qty: number
-          unit_cost: number
-        }
-        Update: {
-          basis_id?: string
-          business_id?: string
-          consumption_id?: string
-          created_at?: string
-          id?: string
-          layer_id?: string
-          organization_id?: string
-          qty?: number
-          unit_cost?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_cost_allocations_basis_id_fkey"
-            columns: ["basis_id"]
-            isOneToOne: false
-            referencedRelation: "sales_return_cost_basis"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_allocations_consumption_id_fkey"
-            columns: ["consumption_id"]
-            isOneToOne: false
-            referencedRelation: "cost_layer_consumptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_return_cost_basis: {
-        Row: {
-          business_id: string
-          created_at: string
-          fallback_qty: number
-          fallback_reason: string | null
-          id: string
-          method: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_return_id: string
-          sales_return_item_id: string
-          total_value: number
-          unit_cost: number
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          fallback_qty?: number
-          fallback_reason?: string | null
-          id?: string
-          method: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_return_id: string
-          sales_return_item_id: string
-          total_value?: number
-          unit_cost?: number
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          fallback_qty?: number
-          fallback_reason?: string | null
-          id?: string
-          method?: string
-          organization_id?: string
-          product_id?: string
-          quantity?: number
-          sales_return_id?: string
-          sales_return_item_id?: string
-          total_value?: number
-          unit_cost?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "sales_returns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["sales_return_id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_returns_integrity"
-            referencedColumns: ["sales_return_id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_item_id_fkey"
-            columns: ["sales_return_item_id"]
-            isOneToOne: true
-            referencedRelation: "sales_return_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_return_items: {
-        Row: {
-          condition: string | null
-          created_at: string
-          description: string
-          display_quantity: number | null
-          display_uom_id: string | null
-          etims_classification_code: string | null
-          etims_tax_code: string | null
-          id: string
-          invoice_item_id: string | null
-          is_sample_data: boolean
-          line_total: number
-          lot_number: string | null
-          packaging_id: string | null
-          product_id: string | null
-          qc_inspection_id: string | null
-          quantity: number
-          return_reason: string | null
-          sales_return_id: string
-          serial_number: string | null
-          sort_order: number | null
-          source_discount_percent: number | null
-          source_tax_amount: number | null
-          source_tax_rate: number | null
-          tax_amount: number | null
-          tax_basis_source: string | null
-          tax_rate: number | null
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          condition?: string | null
-          created_at?: string
-          description: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          etims_classification_code?: string | null
-          etims_tax_code?: string | null
-          id?: string
-          invoice_item_id?: string | null
-          is_sample_data?: boolean
-          line_total: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          qc_inspection_id?: string | null
-          quantity?: number
-          return_reason?: string | null
-          sales_return_id: string
-          serial_number?: string | null
-          sort_order?: number | null
-          source_discount_percent?: number | null
-          source_tax_amount?: number | null
-          source_tax_rate?: number | null
-          tax_amount?: number | null
-          tax_basis_source?: string | null
-          tax_rate?: number | null
-          unit_price: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          condition?: string | null
-          created_at?: string
-          description?: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          etims_classification_code?: string | null
-          etims_tax_code?: string | null
-          id?: string
-          invoice_item_id?: string | null
-          is_sample_data?: boolean
-          line_total?: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          qc_inspection_id?: string | null
-          quantity?: number
-          return_reason?: string | null
-          sales_return_id?: string
-          serial_number?: string | null
-          sort_order?: number | null
-          source_discount_percent?: number | null
-          source_tax_amount?: number | null
-          source_tax_rate?: number | null
-          tax_amount?: number | null
-          tax_basis_source?: string | null
-          tax_rate?: number | null
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_invoice_item_id_fkey"
-            columns: ["invoice_item_id"]
-            isOneToOne: false
-            referencedRelation: "invoice_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_invoice_item_id_fkey"
-            columns: ["invoice_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_invoice_creditable_qty"
-            referencedColumns: ["invoice_item_id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_invoice_item_id_fkey"
-            columns: ["invoice_item_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_returnable_qty"
-            referencedColumns: ["invoice_item_id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_packaging_id_fkey"
-            columns: ["packaging_id"]
-            isOneToOne: false
-            referencedRelation: "product_packaging"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_qc_inspection_id_fkey"
-            columns: ["qc_inspection_id"]
-            isOneToOne: false
-            referencedRelation: "wms_qc_inspections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "sales_returns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["sales_return_id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_returns_integrity"
-            referencedColumns: ["sales_return_id"]
-          },
-        ]
-      }
-      sales_returns: {
-        Row: {
-          branch_id: string | null
-          business_id: string
-          client_request_id: string | null
-          contact_id: string | null
-          created_at: string
-          created_by: string | null
-          credit_note_id: string | null
-          currency: string | null
-          id: string
-          invoice_id: string | null
-          is_sample_data: boolean
-          notes: string | null
-          organization_id: string
-          reason: string
-          refund_method: string | null
-          return_date: string
-          return_number: string
-          status: string
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          wms_return_order_id: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id: string
-          client_request_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          credit_note_id?: string | null
-          currency?: string | null
-          id?: string
-          invoice_id?: string | null
-          is_sample_data?: boolean
-          notes?: string | null
-          organization_id: string
-          reason: string
-          refund_method?: string | null
-          return_date?: string
-          return_number: string
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          wms_return_order_id?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string
-          client_request_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          credit_note_id?: string | null
-          currency?: string | null
-          id?: string
-          invoice_id?: string | null
-          is_sample_data?: boolean
-          notes?: string | null
-          organization_id?: string
-          reason?: string
-          refund_method?: string | null
-          return_date?: string
-          return_number?: string
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          wms_return_order_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "credit_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_credit_note_id_fkey"
-            columns: ["credit_note_id"]
-            isOneToOne: false
-            referencedRelation: "v_sales_return_settlement"
-            referencedColumns: ["credit_note_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_wms_return_order_id_fkey"
-            columns: ["wms_return_order_id"]
-            isOneToOne: false
-            referencedRelation: "wms_return_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -74566,266 +72787,7 @@ export type Database = {
           reason?: string | null
           to_state?: Database["public"]["Enums"]["wms_crossdock_state"]
         }
-        Relationships: [
-          {
-            foreignKeyName: "wms_crossdock_history_opportunity_id_fkey"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "wms_crossdock_board_view"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_history_opportunity_id_fkey"
-            columns: ["opportunity_id"]
-            isOneToOne: false
-            referencedRelation: "wms_crossdock_opportunities"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      wms_crossdock_opportunities: {
-        Row: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        Insert: {
-          appointment_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          assigned_user_id?: string | null
-          branch_id?: string | null
-          break_reason?: string | null
-          business_id: string
-          cancel_reason?: string | null
-          cancelled_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          demand_doc_id?: string | null
-          demand_line_id?: string | null
-          demand_type?: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at?: string | null
-          grn_id: string
-          grn_line_id?: string | null
-          id?: string
-          load_task_id?: string | null
-          loaded_at?: string | null
-          manifest_id?: string | null
-          matched_at?: string
-          organization_id: string
-          outbound_dock_id?: string | null
-          product_id: string
-          qualified_at?: string | null
-          quantity: number
-          receiving_line_id?: string | null
-          reject_reason?: string | null
-          row_version?: number
-          rule_id?: string | null
-          sales_order_id?: string | null
-          sales_order_item_id?: string | null
-          savings_estimate?: number | null
-          score?: number | null
-          stage_task_id?: string | null
-          staged_at?: string | null
-          staging_location_id?: string | null
-          state?: Database["public"]["Enums"]["wms_crossdock_state"]
-          status?: string
-          updated_at?: string
-          warehouse_id: string
-        }
-        Update: {
-          appointment_id?: string | null
-          approved_at?: string | null
-          approved_by?: string | null
-          assigned_user_id?: string | null
-          branch_id?: string | null
-          break_reason?: string | null
-          business_id?: string
-          cancel_reason?: string | null
-          cancelled_at?: string | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          demand_doc_id?: string | null
-          demand_line_id?: string | null
-          demand_type?: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at?: string | null
-          grn_id?: string
-          grn_line_id?: string | null
-          id?: string
-          load_task_id?: string | null
-          loaded_at?: string | null
-          manifest_id?: string | null
-          matched_at?: string
-          organization_id?: string
-          outbound_dock_id?: string | null
-          product_id?: string
-          qualified_at?: string | null
-          quantity?: number
-          receiving_line_id?: string | null
-          reject_reason?: string | null
-          row_version?: number
-          rule_id?: string | null
-          sales_order_id?: string | null
-          sales_order_item_id?: string | null
-          savings_estimate?: number | null
-          score?: number | null
-          stage_task_id?: string | null
-          staged_at?: string | null
-          staging_location_id?: string | null
-          state?: Database["public"]["Enums"]["wms_crossdock_state"]
-          status?: string
-          updated_at?: string
-          warehouse_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wms_crossdock_opportunities_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "wms_dock_appointments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_id_fkey"
-            columns: ["grn_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
-            columns: ["grn_line_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipt_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
-            columns: ["grn_line_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipt_lines_with_suspect_cost"
-            referencedColumns: ["goods_receipt_item_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_outbound_dock_id_fkey"
-            columns: ["outbound_dock_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_docks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_receiving_line_id_fkey"
-            columns: ["receiving_line_id"]
-            isOneToOne: false
-            referencedRelation: "wms_receiving_lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_rule_id_fkey"
-            columns: ["rule_id"]
-            isOneToOne: false
-            referencedRelation: "wms_crossdock_rules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
-            columns: ["stage_task_id"]
-            isOneToOne: false
-            referencedRelation: "wms_labour_queue_view"
-            referencedColumns: ["task_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
-            columns: ["stage_task_id"]
-            isOneToOne: false
-            referencedRelation: "wms_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
-            columns: ["staging_location_id"]
-            isOneToOne: false
-            referencedRelation: "stock_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
-            columns: ["staging_location_id"]
-            isOneToOne: false
-            referencedRelation: "v_location_summary"
-            referencedColumns: ["location_id"]
-          },
-        ]
+        Relationships: []
       }
       wms_crossdock_rules: {
         Row: {
@@ -76147,7 +74109,6 @@ export type Database = {
           code: string
           created_at: string
           created_by: string | null
-          delivery_note_id: string | null
           dispatched_at: string | null
           dispatched_by: string | null
           dock_id: string | null
@@ -76176,7 +74137,6 @@ export type Database = {
           code: string
           created_at?: string
           created_by?: string | null
-          delivery_note_id?: string | null
           dispatched_at?: string | null
           dispatched_by?: string | null
           dock_id?: string | null
@@ -76205,7 +74165,6 @@ export type Database = {
           code?: string
           created_at?: string
           created_by?: string | null
-          delivery_note_id?: string | null
           dispatched_at?: string | null
           dispatched_by?: string | null
           dock_id?: string | null
@@ -76249,13 +74208,6 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "wms_billing_clients"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_loading_manifests_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
             referencedColumns: ["id"]
           },
           {
@@ -77230,8 +75182,6 @@ export type Database = {
           quantity_ordered: number
           quantity_packed: number
           quantity_picked: number
-          sales_order_id: string | null
-          sales_order_item_id: string | null
           wave_id: string
         }
         Insert: {
@@ -77246,8 +75196,6 @@ export type Database = {
           quantity_ordered: number
           quantity_packed?: number
           quantity_picked?: number
-          sales_order_id?: string | null
-          sales_order_item_id?: string | null
           wave_id: string
         }
         Update: {
@@ -77262,8 +75210,6 @@ export type Database = {
           quantity_ordered?: number
           quantity_packed?: number
           quantity_picked?: number
-          sales_order_id?: string | null
-          sales_order_item_id?: string | null
           wave_id?: string
         }
         Relationships: [
@@ -77273,34 +75219,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "wms_pack_cartons"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_pick_wave_lines_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_pick_wave_lines_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_pick_wave_lines_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "wms_pick_wave_lines_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
           },
           {
             foreignKeyName: "wms_pick_wave_lines_wave_id_fkey"
@@ -81436,92 +79354,6 @@ export type Database = {
           },
         ]
       }
-      dn_line_balances: {
-        Row: {
-          business_id: string | null
-          delivery_note_id: string | null
-          delivery_note_item_id: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity_delivered: number | null
-          quantity_invoiced: number | null
-          quantity_ordered: number | null
-          quantity_outstanding: number | null
-          quantity_returned: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       dunning_assignment: {
         Row: {
           branch_id: string | null
@@ -83672,235 +81504,6 @@ export type Database = {
           },
           {
             foreignKeyName: "sms_log_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      so_backorder_lines: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          description: string | null
-          order_date: string | null
-          order_status: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity_backordered: number | null
-          quantity_delivered: number | null
-          quantity_on_open_deliveries: number | null
-          quantity_ordered: number | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          so_number: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      so_line_balances: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          description: string | null
-          line_total: number | null
-          order_status: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity_cancelled: number | null
-          quantity_delivered: number | null
-          quantity_invoiced: number | null
-          quantity_on_open_deliveries: number | null
-          quantity_open_to_deliver: number | null
-          quantity_open_to_invoice: number | null
-          quantity_open_to_plan: number | null
-          quantity_ordered: number | null
-          quantity_returned: number | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          so_number: string | null
-          unit_price: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -86331,24 +83934,6 @@ export type Database = {
           },
         ]
       }
-      v_lot_downstream_consumption: {
-        Row: {
-          business_id: string | null
-          contact_id: string | null
-          counterparty_user_id: string | null
-          document_id: string | null
-          document_number: string | null
-          document_type: string | null
-          lot_number: string | null
-          occurred_at: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity: number | null
-          serial_number: string | null
-          source_table: string | null
-        }
-        Relationships: []
-      }
       v_lots_expiring_soon: {
         Row: {
           alert_window_days: number | null
@@ -88215,259 +85800,6 @@ export type Database = {
           },
         ]
       }
-      v_sales_return_settlement: {
-        Row: {
-          applied: number | null
-          branch_id: string | null
-          business_id: string | null
-          credit_note_id: string | null
-          credit_note_number: string | null
-          credit_note_status:
-            | Database["public"]["Enums"]["credit_note_status"]
-            | null
-          credited: number | null
-          is_settled: boolean | null
-          open_credit: number | null
-          organization_id: string | null
-          refunded: number | null
-          return_number: string | null
-          sales_return_id: string | null
-          status: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_sales_returnable_qty: {
-        Row: {
-          business_id: string | null
-          contact_id: string | null
-          invoice_id: string | null
-          invoice_item_id: string | null
-          invoiced_qty: number | null
-          organization_id: string | null
-          product_id: string | null
-          returnable_qty: number | null
-          returned_qty: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoice_items_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "invoice_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "products"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoice_items_product_id_fkey"
-            columns: ["product_id"]
-            isOneToOne: false
-            referencedRelation: "v_supplier_coverage"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "invoices_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoices_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "invoices_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "v_party_supplier"
-            referencedColumns: ["contact_id"]
-          },
-          {
-            foreignKeyName: "invoices_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "invoices_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "invoices_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      v_sales_returns_integrity: {
-        Row: {
-          bad_number_format: boolean | null
-          branch_id: string | null
-          business_id: string | null
-          double_restock: boolean | null
-          duplicate_number: boolean | null
-          expected_prefix: string | null
-          lines_without_cost_basis: number | null
-          lines_without_tax_basis: number | null
-          organization_id: string | null
-          refunded_unsettled: boolean | null
-          return_number: string | null
-          sales_return_id: string | null
-          settlement_shortfall: number | null
-          status: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "effective_reorder_rule"
-            referencedColumns: ["branch_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_payroll_settings_effective"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "v_pos_holding_account_readiness"
-            referencedColumns: ["business_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_stock_on_hand: {
         Row: {
           available_quantity: number | null
@@ -89666,161 +86998,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      wms_crossdock_board_view: {
-        Row: {
-          appointment_id: string | null
-          approved_at: string | null
-          assigned_user_id: string | null
-          assignee_name: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string | null
-          completed_at: string | null
-          customer_name: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_number: string | null
-          demand_type:
-            | Database["public"]["Enums"]["wms_crossdock_demand_type"]
-            | null
-          dock_code: string | null
-          expires_at: string | null
-          grn_id: string | null
-          grn_line_id: string | null
-          hours_to_cutoff: number | null
-          id: string | null
-          load_task_id: string | null
-          loaded_at: string | null
-          matched_at: string | null
-          organization_id: string | null
-          outbound_dock_id: string | null
-          product_id: string | null
-          product_name: string | null
-          product_sku: string | null
-          qualified_at: string | null
-          quantity: number | null
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number | null
-          rule_id: string | null
-          sales_order_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_code: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"] | null
-          status: string | null
-          warehouse_id: string | null
-          warehouse_name: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wms_crossdock_opportunities_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "wms_dock_appointments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_id_fkey"
-            columns: ["grn_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
-            columns: ["grn_line_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipt_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_grn_line_id_fkey"
-            columns: ["grn_line_id"]
-            isOneToOne: false
-            referencedRelation: "goods_receipt_lines_with_suspect_cost"
-            referencedColumns: ["goods_receipt_item_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_outbound_dock_id_fkey"
-            columns: ["outbound_dock_id"]
-            isOneToOne: false
-            referencedRelation: "warehouse_docks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_receiving_line_id_fkey"
-            columns: ["receiving_line_id"]
-            isOneToOne: false
-            referencedRelation: "wms_receiving_lines"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_rule_id_fkey"
-            columns: ["rule_id"]
-            isOneToOne: false
-            referencedRelation: "wms_crossdock_rules"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
-            columns: ["stage_task_id"]
-            isOneToOne: false
-            referencedRelation: "wms_labour_queue_view"
-            referencedColumns: ["task_id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_stage_task_id_fkey"
-            columns: ["stage_task_id"]
-            isOneToOne: false
-            referencedRelation: "wms_tasks"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
-            columns: ["staging_location_id"]
-            isOneToOne: false
-            referencedRelation: "stock_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "wms_crossdock_opportunities_staging_location_id_fkey"
-            columns: ["staging_location_id"]
-            isOneToOne: false
-            referencedRelation: "v_location_summary"
-            referencedColumns: ["location_id"]
-          },
-        ]
-      }
-      wms_crossdock_metrics_view: {
-        Row: {
-          avg_dwell_hours: number | null
-          broken: number | null
-          business_id: string | null
-          completed: number | null
-          expired: number | null
-          metric_date: string | null
-          opportunities: number | null
-          rejected: number | null
-          savings_estimate: number | null
-          storage_days_avoided: number | null
-          success_rate_pct: number | null
-          touches_avoided: number | null
-          units_flowed: number | null
-          warehouse_id: string | null
-        }
-        Relationships: []
       }
       wms_labour_queue_view: {
         Row: {
@@ -91794,64 +88971,6 @@ export type Database = {
         }
         Returns: number
       }
-      _wms_crossdock_guard: {
-        Args: {
-          p_allowed: Database["public"]["Enums"]["wms_crossdock_state"][]
-          p_id: string
-          p_row_version: number
-        }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       _wms_crossdock_resolve_rule: {
         Args: { p_business_id: string; p_warehouse_id: string }
         Returns: {
@@ -92086,12 +89205,10 @@ export type Database = {
           sent_at: string | null
           signed_at: string | null
           source: string | null
-          source_delivery_note_id: string | null
           source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
-          source_sales_order_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -93123,7 +90240,6 @@ export type Database = {
           refund_date: string | null
           refund_method: string | null
           source_payment_id: string | null
-          source_return_id: string | null
           status: Database["public"]["Enums"]["credit_note_status"]
           submitted_at: string | null
           submitted_by: string | null
@@ -94757,60 +91873,6 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
       }
-      cancel_crossdock_opportunity: {
-        Args: { p_opportunity_id: string; p_reason?: string }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       cancel_delivery_atomic: {
         Args: { p_dn_id: string; p_reason?: string; p_user_id: string }
         Returns: Json
@@ -96048,60 +93110,6 @@ export type Database = {
       confirm_credit_note_atomic: {
         Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
         Returns: Json
-      }
-      confirm_crossdock_stage: {
-        Args: { p_opportunity_id: string }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
       }
       confirm_invoice_and_release_stock_atomic: {
         Args: {
@@ -98130,13 +95138,6 @@ export type Database = {
           p_warehouse_id?: string
         }
         Returns: string
-      }
-      emit_crossdock_event: {
-        Args: {
-          p_row: Database["public"]["Tables"]["wms_crossdock_opportunities"]["Row"]
-          p_type: string
-        }
-        Returns: undefined
       }
       emit_employee_lifecycle_event: {
         Args: {
@@ -100378,12 +97379,10 @@ export type Database = {
           sent_at: string | null
           signed_at: string | null
           source: string | null
-          source_delivery_note_id: string | null
           source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
-          source_sales_order_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -102610,12 +99609,10 @@ export type Database = {
           sent_at: string | null
           signed_at: string | null
           source: string | null
-          source_delivery_note_id: string | null
           source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
-          source_sales_order_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -106190,7 +103187,6 @@ export type Database = {
           project_number: string
           project_type: string | null
           source_lead_id: string | null
-          source_sales_order_id: string | null
           spent_hours: number | null
           start_date: string | null
           status: string | null
@@ -106249,7 +103245,6 @@ export type Database = {
           project_number: string
           project_type: string | null
           source_lead_id: string | null
-          source_sales_order_id: string | null
           spent_hours: number | null
           start_date: string | null
           status: string | null
@@ -106553,7 +103548,6 @@ export type Database = {
           project_number: string
           project_type: string | null
           source_lead_id: string | null
-          source_sales_order_id: string | null
           spent_hours: number | null
           start_date: string | null
           status: string | null
@@ -109828,12 +106822,10 @@ export type Database = {
           sent_at: string | null
           signed_at: string | null
           source: string | null
-          source_delivery_note_id: string | null
           source_estimate_id: string | null
           source_pos_transaction_id: string | null
           source_proforma_invoice_id: string | null
           source_recurring_id: string | null
-          source_sales_order_id: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -111879,403 +108871,7 @@ export type Database = {
         Args: { p_return_id: string; p_row_version: number }
         Returns: Json
       }
-      wms_crossdock_approve: {
-        Args: {
-          p_appointment_id?: string
-          p_opportunity_id: string
-          p_outbound_dock_id?: string
-          p_row_version?: number
-          p_staging_location_id?: string
-        }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      wms_crossdock_break: {
-        Args: {
-          p_opportunity_id: string
-          p_reason: string
-          p_row_version?: number
-        }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      wms_crossdock_complete: {
-        Args: { p_opportunity_id: string; p_row_version?: number }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      wms_crossdock_confirm_staged: {
-        Args: { p_opportunity_id: string; p_row_version?: number }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      wms_crossdock_mark_loaded: {
-        Args: {
-          p_manifest_id?: string
-          p_opportunity_id: string
-          p_row_version?: number
-        }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      wms_crossdock_reject: {
-        Args: {
-          p_opportunity_id: string
-          p_reason: string
-          p_row_version?: number
-        }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       wms_crossdock_requalify_sweep: { Args: never; Returns: number }
-      wms_crossdock_start_staging: {
-        Args: { p_opportunity_id: string; p_row_version?: number }
-        Returns: {
-          appointment_id: string | null
-          approved_at: string | null
-          approved_by: string | null
-          assigned_user_id: string | null
-          branch_id: string | null
-          break_reason: string | null
-          business_id: string
-          cancel_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          demand_doc_id: string | null
-          demand_line_id: string | null
-          demand_type: Database["public"]["Enums"]["wms_crossdock_demand_type"]
-          expires_at: string | null
-          grn_id: string
-          grn_line_id: string | null
-          id: string
-          load_task_id: string | null
-          loaded_at: string | null
-          manifest_id: string | null
-          matched_at: string
-          organization_id: string
-          outbound_dock_id: string | null
-          product_id: string
-          qualified_at: string | null
-          quantity: number
-          receiving_line_id: string | null
-          reject_reason: string | null
-          row_version: number
-          rule_id: string | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          savings_estimate: number | null
-          score: number | null
-          stage_task_id: string | null
-          staged_at: string | null
-          staging_location_id: string | null
-          state: Database["public"]["Enums"]["wms_crossdock_state"]
-          status: string
-          updated_at: string
-          warehouse_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wms_crossdock_opportunities"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       wms_crossdock_sweep_expired: { Args: never; Returns: number }
       wms_detect_operational_exceptions: {
         Args: { p_warehouse_id?: string }

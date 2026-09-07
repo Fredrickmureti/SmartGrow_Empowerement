@@ -1,0 +1,11 @@
+ALTER TABLE public.estimates DROP COLUMN IF EXISTS converted_sales_order_id CASCADE;
+ALTER TABLE public.invoices DROP COLUMN IF EXISTS source_sales_order_id CASCADE;
+ALTER TABLE public.invoice_items DROP COLUMN IF EXISTS sales_order_item_id CASCADE;
+ALTER TABLE public.projects DROP COLUMN IF EXISTS source_sales_order_id CASCADE;
+DROP TABLE IF EXISTS public.wms_crossdock_opportunities CASCADE;
+DROP TABLE IF EXISTS public.backorders CASCADE;
+ALTER TABLE public.wms_pick_wave_lines DROP COLUMN IF EXISTS sales_order_id CASCADE;
+ALTER TABLE public.wms_pick_wave_lines DROP COLUMN IF EXISTS sales_order_item_id CASCADE;
+DROP TABLE IF EXISTS public.sales_order_items CASCADE;
+DROP TABLE IF EXISTS public.sales_orders CASCADE;
+DROP TABLE IF EXISTS public.sales_document_idempotency CASCADE;
