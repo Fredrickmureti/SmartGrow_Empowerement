@@ -50,6 +50,7 @@ import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
 // PrintingSettings moved to /platform/hardware/policies (Wave 9d Phase 4).
 import { PaymentMethodsSettings } from "@/components/settings/PaymentMethodsSettings";
+import { DocumentNumberingSettings } from "@/components/settings/DocumentNumberingSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { CompanyScopeGate } from "@/components/reports/CompanyScopeGate";
 import { useBusinesses } from "@/hooks/useBusinesses";
@@ -137,6 +138,12 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Pay Methods</span>
                 </TabsTrigger>
               )}
+              {!isPortalUser && permissions.canEditSettings && (
+                <TabsTrigger value="numbering" className="gap-1.5 text-xs sm:text-sm">
+                  <Hash className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Numbering</span>
+                </TabsTrigger>
+              )}
               {!isPortalUser && permissions.canManageEmailSettings && (
                 <TabsTrigger value="email" className="gap-1.5 text-xs sm:text-sm">
                   <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -171,6 +178,10 @@ function CompanySettingsInner() {
 
           <TabsContent value="payment-methods">
             <PaymentMethodsSettings />
+          </TabsContent>
+
+          <TabsContent value="numbering">
+            <DocumentNumberingSettings />
           </TabsContent>
 
           <TabsContent value="email" className="space-y-6">
