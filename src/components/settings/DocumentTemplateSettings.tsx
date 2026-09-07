@@ -52,12 +52,11 @@ import type {
 import { DOCUMENT_TYPE_LABELS } from "@/types/documentTemplate";
 
 const TEMPLATE_TYPE_ICONS: Record<DocumentTemplateType, React.ReactNode> = {
-  invoice: <FileText className="h-5 w-5" />,
-  estimate: <FileCheck className="h-5 w-5" />,
-  proforma: <Receipt className="h-5 w-5" />,
-  credit_note: <CreditCard className="h-5 w-5" />,
-  receipt: <Receipt className="h-5 w-5" />,
-  purchase_order: <ShoppingCart className="h-5 w-5" />,
+  loan_agreement: <FileText className="h-5 w-5" />,
+  repayment_schedule: <FileCheck className="h-5 w-5" />,
+  loan_statement: <CreditCard className="h-5 w-5" />,
+  client_statement: <CreditCard className="h-5 w-5" />,
+  loan_payment_receipt: <Receipt className="h-5 w-5" />,
 };
 
 export function DocumentTemplateSettings() {
