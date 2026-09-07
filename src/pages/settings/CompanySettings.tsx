@@ -146,12 +146,6 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Email</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canEditSettings && hasDocuments && (
-                <TabsTrigger value="templates" className="gap-1.5 text-xs sm:text-sm">
-                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Templates</span>
-                </TabsTrigger>
-              )}
 
               {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
 
