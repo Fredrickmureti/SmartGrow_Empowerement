@@ -19733,14 +19733,6 @@ export type Database = {
           },
         ]
       }
-      employee_loan_state_transitions: {
-        Row: {
-          event: string | null
-          from_status: string | null
-          to_status: string | null
-        }
-        Relationships: []
-      }
       employees_active: {
         Row: {
           address_line1: string | null
