@@ -193,19 +193,12 @@ export default function WorkspaceSettings() {
               Settings that apply to the entire workspace and every company in it.
             </p>
           </div>
-          {/* Cross-links to other admin hubs — hidden for portal users so
-              employees don't get drawn into Apps & Subscriptions or Company
-              admin surfaces from a settings page that legitimately lets them
-              edit their own profile / notifications. */}
+          {/* Cross-link to company settings — hidden for portal users so
+              employees don't get drawn into company admin surfaces from a
+              settings page that legitimately lets them edit their own
+              profile / notifications. */}
           {!isPortalUser && (
             <div className="flex flex-wrap items-center gap-2 w-full @2xl/page:w-auto min-w-0">
-              <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
-                <Link to="/settings/apps">
-                  <AppWindow className="h-4 w-4 mr-1.5 shrink-0" />
-                  <span className="truncate">Apps & Subscriptions</span>
-                  <ArrowRight className="h-3 w-3 ml-1 shrink-0" />
-                </Link>
-              </Button>
               <Button asChild variant="outline" size="sm" className="min-w-0 flex-1 @xs/page:flex-none justify-center">
                 <Link to="/settings/company">
                   <Building2 className="h-4 w-4 mr-1.5 shrink-0" />
