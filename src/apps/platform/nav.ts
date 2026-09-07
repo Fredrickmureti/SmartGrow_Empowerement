@@ -46,7 +46,7 @@ export const PLATFORM_NAV: WorkspaceNav = {
       label: "Insights",
       items: [
         { to: "/settings/audit-logs",   label: "Audit Logs",    icon: History },
-        { to: "/compliance",            label: "Compliance",    icon: ShieldCheck },
+
         // Cross-company comparative P&L now lives in Finance reporting
         // (/finance/reports/cross-company) — it is a financial report, not a setting.
 
