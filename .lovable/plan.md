@@ -295,4 +295,99 @@ Done in this pass: document templates and email templates now speak microfinance
 Remaining, in order:
 1. Three leftover placeholder strings still say "invoice": `useDocumentTemplates.ts` line 95 (default title `INVOICE`) and `DocumentTemplateBuilder.tsx` lines 91, 100, 326 — these should become loan/receipt wording.
 2. A type check and a build check have not been run since these edits, so the app should be verified before anything else.
+
+---
+
+# Wave S-4 — Finish the settings vocabulary pass, then verify (current wave)
+
+## Objective
+
+Close the three items the previous pass left open, fix the one real breakage
+that its type narrowing introduced, and run the outstanding Wave G-5
+verification. No new architecture, no migrations, no RBAC changes.
+
+## Findings confirmed this session (do not re-investigate)
+
+- `DocumentTemplateType` is already narrowed to
+  `loan_agreement | repayment_schedule | loan_statement | client_statement |
+  loan_payment_receipt`. **FACT**
+- **Breakage:** `src/types/documentTemplate.ts` line 168 still sets
+  `DEFAULT_TEMPLATE.template_type: 'invoice'`, which is no longer a member of
+  that union — this is a type error, not just wording. Line 180 also still sets
+  `document_title_format: 'INVOICE'`. **FACT**
+- `src/hooks/useDocumentTemplates.ts` line 95 still defaults
+  `document_title_format` to `'INVOICE'`. **FACT**
+- The builder lives at `src/components/templates/DocumentTemplateBuilder.tsx`
+  (not `components/settings`); placeholders at lines 91, 100 and 326 still say
+  Invoice / TAX INVOICE / "include invoice number". **FACT**
+- No other ERP wording remains under `src/components/settings` or
+  `src/pages/settings`. **FACT**
+- Remaining `invoice`/`estimate` hits elsewhere in `src` are infrastructure that
+  is **out of scope** for this wave and belongs to the later legacy-cleanup
+  wave: `src/lib/queryKeys.ts`, `src/lib/payments/deriveInvoiceFromAllocations.ts`,
+  `src/lib/migration/sourceSystemPresets.ts`,
+  `src/contexts/BusinessContext.tsx` / `BranchContext.tsx` (`invoice_prefix`,
+  `estimate_prefix`, `invoice_prefix_suffix` column mirrors),
+  `src/contexts/SessionContext.tsx` (`invoices_count` usage counter),
+  `src/test/architecture/support/enumStatusLiterals.ts`,
+  `src/pages/reports/JournalReport.tsx` source-type label map,
+  plus assorted doc comments. **FACT**
+
+## Step 1 — Fix the type error and the default titles
+
+| File | Change |
+| --- | --- |
+| `src/types/documentTemplate.ts` L168 | `template_type: 'loan_payment_receipt'` |
+| `src/types/documentTemplate.ts` L180 | `document_title_format: 'REPAYMENT RECEIPT'` |
+| `src/hooks/useDocumentTemplates.ts` L95 | fallback `'REPAYMENT RECEIPT'` |
+| `src/components/templates/DocumentTemplateBuilder.tsx` L91 | `e.g., Standard Repayment Receipt` |
+| `src/components/templates/DocumentTemplateBuilder.tsx` L100 | `e.g., REPAYMENT RECEIPT, LOAN STATEMENT` |
+| `src/components/templates/DocumentTemplateBuilder.tsx` L326 | `e.g., Please quote your loan number on every repayment.` |
+
+`document_templates` is empty, so no data migration is needed.
+
+## Step 2 — Verify the build
+
+`bunx tsgo --noEmit`, then read `/tmp/observability/build-errors.log` for the
+post-edit build. Both must be clean before Step 3. If tsgo surfaces other
+consumers of the removed template types, fix those in this same step rather
+than widening the union back.
+
+## Step 3 — Wave G-5 verification (signed in as `fredrickmureti612@gmail.com`)
+
+Driven with Playwright against `http://localhost:8080`, session restored from
+the injected preview session.
+
+1. **Settings walk** — `/settings/company`, `/settings/workspace` and
+   Settings → Governance: capture the visible text of each tab and assert none
+   of `invoice`, `estimate`, `proforma`, `credit note`, `purchase order`,
+   `payroll`, `attendance`, `POS` appears on screen.
+2. **Self-approval refusal** — attempt a self-approval on a repayment and on a
+   loan application as the creating user; both must fail with SQLSTATE `42501`
+   / HINT `GOV_SELF_ACTION` and write an `audit_logs` row.
+3. **Role restriction** — a Loan Officer group member can neither approve nor
+   disburse a loan.
+4. **Branch restriction** — a Branch Manager cannot act on a loan belonging to
+   another branch.
+
+Record each result in this file as PASS/FAIL with the evidence line.
+
+## Acceptance criteria
+
+- `tsgo --noEmit` clean and the build log reports `build OK`.
+- No ERP vocabulary visible anywhere under Settings or Governance.
+- All four G-5 checks recorded with evidence.
+
+## Risks / rollback
+
+Steps 1-2 are string and literal edits inside one already-narrowed type — revert
+the six lines to roll back. Step 3 is read-only apart from the deliberate
+refusal attempts, which are rejected transactions and leave no financial rows.
+
+## Explicitly deferred (unchanged)
+
+`reset_module__hr/pos/sales/costing`; dropping `businesses.invoice_prefix` /
+`estimate_prefix` / `bill_prefix` and `branches.invoice_prefix_suffix` /
+`default_warehouse_id`; and the infrastructure-level `invoice`/`estimate`
+identifiers listed under Findings.
 3. Wave G‑5 verification (signed-in walk of the Company, Workspace and Governance settings tabs, plus the self-approval refusal and role/branch restriction checks) is still outstanding.
