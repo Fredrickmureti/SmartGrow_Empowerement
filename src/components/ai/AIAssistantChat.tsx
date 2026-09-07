@@ -314,7 +314,7 @@ function ActionBlocks({ actions, onClose }: { actions: ActionBlock[]; onClose: (
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {actions.map((a, i) => {
-        const Icon = a.type === "fix_gl_mappings" ? Wrench : a.type === "open_install_dialog" ? Package : ArrowRight;
+        const Icon = a.type === "open_install_dialog" ? Package : ArrowRight;
         return (
           <Button
             key={i}
