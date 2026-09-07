@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.check_pin_status(text) TO anon;
