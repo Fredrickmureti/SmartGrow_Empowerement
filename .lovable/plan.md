@@ -297,15 +297,15 @@ Execute Wave 9a part 2 exactly as specified above, starting with `capabilities.t
 
 ### Next action
 
-I've made a start on the assistant clean-up but ran out of room before finishing, so I stopped mid-way rather than leaving it broken silently.
+Done in this session:
 
-Done in this pass:
+Removed the payroll diagnostics block (it read tables that no longer exist).
+Rewrote the assistant's data snapshot to read only live microfinance and finance data: borrowers, loans, applications, repayments, bank accounts, expenses, payments, staff, assets, chart of accounts, branches.
+Rewrote the assistant's briefing text around loan portfolio, applications, collections, borrowers, staff, assets and ledger figures, dropping all the retired sales/stock/projects/leads/payroll sections.
+Still outstanding:
 
-Confirmed with the live database that the old sales, stock, payroll, projects and till tables really are gone, and that the real permission areas are the microfinance ones (clients, loans, applications, repayments, collections, accounting, treasury, branches, team, settings).
-Rewired the assistant's permission map to those areas and pointed it at the live borrower, group, application, loan and repayment records plus finance, banking, staff and company data.
-Replaced its list of readable data tables with only tables that exist, adding proper branch and business limits for the microfinance records.
-Still outstanding (next session):
-
-In the same file, delete the leftover stock/product helper functions and their three tool definitions, and remove them from the tool description text — the file will not type-check until this is done.
-Rebuild the assistant's main data snapshot and prompt around loans, repayments and finance only, removing every read of a table that no longer exists (invoices, bills, stock, payroll readiness, projects, leads, till sales), and drop the unused invoice/reconciliation/document-wording presets.
-Then the remaining items already recorded in the plan: the document email helper, the export and live-sync hooks, delivery-note links, and finally removing the old sales tables themselves.
+Update the context type definition and the two permission maps near the top of the assistant file so they match the new fields (the old ones still name products, projects, invoices, and so on) — until this is done the file will not typecheck.
+Delete the now-unused payroll diagnostics helper function.
+Run the typecheck and the assistant tests, then add the planned test coverage for lending questions and denied permissions.
+Then continue with the rest of the plan: removing remaining sales-order references from the email/export/sync code, dropping the six empty sales tables, the legacy cleanup groups, and the final security pass.
+Nothing is broken in the running app from these edits, but the assistant file needs items 1 and 2 finished before it will build
