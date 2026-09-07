@@ -81,7 +81,6 @@ export function AddPaymentMethodDialog({
   const [accountNumber, setAccountNumber] = useState("");
   const [branch, setBranch] = useState("");
   const [swiftCode, setSwiftCode] = useState("");
-  const [iban, setIban] = useState("");
 
   // Mobile money details
   const [mobileProvider, setMobileProvider] = useState<MobileMoneyDetails["provider"]>("mpesa");
@@ -118,7 +117,6 @@ export function AddPaymentMethodDialog({
             setAccountNumber(bankDetails.account_number || "");
             setBranch(bankDetails.branch || "");
             setSwiftCode(bankDetails.swift_code || "");
-            setIban(bankDetails.iban || "");
             break;
           case "mobile_money":
             const mobileDetails = details as MobileMoneyDetails;
@@ -146,7 +144,6 @@ export function AddPaymentMethodDialog({
         setAccountNumber("");
         setBranch("");
         setSwiftCode("");
-        setIban("");
         setMobileProvider("mpesa");
         setPaybillNumber("");
         setMobileAccountNumber("");
@@ -180,7 +177,6 @@ export function AddPaymentMethodDialog({
           account_number: accountNumber,
           branch: branch || undefined,
           swift_code: swiftCode || undefined,
-          iban: iban || undefined,
         } as BankPaymentDetails;
       case "mobile_money":
         return {
@@ -392,15 +388,6 @@ export function AddPaymentMethodDialog({
                     value={swiftCode}
                     onChange={(e) => setSwiftCode(e.target.value)}
                     placeholder="e.g., KCBLKENX"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="iban">IBAN</Label>
-                  <Input
-                    id="iban"
-                    value={iban}
-                    onChange={(e) => setIban(e.target.value)}
-                    placeholder="Optional"
                   />
                 </div>
               </div>

@@ -52,7 +52,7 @@ export function MpesaProviderCard() {
   const [businessShortCode, setBusinessShortCode] = useState("");
   const [passkey, setPasskey] = useState("");
   const [accountReference, setAccountReference] = useState("");
-  const [transactionType, setTransactionType] = useState<"CustomerPayBillOnline" | "CustomerBuyGoodsOnline">("CustomerPayBillOnline");
+  const [transactionType, setTransactionType] = useState<"CustomerPayBillOnline">("CustomerPayBillOnline");
   const [showSecrets, setShowSecrets] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -257,11 +257,11 @@ export function MpesaProviderCard() {
                   id="businessShortCode"
                   value={businessShortCode}
                   onChange={(e) => setBusinessShortCode(e.target.value)}
-                  placeholder="Your paybill/till number"
+                  placeholder="Your PayBill number"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your Paybill or Till number from Safaricom
+                  Your PayBill number from Safaricom
                 </p>
               </div>
 
@@ -293,7 +293,6 @@ export function MpesaProviderCard() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="CustomerPayBillOnline">Paybill (CustomerPayBillOnline)</SelectItem>
-                    <SelectItem value="CustomerBuyGoodsOnline">Till/Buy Goods (CustomerBuyGoodsOnline)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
