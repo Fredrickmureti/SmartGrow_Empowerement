@@ -238,10 +238,13 @@ async function handleConfirmation(req: Request): Promise<Response> {
     }
 
     const maskedMsisdn = MSISDN ? MSISDN.substring(0, 6) + "****" + MSISDN.substring(MSISDN.length - 2) : null;
-    const transactionType =
-      TransactionType?.toLowerCase().includes("paybill") || TransactionType?.toLowerCase().includes("pay bill")
-        ? "paybill"
-        : "till";
+    // PayBill-only institution: collections are received on the PayBill
+    // short code. Till is not part of this operating model.
+    const transactionType = "paybill";
+    if (TransactionType && !`${TransactionType}`.toLowerCase().replace(/\s+/g, "").includes("paybill")) {
+      console.warn(`[mpesa-c2b/confirmation] unexpected transaction type: ${TransactionType}`);
+    }
+
 
     // ── Match the receipt to a loan ────────────────────────────────────
     // Kenyan PayBill practice: the account/reference field carries the loan
