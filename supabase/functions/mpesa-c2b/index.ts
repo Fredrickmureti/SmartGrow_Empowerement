@@ -152,7 +152,7 @@ async function handleValidation(req: Request): Promise<Response> {
   try {
     const auth = await authenticateMpesaCallback(req, supabase, "mpesa_c2b");
     if (!auth.ok) return auth.response;
-    const matchingConfig = { config: auth.ctx.config, organization_id: auth.ctx.organizationId };
+    
 
     const body = await req.json();
     console.log("M-Pesa C2B Validation received for org:", auth.ctx.organizationId);
