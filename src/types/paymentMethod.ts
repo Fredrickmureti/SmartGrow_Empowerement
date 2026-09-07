@@ -1,9 +1,20 @@
 /**
- * Payment Method Types for Document Templates
- * Supports multiple payment options: Bank, Mobile Money, Online, Cash, Crypto
+ * Payment channel types for a Kenyan microfinance institution.
+ *
+ * Wave 2 of the Settings reconstruction removed the inherited ERP payment
+ * catalogue: card acquiring (`online`: Stripe/PayPal/Wise/Payoneer/Venmo/
+ * CashApp) and cryptocurrency (`crypto`: BTC/ETH/USDT/USDC) have no
+ * legitimate role in this product and were deleted from the frontend, the
+ * enum `public.payment_method_type` and the settings UI.
+ *
+ * The retained channels are exactly the ones a branch-based Kenyan MFI
+ * collects and disburses through:
+ *   - `cash`          — collected at the branch or the group meeting
+ *   - `mobile_money`  — M-Pesa PayBill (Till is deliberately NOT supported)
+ *   - `bank`          — bank transfer / branch deposit
  */
 
-export type PaymentMethodType = 'bank' | 'mobile_money' | 'online' | 'cash' | 'crypto';
+export type PaymentMethodType = 'bank' | 'mobile_money' | 'cash';
 
 /**
  * Bank details structure
@@ -14,31 +25,21 @@ export interface BankPaymentDetails {
   account_number?: string;
   branch?: string;
   swift_code?: string;
-  iban?: string;
-  routing_number?: string;
 }
 
 /**
- * Mobile Money details (M-Pesa, Airtel Money, etc.)
+ * Mobile money details (M-Pesa PayBill and other Kenyan wallets).
+ *
+ * `till_number` is intentionally absent: an MFI collects to a PayBill with
+ * the client/loan number as the account reference, which is what makes
+ * automated reconciliation possible. A Till carries no account reference.
  */
 export interface MobileMoneyDetails {
   provider: 'mpesa' | 'airtel_money' | 'tkash' | 'equitel' | 'other';
   provider_name?: string; // Custom name if 'other'
   paybill_number?: string;
-  till_number?: string;
   account_number?: string;
   phone_number?: string;
-}
-
-/**
- * Online payment details (PayPal, Stripe, etc.)
- */
-export interface OnlinePaymentDetails {
-  provider: 'paypal' | 'stripe' | 'wise' | 'payoneer' | 'venmo' | 'cashapp' | 'other';
-  provider_name?: string;
-  email?: string;
-  username?: string;
-  payment_link?: string;
 }
 
 /**
@@ -50,24 +51,12 @@ export interface CashPaymentDetails {
 }
 
 /**
- * Crypto payment details
- */
-export interface CryptoPaymentDetails {
-  currency: 'btc' | 'eth' | 'usdt' | 'usdc' | 'other';
-  currency_name?: string;
-  wallet_address: string;
-  network?: string;
-}
-
-/**
  * Union type for all payment details
  */
-export type PaymentMethodDetails = 
-  | BankPaymentDetails 
-  | MobileMoneyDetails 
-  | OnlinePaymentDetails 
-  | CashPaymentDetails 
-  | CryptoPaymentDetails;
+export type PaymentMethodDetails =
+  | BankPaymentDetails
+  | MobileMoneyDetails
+  | CashPaymentDetails;
 
 /**
  * Organization Payment Method Interface
@@ -108,7 +97,7 @@ export interface PaymentMethodInput {
 }
 
 /**
- * Payment method type configurations
+ * Payment channel configurations
  */
 export const PAYMENT_METHOD_TYPES: Record<PaymentMethodType, {
   label: string;
@@ -116,64 +105,30 @@ export const PAYMENT_METHOD_TYPES: Record<PaymentMethodType, {
   description: string;
 }> = {
   bank: {
-    label: 'Bank Transfer',
+    label: 'Bank Transfer / Deposit',
     icon: '🏦',
-    description: 'Traditional bank account transfer',
+    description: 'Transfer or deposit into an institution bank account',
   },
   mobile_money: {
-    label: 'Mobile Money',
+    label: 'M-Pesa PayBill',
     icon: '📱',
-    description: 'M-Pesa, Airtel Money, etc.',
-  },
-  online: {
-    label: 'Online Payment',
-    icon: '💳',
-    description: 'PayPal, Stripe, Wise, etc.',
+    description: 'Mobile money collection with a client account reference',
   },
   cash: {
     label: 'Cash',
     icon: '💵',
-    description: 'Cash payment instructions',
-  },
-  crypto: {
-    label: 'Cryptocurrency',
-    icon: '₿',
-    description: 'Bitcoin, Ethereum, USDT, etc.',
+    description: 'Cash collected at a branch or group meeting',
   },
 };
 
 /**
- * Mobile money provider options
+ * Mobile money provider options (Kenya)
  */
 export const MOBILE_MONEY_PROVIDERS = [
   { value: 'mpesa', label: 'M-Pesa' },
   { value: 'airtel_money', label: 'Airtel Money' },
   { value: 'tkash', label: 'T-Kash' },
   { value: 'equitel', label: 'Equitel' },
-  { value: 'other', label: 'Other' },
-] as const;
-
-/**
- * Online payment provider options
- */
-export const ONLINE_PAYMENT_PROVIDERS = [
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'stripe', label: 'Stripe' },
-  { value: 'wise', label: 'Wise (TransferWise)' },
-  { value: 'payoneer', label: 'Payoneer' },
-  { value: 'venmo', label: 'Venmo' },
-  { value: 'cashapp', label: 'Cash App' },
-  { value: 'other', label: 'Other' },
-] as const;
-
-/**
- * Crypto currency options
- */
-export const CRYPTO_CURRENCIES = [
-  { value: 'btc', label: 'Bitcoin (BTC)' },
-  { value: 'eth', label: 'Ethereum (ETH)' },
-  { value: 'usdt', label: 'Tether (USDT)' },
-  { value: 'usdc', label: 'USD Coin (USDC)' },
   { value: 'other', label: 'Other' },
 ] as const;
 
