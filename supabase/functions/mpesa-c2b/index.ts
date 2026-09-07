@@ -351,52 +351,54 @@ async function handleConfirmation(req: Request): Promise<Response> {
         console.log("C2B transaction stored:", insertedTx?.id);
       }
 
-      // Deterministic idempotency key: one M-Pesa TransID can only ever
-      // produce one payment, no matter how many times it is redelivered.
-      const requestId = `mpesa:c2b:${TransID}`;
+      if (matchedLoanId) {
+        // Inbound PayBill settlement goes through the single canonical
+        // lending settlement engine (mf_record_repayment), which writes the
+        // repayment, allocates it across the schedule and posts the GL leg
+        // atomically. A webhook must never write settlement tables directly.
+        //
+        // Idempotency: one M-Pesa TransID can only ever produce one
+        // repayment, no matter how many times Safaricom redelivers.
+        const { data: existing } = await supabase
+          .from("mf_repayments")
+          .select("id")
+          .eq("loan_id", matchedLoanId)
+          .eq("reference", TransID)
+          .maybeSingle();
 
-      if (matchedInvoiceId) {
-        // Inbound C2B settlement goes through the single canonical AR
-        // settlement engine (record_multi_invoice_payment), which writes
-        // payments + payment_allocations and posts the GL leg atomically.
-        // A webhook must never write settlement tables directly.
-        const { data: inv, error: invError } = await supabase
-          .from("invoices")
-          .select("id, business_id, branch_id, total, amount_paid")
-          .eq("id", matchedInvoiceId)
-          .single();
-
-        if (invError || !inv) {
-          console.error("Could not load matched invoice for C2B settlement:", invError);
+        if (existing) {
+          console.log("C2B repayment already recorded, skipping:", TransID);
+          await supabase
+            .from("mpesa_c2b_transactions")
+            .update({
+              is_reconciled: true,
+              reconciled_at: new Date().toISOString(),
+              matched_repayment_id: existing.id,
+              match_reason: matchReason,
+            })
+            .eq("organization_id", organizationId)
+            .eq("trans_id", TransID);
         } else {
-          const amount = parseFloat(TransAmount);
-          const outstanding = Math.max(
-            0,
-            Number(inv.total || 0) - Number(inv.amount_paid || 0),
+          const { data: repaymentId, error: settleError } = await supabase.rpc(
+            "mf_record_repayment",
+            {
+              p_loan_id: matchedLoanId,
+              p_paid_on: transTime.toISOString().split("T")[0],
+              p_amount: parseFloat(TransAmount),
+              p_method: "mpesa",
+              p_reference: TransID,
+              p_batch_id: null,
+              p_notes:
+                `M-Pesa PayBill payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`
+                  .trim(),
+            } as any,
           );
-          const applied = Math.min(amount, outstanding);
-
-          const { error: settleError } = await supabase.rpc("record_multi_invoice_payment", {
-            _org_id: organizationId,
-            _business_id: inv.business_id ?? null,
-            _branch_id: inv.branch_id ?? null,
-            _contact_id: matchedContactId,
-            _allocations: applied > 0
-              ? [{ invoice_id: matchedInvoiceId, amount: applied }]
-              : [],
-            _total_amount: amount,
-            _payment_date: transTime.toISOString().split("T")[0],
-            _payment_method: "mpesa",
-            _reference: TransID,
-            _notes: `M-Pesa C2B payment from ${FirstName || ""} ${LastName || ""} (${maskedMsisdn})`,
-            _request_id: requestId,
-          } as any);
 
           if (settleError) {
             // Cash arrived but could not be posted. Leave the row unreconciled
             // and flagged so it surfaces in the unmatched-receipts queue rather
             // than being silently swallowed.
-            console.error("Error recording C2B settlement:", settleError);
+            console.error("Error recording C2B loan repayment:", settleError);
             await supabase
               .from("mpesa_c2b_transactions")
               .update({
@@ -412,6 +414,7 @@ async function handleConfirmation(req: Request): Promise<Response> {
               .update({
                 is_reconciled: true,
                 reconciled_at: new Date().toISOString(),
+                matched_repayment_id: (repaymentId as string | null) ?? null,
                 match_reason: matchReason,
               })
               .eq("organization_id", organizationId)
@@ -420,52 +423,6 @@ async function handleConfirmation(req: Request): Promise<Response> {
         }
       }
 
-      if (matchedPosTransactionId) {
-        const { data: posTx } = await supabase
-          .from("pos_transactions")
-          .select("id, total, branch_id, business_id, organization_id")
-          .eq("id", matchedPosTransactionId)
-          .single();
-
-        if (posTx) {
-          // Guard against double-tendering on webhook redelivery.
-          const { data: existingTender } = await supabase
-            .from("pos_transaction_payments")
-            .select("id")
-            .eq("transaction_id", posTx.id)
-            .eq("mpesa_receipt_number", TransID)
-            .maybeSingle();
-
-          if (!existingTender) {
-            const { error: tenderError } = await supabase.from("pos_transaction_payments").insert({
-              transaction_id: posTx.id,
-              payment_method: "mobile_money",
-              amount: parseFloat(TransAmount),
-              reference: TransID,
-              mpesa_receipt_number: TransID,
-              status: "completed",
-              processed_at: new Date().toISOString(),
-              branch_id: posTx.branch_id,
-              organization_id: posTx.organization_id,
-              business_id: posTx.business_id,
-            });
-
-            if (tenderError) {
-              console.error("Error recording C2B POS tender:", tenderError);
-              await supabase
-                .from("mpesa_c2b_transactions")
-                .update({ is_reconciled: false, reconciled_at: null, match_reason: "SETTLEMENT_FAILED" })
-                .eq("organization_id", organizationId)
-                .eq("trans_id", TransID);
-            }
-          }
-
-          await supabase
-            .from("pos_transactions")
-            .update({ payment_status: "paid", status: "completed", updated_at: new Date().toISOString() })
-            .eq("id", posTx.id);
-        }
-      }
     }
 
 
