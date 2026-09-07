@@ -12,8 +12,6 @@ import {
   Users,
   Bell,
   Building2,
-  GitCompare,
-  ScanLine,
   UserCog,
   History,
 
