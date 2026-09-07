@@ -364,20 +364,13 @@ Linter posture now: 1149 findings, all WARN — 1144 "signed-in users can execut
 
 ### REMAINING
 
-I removed the dead company-creation step and cleared out several retired code paths, but the session stopped mid-way through one file, so please read this before continuing.
+Done
 
-Done this session
+Removed the leftover payslip emailing path from the document email sender (type, table config, label, query branch, recipient rule, number fallback and the PDF-generation block).
+Confirmed the three files flagged as broken (report renderer, PDF renderer, scheduled automations) are clean of the deleted payroll/inventory/statement-queue code.
+App-wide type check passes; the preview was returning an error page only because of a stale server module cache — after a restart it serves normally again.
+Fixed two tests that were asserting the removed ERP report families and audit-log labels; both pass.
+Still open
 
-Company creation no longer calls the old till/payment defaults step (that routine was deleted long ago, so the call was silently failing).
-Checked all 166 behind-the-scenes routines the app calls against the live database: 26 no longer exist. Full list is above in my investigation; the relevant ones are payroll, statement queues, inventory reports, label printing, plus bank feeds, app trials, legal orders, automation counters and platform invitations.
-Deleted the retired code: payslip generation, the bank payroll acknowledgement endpoint, the customer and supplier statement send queues, and the inventory and payroll report builders.
-Left in a broken state — must be fixed first Three files still import the code I just deleted, so the affected background jobs will not start until they're cleaned:
-
-supabase/functions/render-report/index.ts — remove the payroll, extended-payroll and inventory imports (lines 58-77), their entries in the ReportType union (lines 101-104), and the isPayroll / isPayrollExtended / isInventory dispatch branches (lines 520-604).
-supabase/functions/_shared/rendering/renderers/pdf.ts — remove the payslip import (line 13) and the "payroll.payslip" entry (line 25).
-supabase/functions/process-scheduled-automations/index.ts — remove the two statement-queue flush blocks (lines 118-149).
-Also still open
-
-send-document-email/index.ts still has a whole payslip branch pointing at deleted payroll tables.
-The remaining missing routines I did not touch: bank feeds (useBankAccounts.ts), app trials and install previews, legal-order notifications, the automation counter, localization-pack rollback, and platform-admin invitations — each needs a keep-or-remove verdict.
-Typecheck and the M-Pesa suite are still unrun since the previous session's edits.
+Five historical checks still fail; they scan old database change files, not this cleanup: currency rate-table registration, journal narration IDs, pgcrypto prefixing, duplicate audit triggers, and an old currency column reference.
+Keep-or-remove verdicts remain for bank feeds, app trials/install previews, legal-order notifications, the automation counter, localization rollback, and platform-admin invitations.
