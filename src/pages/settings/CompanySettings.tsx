@@ -38,6 +38,7 @@ import {
   Store,
   Mail,
   Wallet,
+  Hash,
   ArrowLeft,
   Mail as MailIcon,
 } from "lucide-react";
