@@ -252,12 +252,45 @@ A `pg_proc` sweep for legacy-domain names returns ~150 functions (`_consolidatio
 - Shared helpers referenced by the deleted function (`_shared/pdfGenerator`, `templateRenderer`, `escpos/*`, `receipt/documentToInput`, `documents/persistArtifact`, `exports/statementCsv`) all have other live consumers and were left alone.
 - Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; printing architecture suite (4 files, 31 tests) green.
 
+### Wave 9a (part 2) — AI assistant ERP decoupling — SPECIFIED 2026-09-07, NOT YET EXECUTED
+
+**Verified current state** (re-checked this session against the live database, not migrations):
+
+`supabase/functions/ai-assistant/` is 3,678 lines across `index.ts` (2,411), `dataTools.ts` (1,059), `capabilities.ts` (173), `index.test.ts` (35). It reads 35 distinct tables. **14 of them no longer exist**:
+
+`bills`, `credit_notes`, `crm_leads`, `estimates`, `installed_localization_packs`, `invoices`, `leave_requests`, `payroll_runs`, `pos_transactions`, `products`, `project_tasks`, `projects`, `purchase_orders`, `sales_orders`
+
+`dataTools.ts` `DATA_TABLES` additionally allowlists 15 more non-existent tables: `product_categories`, `product_packaging`, `uom_categories`, `warehouses`, `stock_locations`, `warehouse_stock`, `stock_quants`, `stock_lots`, `warehouse_stock_lots`, `stock_serials`, `stock_movements`, `stock_reservations`, `stock_adjustments`, `stock_transfers`, `product_reorder_rules`. (`units_of_measure`, `bank_transactions`, `business_active_currencies` do still exist.)
+
+Surviving, real tables the assistant reads: `accounts`, `bank_accounts`, `bank_transactions`, `branches`, `businesses`, `business_active_currencies`, `contacts`, `employees`, `exchange_rates`, `expenses`, `fixed_assets`, `organizations`, `payments`, `units_of_memory`→`units_of_measure`, plus its own `ai_*` config tables and the `user_*`/`user_roles` scoping tables.
+
+**Zero microfinance coverage**: `rg -c "mf_"` across all three files returns no matches. The assistant cannot see `mf_clients`, `mf_loans`, `mf_loan_applications` or `mf_repayments` — i.e. it is blind to the entire live business while querying fourteen tables that were deleted.
+
+**Why one pass, not piecemeal**: `index.ts` gathers the snapshot in a single positional `Promise.all` whose results are destructured at ~396-417 and consumed through ~650-1011, then re-destructured into the prompt builder at ~795-796. Removing one entry shifts every later position. `capabilities.ts` `TABLE_MODULE` and `dataTools.ts` `DATA_TABLES` must stay key-for-key aligned (the boundary test enforces it).
+
+**Decision**
+1. Strip all 14 dead tables from the snapshot and all 29 dead tables from `DATA_TABLES`/`TABLE_MODULE`, in one pass per file.
+2. Retire the now-empty capability modules from `AI_MODULES`: `products`, `sales`, `purchases`, `pos`, `inventory`, `projects`, `leave`, `payroll`. Keep `contacts`, `financials`, `hr`, `settings`; add `microfinance`.
+3. Add the live lending tables to `DATA_TABLES`/`TABLE_MODULE` under a new `microfinance` module: `mf_clients`, `mf_loans`, `mf_loan_applications`, `mf_repayments`. Column allowlists mirror the existing narrow-projection style — no free-column access.
+4. Rebuild the prompt sections around: cash/bank, journal-entry-derived revenue/expense, receivables, expenses, contacts, employees, and the four MFI tables. Delete the invoice/estimate/sales-order/purchase-order/project/POS/low-stock prompt blocks and the `analyze_invoice` / `document_text_notes` / `email_assist` ERP prompt presets that reference deleted documents.
+5. `user_has_module_permission` must accept `microfinance`; verify what `permission_group_rules.module` allows before wiring it, and reuse whatever the Access Groups wave already defines rather than inventing a new module string.
+
+**Files**: `supabase/functions/ai-assistant/{index.ts,dataTools.ts,capabilities.ts,index.test.ts}`.
+**DB**: none for this part — read-only decoupling. Only the `microfinance` module value needs to exist in the permissions vocabulary.
+**Dependencies**: none upstream. Blocks Wave 9b (sales-chain drop).
+**Tests**: `src/__tests__/architecture.ai-assistant-boundary.test.ts`; `supabase/functions/ai-assistant/index.test.ts`; add an assertion that every `DATA_TABLES` key exists in `information_schema.tables` so this cannot rot again; `bunx tsgo --noEmit -p tsconfig.app.json`.
+**Acceptance**: assistant answers a lending question (client count, loans outstanding, repayments this month) from live data; no reference to any non-existent table remains in the function; capability denial still returns "not permitted" rather than empty data.
+**Risk**: over-trimming a prompt preset still used by a live UI action. Mitigation: grep `src/` for each preset key before deleting it.
+**Rollback**: single-commit revert; no schema change.
+
+### Wave 9a (part 3) — remaining sales-chain consumers
+- `supabase/functions/send-document-email`: `customer_statements` reference.
+- `src/hooks/useExport.ts`, `src/hooks/realtime/useUnifiedRealtimeSync.ts`: `sales_order*` references.
+- `delivery_notes.sales_order_id`, `delivery_note_items.sales_order_item_id`: decide repoint vs. drop delivery notes outright.
+
+### Wave 9b — sales chain drop
+Unchanged from above: the six 0-row sales tables plus their 32/13/12 dependent functions, in FK order, one migration per table group.
+
 ### Next action
 
-**Wave 9a (part 2) — AI assistant ERP decoupling.** `supabase/functions/ai-assistant` still builds its snapshot from tables that no longer exist. `sales_orders` is only one of them: `index.ts` queries `estimates`, `credit_notes`, `purchase_orders`, `pos_transactions`, `invoices` etc. in one positional `Promise.all` (results destructured at ~411-417, consumed at ~667-1011), and `dataTools.ts` / `capabilities.ts` register the same dead tables. Removing a single entry shifts the destructuring, so this must be done as one pass over the whole snapshot: strip every non-existent table from `TABLE_DEFS`/`TABLE_MODULE`, rebuild the `Promise.all` block and prompt assembly around the surviving finance + MFI tables, then re-run `src/__tests__/architecture.ai-assistant-boundary.test.ts`. Then `send-document-email` (`customer_statements`) and `src/hooks/{useExport,realtime/useUnifiedRealtimeSync}` before the Wave 9b table drops.
-
-
-
-I checked the previous session's claims independently and they hold up: the payment-gateway, card, crypto and document-template screens are genuinely gone (only stray comments mention them), the numbering, notification and audit work is in place, the nightly check no longer looks for sales invoices, supplier bills or payroll runs, and the project has no type errors. I also renamed one leftover example text in a bank-matching field from a card processor to M-Pesa.
-
-One important correction: the "dozens of leftover background routines" aren't loose orphans — they're rules attached to the old tables that still exist, so they'll disappear with those tables. I've folded that into the table clean-up instead of a separate pass, and the plan log now records all of this plus the exact next step: untangling delivery notes and the assistant from the old sales-order tables so those can finally be dropped.
+Execute Wave 9a part 2 exactly as specified above, starting with `capabilities.ts` (smallest, defines the contract), then `dataTools.ts`, then the `index.ts` snapshot and prompt pass.
