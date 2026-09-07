@@ -1175,175 +1175,6 @@ async function fetchPOSReceipt(
   } as any;
 }
 
-// ── Sales Order fetcher ─────────────────────────────────────────────────────
-
-async function fetchSalesOrder(supabase: any, documentId: string): Promise<DocumentData> {
-  const { data: so, error } = await supabase
-    .from("sales_orders")
-    .select(`
-      *,
-      contact:contacts(name, email, phone, address_line1, city, state, postal_code),
-      organization:organizations(${ORG_FALLBACK_COLS}),
-      business:businesses(${BUSINESS_BRANDING_COLS}),
-      items:sales_order_items(*, packaging:product_packaging(name, qty_in_base_uom), product:products(base_uom:units_of_measure!base_uom_id(code, name)))
-    `)
-    .eq("id", documentId)
-    .single();
-
-  if (error || !so) throw new Error(`Sales order not found: ${error?.message}`);
-
-  return {
-    document_number: so.so_number,
-    document_type: "sales_order",
-    document_type_label: "SALES ORDER",
-    status: so.status,
-    issue_date: so.order_date,
-    due_date: so.expected_date,
-    subtotal: so.subtotal,
-    tax_amount: so.tax_amount,
-    discount_amount: so.discount_amount || 0,
-    total: so.total,
-    amount_paid: 0,
-    currency: so.currency || "USD",
-    notes: so.notes,
-    terms: null,
-    contact: so.contact,
-    organization: await mapBusinessToOrg(supabase, so.business, so.organization, so.branch_id),
-    business_id: so.business_id,
-    organization_id: so.organization_id,
-    shipping_address: so.shipping_address,
-    items: (so.items || []).map((item: any) => ({
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate,
-      tax_amount: item.tax_amount,
-      discount_percent: item.discount_percent,
-      line_total: item.line_total,
-      ...packFields(item),
-    })),
-  };
-}
-
-// ── Delivery Note fetcher ──────────────────────────────────────────────────
-
-async function fetchDeliveryNote(supabase: any, documentId: string): Promise<DocumentData> {
-  const { data: dn, error } = await supabase
-    .from("delivery_notes")
-    .select(`
-      *,
-      contact:contacts!delivery_notes_contact_id_fkey(name, email, phone, address_line1, city, state, postal_code),
-      received_by_contact:contacts!received_by_contact_id(name),
-      delivery_proofs(received_by_name, received_at),
-      organization:organizations(${ORG_FALLBACK_COLS}),
-      business:businesses(${BUSINESS_BRANDING_COLS}),
-      items:delivery_note_items(*, packaging:product_packaging(name, qty_in_base_uom), product:products(base_uom:units_of_measure!base_uom_id(code, name))),
-      carrier:carriers(name, tracking_url_template),
-      backorder_of:delivery_notes!backorder_of_dn_id(delivery_number)
-    `)
-    .eq("id", documentId)
-    .single();
-
-  if (error || !dn) throw new Error(`Delivery note not found: ${error?.message}`);
-
-  // Dispatch-officer name: no FK from delivery_notes.dispatch_officer_id to
-  // profiles, so fetch separately when present (best-effort).
-  let dispatchOfficerName: string | null = null;
-  if (dn.dispatch_officer_id) {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("user_id", dn.dispatch_officer_id)
-      .maybeSingle();
-    dispatchOfficerName = prof?.full_name ?? null;
-  }
-
-  // Best-effort tracking URL: substitute {tracking_number} into the carrier template.
-  let trackingUrl: string | null = null;
-  if (dn.carrier?.tracking_url_template && dn.tracking_number) {
-    trackingUrl = String(dn.carrier.tracking_url_template).replace(
-      "{tracking_number}", encodeURIComponent(dn.tracking_number),
-    );
-  }
-
-  // Recipient priority chain with UUID guard (defense in depth):
-  // contact → POD → staff user (profiles.full_name) → legacy free-text.
-  const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-  const podName: string | null = Array.isArray(dn.delivery_proofs) && dn.delivery_proofs[0]?.received_by_name
-    ? String(dn.delivery_proofs[0].received_by_name).trim()
-    : null;
-  const legacyName: string | null = typeof dn.received_by === "string" ? dn.received_by.trim() : null;
-  let receivedByUserName: string | null = null;
-  if (dn.received_by_user_id && !dn.received_by_contact?.name && !podName) {
-    const { data: rprof } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("user_id", dn.received_by_user_id)
-      .maybeSingle();
-    receivedByUserName = rprof?.full_name?.trim?.() ?? null;
-  }
-  const resolvedReceivedBy =
-    (dn.received_by_contact?.name?.trim?.() || null)
-    || (podName && !UUID_RE.test(podName) ? podName : null)
-    || (receivedByUserName && !UUID_RE.test(receivedByUserName) ? receivedByUserName : null)
-    || (legacyName && !UUID_RE.test(legacyName) ? legacyName : null);
-
-  // Strip legacy automation tokens from notes (defense in depth).
-  const cleanNotes = typeof dn.notes === "string"
-    ? dn.notes
-        .replace(/\s*Auto-created from invoice [^\[\n]*\[auto-from-invoice:[0-9a-fA-F-]{36}\]\s*(\(backfill\))?\s*/g, "")
-        .replace(/\s*\[auto-from-invoice:[0-9a-fA-F-]{36}\]\s*/g, "")
-        .trim() || null
-    : dn.notes;
-
-  return {
-    document_number: dn.delivery_number,
-    document_type: "delivery_note",
-    document_type_label: "DELIVERY NOTE",
-    status: dn.status,
-    issue_date: dn.delivery_date,
-    subtotal: 0,
-    tax_amount: 0,
-    discount_amount: 0,
-    total: 0,
-    currency: dn.business?.base_currency || dn.organization?.base_currency || "KES",
-    notes: cleanNotes,
-    terms: null,
-    contact: dn.contact,
-    organization: await mapBusinessToOrg(supabase, dn.business, dn.organization, dn.branch_id),
-    business_id: dn.business_id,
-    organization_id: dn.organization_id,
-    shipping_address: dn.shipping_address,
-    items: (dn.items || []).map((item: any) => ({
-      description: item.description,
-      quantity: item.quantity_ordered,
-      unit_price: 0,
-      tax_rate: 0,
-      tax_amount: 0,
-      line_total: 0,
-      quantity_delivered: item.quantity_delivered,
-      ...packFields(item),
-    })),
-    hide_amounts: true,
-    driver_name: dn.driver_name,
-    vehicle_number: dn.vehicle_number,
-    // Stage V2 logistics fields
-    shipping_method: dn.shipping_method,
-    carrier_name: dn.carrier?.name ?? null,
-    carrier_tracking_url: trackingUrl,
-    tracking_number: dn.tracking_number,
-    dispatch_route: dn.dispatch_route,
-    dispatch_officer_name: dispatchOfficerName,
-    dispatched_at: dn.dispatched_at,
-    delivered_at: dn.delivered_at,
-    ready_at: dn.ready_at,
-    freight_cost: dn.freight_cost,
-    freight_currency: dn.freight_currency,
-    received_by_name: resolvedReceivedBy,
-    is_backorder: !!dn.is_backorder,
-    backorder_of_number: dn.backorder_of?.delivery_number ?? null,
-  };
-}
 
 // ── Customer Statement fetcher ─────────────────────────────────────────────
 
@@ -1726,51 +1557,6 @@ async function fetchBill(supabase: any, documentId: string): Promise<DocumentDat
   };
 }
 
-// ── Sales Return fetcher ───────────────────────────────────────────────────
-
-async function fetchSalesReturn(supabase: any, documentId: string): Promise<DocumentData> {
-  const { data: sr, error } = await supabase
-    .from("sales_returns")
-    .select(`
-      *,
-      contact:contacts(name, email, phone, address_line1, city, state, postal_code),
-      organization:organizations(${ORG_FALLBACK_COLS}),
-      business:businesses(${BUSINESS_BRANDING_COLS}),
-      items:sales_return_items(*, packaging:product_packaging(name, qty_in_base_uom), product:products(base_uom:units_of_measure!base_uom_id(code, name)))
-    `)
-    .eq("id", documentId)
-    .single();
-
-  if (error || !sr) throw new Error(`Sales return not found: ${error?.message}`);
-
-  return {
-    document_number: sr.return_number,
-    document_type: "sales_return",
-    document_type_label: "SALES RETURN",
-    status: sr.status,
-    issue_date: sr.return_date,
-    subtotal: sr.subtotal || 0,
-    tax_amount: sr.tax_amount || 0,
-    discount_amount: 0,
-    total: sr.total,
-    currency: sr.currency || "USD",
-    notes: sr.reason,
-    terms: null,
-    contact: sr.contact,
-    organization: await mapBusinessToOrg(supabase, sr.business, sr.organization, sr.branch_id),
-    business_id: sr.business_id,
-    organization_id: sr.organization_id,
-    items: (sr.items || []).map((item: any) => ({
-      description: item.description || item.product_name || "Item",
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      tax_rate: item.tax_rate || 0,
-      tax_amount: item.tax_amount || 0,
-      line_total: item.line_total,
-      ...packFields(item),
-    })),
-  };
-}
 
 // ── Vendor Statement fetcher ───────────────────────────────────────────────
 
@@ -2994,9 +2780,6 @@ const TEMPLATE_TYPE_MAP: Record<string, string> = {
   purchase_order: "purchase_order",
   receipt: "receipt",
   pos_receipt: "receipt",
-  sales_order: "invoice",
-  delivery_note: "invoice",
-  sales_return: "credit_note",
   // Statements are ledgers, not transactional documents. Mapping them to the
   // tenant's invoice template made them inherit invoice labels ("Bill To"),
   // an item table and an "Amount Paid / Balance Due" block. An unmatched
@@ -3142,9 +2925,6 @@ const FETCHER_MAP: Record<string, (supabase: any, id: string) => Promise<Documen
   // field that doesn't belong on a kitchen ticket (totals, payments,
   // tax, fiscal blocks, branding).
   kitchen_ticket: fetchPOSReceipt,
-  sales_order: fetchSalesOrder,
-  delivery_note: fetchDeliveryNote,
-  sales_return: fetchSalesReturn,
   customer_statement: fetchCustomerStatement,
   vendor_statement: fetchVendorStatement,
   // Sentinel — the real dispatch for legal_recipient_statement is
@@ -4675,9 +4455,6 @@ const TABLE_MAP: Record<string, string> = {
   // it down to a `KitchenTicketData` shape; the source row's tenancy is
   // still what gates membership/entitlement checks.
   kitchen_ticket: "pos_transactions",
-  sales_order: "sales_orders",
-  delivery_note: "delivery_notes",
-  sales_return: "sales_returns",
   customer_statement: "customer_statements",
   vendor_statement: "vendor_statements",
   // documentId for legal_recipient_statement is a legal_recipients.id;

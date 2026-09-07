@@ -139,7 +139,6 @@ const REPORT_TYPES = [
   { value: "leave_report", label: "Leave / Absence Report", icon: Calendar, category: "HR" },
   { value: "attendance_report", label: "Attendance Report", icon: Clock, category: "HR" },
   { value: "pos_sales_report", label: "POS Sales Report", icon: Receipt, category: "POS" },
-  { value: "delivery_notes_report", label: "Delivery Notes Report", icon: Package, category: "Sales" },
   { value: "recurring_invoices_report", label: "Recurring Invoices Report", icon: RefreshCw, category: "Sales" },
 ];
 

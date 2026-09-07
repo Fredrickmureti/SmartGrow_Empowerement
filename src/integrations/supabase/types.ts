@@ -5968,392 +5968,6 @@ export type Database = {
         }
         Relationships: []
       }
-      delivery_note_events: {
-        Row: {
-          actor_id: string | null
-          business_id: string
-          delivery_note_id: string
-          event_type: string
-          id: string
-          notes: string | null
-          occurred_at: string
-          organization_id: string
-          payload: Json | null
-        }
-        Insert: {
-          actor_id?: string | null
-          business_id: string
-          delivery_note_id: string
-          event_type: string
-          id?: string
-          notes?: string | null
-          occurred_at?: string
-          organization_id: string
-          payload?: Json | null
-        }
-        Update: {
-          actor_id?: string | null
-          business_id?: string
-          delivery_note_id?: string
-          event_type?: string
-          id?: string
-          notes?: string | null
-          occurred_at?: string
-          organization_id?: string
-          payload?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_note_events_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      delivery_note_items: {
-        Row: {
-          cost_at_shipment: number | null
-          created_at: string
-          delivery_note_id: string
-          description: string
-          discount_percent: number | null
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number | null
-          lot_allocations: Json | null
-          lot_number: string | null
-          packaging_id: string | null
-          product_id: string | null
-          product_name_snapshot: string | null
-          product_sku_snapshot: string | null
-          quantity_delivered: number
-          quantity_ordered: number
-          sales_order_item_id: string | null
-          serial_number: string | null
-          sort_order: number | null
-          tax_amount: number | null
-          tax_rate: number | null
-          unit_price: number | null
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          cost_at_shipment?: number | null
-          created_at?: string
-          delivery_note_id: string
-          description: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number | null
-          lot_allocations?: Json | null
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          product_name_snapshot?: string | null
-          product_sku_snapshot?: string | null
-          quantity_delivered?: number
-          quantity_ordered?: number
-          sales_order_item_id?: string | null
-          serial_number?: string | null
-          sort_order?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          unit_price?: number | null
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          cost_at_shipment?: number | null
-          created_at?: string
-          delivery_note_id?: string
-          description?: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number | null
-          lot_allocations?: Json | null
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          product_name_snapshot?: string | null
-          product_sku_snapshot?: string | null
-          quantity_delivered?: number
-          quantity_ordered?: number
-          sales_order_item_id?: string | null
-          serial_number?: string | null
-          sort_order?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          unit_price?: number | null
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
-            columns: ["delivery_note_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "sales_order_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_backorder_lines"
-            referencedColumns: ["sales_order_item_id"]
-          },
-          {
-            foreignKeyName: "delivery_note_items_sales_order_item_id_fkey"
-            columns: ["sales_order_item_id"]
-            isOneToOne: false
-            referencedRelation: "so_line_balances"
-            referencedColumns: ["sales_order_item_id"]
-          },
-        ]
-      }
-      delivery_notes: {
-        Row: {
-          accounts_resolved: Json | null
-          auto_invoice_on_complete: boolean
-          backorder_of_dn_id: string | null
-          branch_id: string | null
-          business_id: string | null
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          cancelled_by: string | null
-          contact_id: string | null
-          created_at: string
-          created_by: string | null
-          delivered_at: string | null
-          delivery_date: string
-          delivery_number: string
-          dispatch_instructions: string | null
-          dispatch_officer_id: string | null
-          dispatch_route: string | null
-          dispatched_at: string | null
-          driver_name: string | null
-          freight_cost: number | null
-          freight_currency: string | null
-          id: string
-          is_backorder: boolean
-          is_return: boolean
-          is_sample_data: boolean
-          manifest_id: string | null
-          notes: string | null
-          organization_id: string
-          ready_at: string | null
-          received_by: string | null
-          received_by_contact_id: string | null
-          received_by_user_id: string | null
-          return_of_dn_id: string | null
-          sales_order_id: string | null
-          ship_to_contact_id: string | null
-          shipping_address: string | null
-          shipping_method: string | null
-          status: string
-          tracking_number: string | null
-          updated_at: string
-          vehicle_number: string | null
-          warehouse_id: string | null
-        }
-        Insert: {
-          accounts_resolved?: Json | null
-          auto_invoice_on_complete?: boolean
-          backorder_of_dn_id?: string | null
-          branch_id?: string | null
-          business_id?: string | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          delivered_at?: string | null
-          delivery_date?: string
-          delivery_number: string
-          dispatch_instructions?: string | null
-          dispatch_officer_id?: string | null
-          dispatch_route?: string | null
-          dispatched_at?: string | null
-          driver_name?: string | null
-          freight_cost?: number | null
-          freight_currency?: string | null
-          id?: string
-          is_backorder?: boolean
-          is_return?: boolean
-          is_sample_data?: boolean
-          manifest_id?: string | null
-          notes?: string | null
-          organization_id: string
-          ready_at?: string | null
-          received_by?: string | null
-          received_by_contact_id?: string | null
-          received_by_user_id?: string | null
-          return_of_dn_id?: string | null
-          sales_order_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_method?: string | null
-          status?: string
-          tracking_number?: string | null
-          updated_at?: string
-          vehicle_number?: string | null
-          warehouse_id?: string | null
-        }
-        Update: {
-          accounts_resolved?: Json | null
-          auto_invoice_on_complete?: boolean
-          backorder_of_dn_id?: string | null
-          branch_id?: string | null
-          business_id?: string | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          cancelled_by?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          delivered_at?: string | null
-          delivery_date?: string
-          delivery_number?: string
-          dispatch_instructions?: string | null
-          dispatch_officer_id?: string | null
-          dispatch_route?: string | null
-          dispatched_at?: string | null
-          driver_name?: string | null
-          freight_cost?: number | null
-          freight_currency?: string | null
-          id?: string
-          is_backorder?: boolean
-          is_return?: boolean
-          is_sample_data?: boolean
-          manifest_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          ready_at?: string | null
-          received_by?: string | null
-          received_by_contact_id?: string | null
-          received_by_user_id?: string | null
-          return_of_dn_id?: string | null
-          sales_order_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_method?: string | null
-          status?: string
-          tracking_number?: string | null
-          updated_at?: string
-          vehicle_number?: string | null
-          warehouse_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "delivery_notes_backorder_of_dn_id_fkey"
-            columns: ["backorder_of_dn_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_received_by_contact_id_fkey"
-            columns: ["received_by_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_return_of_dn_id_fkey"
-            columns: ["return_of_dn_id"]
-            isOneToOne: false
-            referencedRelation: "delivery_notes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "delivery_notes_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       departments: {
         Row: {
           archived_at: string | null
@@ -18284,614 +17898,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sales_document_idempotency: {
-        Row: {
-          business_id: string | null
-          created_at: string
-          created_by: string | null
-          document_id: string | null
-          document_type: string
-          id: string
-          idempotency_key: string
-          organization_id: string
-          response: Json
-          updated_at: string
-        }
-        Insert: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          document_id?: string | null
-          document_type: string
-          id?: string
-          idempotency_key: string
-          organization_id: string
-          response?: Json
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          document_id?: string | null
-          document_type?: string
-          id?: string
-          idempotency_key?: string
-          organization_id?: string
-          response?: Json
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      sales_order_items: {
-        Row: {
-          backorder_eta: string | null
-          created_at: string
-          description: string
-          discount_percent: number | null
-          display_quantity: number | null
-          display_uom_id: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number
-          lot_number: string | null
-          packaging_id: string | null
-          price_source: string | null
-          product_id: string | null
-          quantity: number
-          quantity_backordered: number | null
-          quantity_cancelled: number
-          quantity_fulfilled: number | null
-          quantity_invoiced: number
-          sales_order_id: string
-          serial_number: string | null
-          sort_order: number | null
-          task_id: string | null
-          tax_amount: number | null
-          tax_rate: number | null
-          tax_rate_id: string | null
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          backorder_eta?: string | null
-          created_at?: string
-          description: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          price_source?: string | null
-          product_id?: string | null
-          quantity?: number
-          quantity_backordered?: number | null
-          quantity_cancelled?: number
-          quantity_fulfilled?: number | null
-          quantity_invoiced?: number
-          sales_order_id: string
-          serial_number?: string | null
-          sort_order?: number | null
-          task_id?: string | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tax_rate_id?: string | null
-          unit_price: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          backorder_eta?: string | null
-          created_at?: string
-          description?: string
-          discount_percent?: number | null
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          price_source?: string | null
-          product_id?: string | null
-          quantity?: number
-          quantity_backordered?: number | null
-          quantity_cancelled?: number
-          quantity_fulfilled?: number | null
-          quantity_invoiced?: number
-          sales_order_id?: string
-          serial_number?: string | null
-          sort_order?: number | null
-          task_id?: string | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tax_rate_id?: string | null
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_order_items_tax_rate_id_fkey"
-            columns: ["tax_rate_id"]
-            isOneToOne: false
-            referencedRelation: "tax_rates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_orders: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          converted_at: string | null
-          created_at: string
-          created_by: string | null
-          currency: string | null
-          discount_amount: number | null
-          exchange_rate: number | null
-          expected_date: string | null
-          id: string
-          is_locked: boolean
-          is_sample_data: boolean
-          notes: string | null
-          order_date: string
-          organization_id: string
-          payment_term_id: string | null
-          salesperson_id: string | null
-          ship_to_contact_id: string | null
-          shipping_address: string | null
-          shipping_amount: number | null
-          so_number: string
-          source_lead_id: string | null
-          status: string
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          warehouse_id: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id?: string | null
-          contact_id?: string | null
-          converted_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          discount_amount?: number | null
-          exchange_rate?: number | null
-          expected_date?: string | null
-          id?: string
-          is_locked?: boolean
-          is_sample_data?: boolean
-          notes?: string | null
-          order_date?: string
-          organization_id: string
-          payment_term_id?: string | null
-          salesperson_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_amount?: number | null
-          so_number: string
-          source_lead_id?: string | null
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          warehouse_id?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string | null
-          contact_id?: string | null
-          converted_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          discount_amount?: number | null
-          exchange_rate?: number | null
-          expected_date?: string | null
-          id?: string
-          is_locked?: boolean
-          is_sample_data?: boolean
-          notes?: string | null
-          order_date?: string
-          organization_id?: string
-          payment_term_id?: string | null
-          salesperson_id?: string | null
-          ship_to_contact_id?: string | null
-          shipping_address?: string | null
-          shipping_amount?: number | null
-          so_number?: string
-          source_lead_id?: string | null
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          warehouse_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_payment_term_id_fkey"
-            columns: ["payment_term_id"]
-            isOneToOne: false
-            referencedRelation: "payment_terms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_ship_to_contact_id_fkey"
-            columns: ["ship_to_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_return_cost_basis: {
-        Row: {
-          business_id: string
-          created_at: string
-          fallback_qty: number
-          fallback_reason: string | null
-          id: string
-          method: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_return_id: string
-          sales_return_item_id: string
-          total_value: number
-          unit_cost: number
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          fallback_qty?: number
-          fallback_reason?: string | null
-          id?: string
-          method: string
-          organization_id: string
-          product_id: string
-          quantity: number
-          sales_return_id: string
-          sales_return_item_id: string
-          total_value?: number
-          unit_cost?: number
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          fallback_qty?: number
-          fallback_reason?: string | null
-          id?: string
-          method?: string
-          organization_id?: string
-          product_id?: string
-          quantity?: number
-          sales_return_id?: string
-          sales_return_item_id?: string
-          total_value?: number
-          unit_cost?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "sales_returns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_cost_basis_sales_return_item_id_fkey"
-            columns: ["sales_return_item_id"]
-            isOneToOne: true
-            referencedRelation: "sales_return_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_return_items: {
-        Row: {
-          condition: string | null
-          created_at: string
-          description: string
-          display_quantity: number | null
-          display_uom_id: string | null
-          etims_classification_code: string | null
-          etims_tax_code: string | null
-          id: string
-          is_sample_data: boolean
-          line_total: number
-          lot_number: string | null
-          packaging_id: string | null
-          product_id: string | null
-          qc_inspection_id: string | null
-          quantity: number
-          return_reason: string | null
-          sales_return_id: string
-          serial_number: string | null
-          sort_order: number | null
-          source_discount_percent: number | null
-          source_tax_amount: number | null
-          source_tax_rate: number | null
-          tax_amount: number | null
-          tax_basis_source: string | null
-          tax_rate: number | null
-          unit_price: number
-          uom_snapshot: string | null
-          uom_snapshot_base_code: string | null
-          uom_snapshot_factor: number | null
-          uom_snapshot_pack_name: string | null
-        }
-        Insert: {
-          condition?: string | null
-          created_at?: string
-          description: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          etims_classification_code?: string | null
-          etims_tax_code?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          qc_inspection_id?: string | null
-          quantity?: number
-          return_reason?: string | null
-          sales_return_id: string
-          serial_number?: string | null
-          sort_order?: number | null
-          source_discount_percent?: number | null
-          source_tax_amount?: number | null
-          source_tax_rate?: number | null
-          tax_amount?: number | null
-          tax_basis_source?: string | null
-          tax_rate?: number | null
-          unit_price: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Update: {
-          condition?: string | null
-          created_at?: string
-          description?: string
-          display_quantity?: number | null
-          display_uom_id?: string | null
-          etims_classification_code?: string | null
-          etims_tax_code?: string | null
-          id?: string
-          is_sample_data?: boolean
-          line_total?: number
-          lot_number?: string | null
-          packaging_id?: string | null
-          product_id?: string | null
-          qc_inspection_id?: string | null
-          quantity?: number
-          return_reason?: string | null
-          sales_return_id?: string
-          serial_number?: string | null
-          sort_order?: number | null
-          source_discount_percent?: number | null
-          source_tax_amount?: number | null
-          source_tax_rate?: number | null
-          tax_amount?: number | null
-          tax_basis_source?: string | null
-          tax_rate?: number | null
-          unit_price?: number
-          uom_snapshot?: string | null
-          uom_snapshot_base_code?: string | null
-          uom_snapshot_factor?: number | null
-          uom_snapshot_pack_name?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_return_items_display_uom_id_fkey"
-            columns: ["display_uom_id"]
-            isOneToOne: false
-            referencedRelation: "units_of_measure"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_return_items_sales_return_id_fkey"
-            columns: ["sales_return_id"]
-            isOneToOne: false
-            referencedRelation: "sales_returns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      sales_returns: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          client_request_id: string | null
-          contact_id: string | null
-          created_at: string
-          created_by: string | null
-          currency: string | null
-          id: string
-          is_sample_data: boolean
-          notes: string | null
-          organization_id: string
-          reason: string
-          refund_method: string | null
-          return_date: string
-          return_number: string
-          status: string
-          subtotal: number
-          tax_amount: number
-          total: number
-          updated_at: string
-          wms_return_order_id: string | null
-        }
-        Insert: {
-          branch_id?: string | null
-          business_id?: string | null
-          client_request_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          id?: string
-          is_sample_data?: boolean
-          notes?: string | null
-          organization_id: string
-          reason: string
-          refund_method?: string | null
-          return_date?: string
-          return_number: string
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          wms_return_order_id?: string | null
-        }
-        Update: {
-          branch_id?: string | null
-          business_id?: string | null
-          client_request_id?: string | null
-          contact_id?: string | null
-          created_at?: string
-          created_by?: string | null
-          currency?: string | null
-          id?: string
-          is_sample_data?: boolean
-          notes?: string | null
-          organization_id?: string
-          reason?: string
-          refund_method?: string | null
-          return_date?: string
-          return_number?: string
-          status?: string
-          subtotal?: number
-          tax_amount?: number
-          total?: number
-          updated_at?: string
-          wms_return_order_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_returns_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_returns_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       saved_views: {
         Row: {
           business_id: string | null
@@ -22423,144 +21429,6 @@ export type Database = {
           },
         ]
       }
-      so_backorder_lines: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          contact_id: string | null
-          description: string | null
-          order_date: string | null
-          order_status: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity_backordered: number | null
-          quantity_delivered: number | null
-          quantity_on_open_deliveries: number | null
-          quantity_ordered: number | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          so_number: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      so_line_balances: {
-        Row: {
-          branch_id: string | null
-          business_id: string | null
-          description: string | null
-          line_total: number | null
-          order_status: string | null
-          organization_id: string | null
-          product_id: string | null
-          quantity_cancelled: number | null
-          quantity_delivered: number | null
-          quantity_invoiced: number | null
-          quantity_on_open_deliveries: number | null
-          quantity_open_to_deliver: number | null
-          quantity_open_to_invoice: number | null
-          quantity_open_to_plan: number | null
-          quantity_ordered: number | null
-          quantity_returned: number | null
-          sales_order_id: string | null
-          sales_order_item_id: string | null
-          so_number: string | null
-          unit_price: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sales_order_items_sales_order_id_fkey"
-            columns: ["sales_order_id"]
-            isOneToOne: false
-            referencedRelation: "sales_orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "sales_orders_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       v_branch_scoped_policy_check: {
         Row: {
           cmd: string | null
@@ -23658,15 +22526,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      _confirm_invoice_core: {
-        Args: {
-          p_final_status?: string
-          p_invoice_id: string
-          p_main_lines?: Json
-          p_user_id: string
-        }
-        Returns: Json
-      }
       _consolidation_fy_start: {
         Args: { _business_id: string; _on_date: string }
         Returns: string
@@ -23901,16 +22760,6 @@ export type Database = {
         Args: { _employee_id: string; _org: string; _supplied: string }
         Returns: string
       }
-      _log_dn_event: {
-        Args: {
-          _actor: string
-          _dn_id: string
-          _event_type: string
-          _notes?: string
-          _payload?: Json
-        }
-        Returns: undefined
-      }
       _next_physical_count_number: { Args: { p_org: string }; Returns: string }
       _payroll_assert_je_line_account: {
         Args: { _account_id: string }
@@ -24066,10 +22915,6 @@ export type Database = {
         Args: { _detail?: string; _name: string; _passed: boolean }
         Returns: Json
       }
-      _sales_doc_is_mutable: {
-        Args: { p_status: string; p_table: string }
-        Returns: boolean
-      }
       _scanner_hash_trust_token: { Args: { p_token: string }; Returns: string }
       _so_write_cancelled_quantities: {
         Args: { p_so_id: string }
@@ -24169,14 +23014,6 @@ export type Database = {
         Args: { _business_id: string; _grn_id: string }
         Returns: string
       }
-      _wms_client_from_wave: {
-        Args: { _business_id: string; _wave_id: string }
-        Returns: string
-      }
-      _wms_consume_order_reservation: {
-        Args: { p_product_id: string; p_qty: number; p_sales_order_id: string }
-        Returns: number
-      }
       _wms_crossdock_staging_location: {
         Args: { p_warehouse_id: string }
         Returns: string
@@ -24232,10 +23069,6 @@ export type Database = {
       _wms_lpn_require_version: {
         Args: { _expected_version: number }
         Returns: number
-      }
-      _wms_manifest_after_dispatch: {
-        Args: { p_manifest_id: string }
-        Returns: Json
       }
       _wms_map_event_to_activity: {
         Args: { p_event_type: string; p_payload?: Json }
@@ -25552,17 +24385,6 @@ export type Database = {
         Args: { p_cn_id: string; p_main_lines: Json; p_user_id: string }
         Returns: Json
       }
-      confirm_invoice_and_release_stock_atomic: {
-        Args: {
-          p_final_status?: string
-          p_invoice_id: string
-          p_main_lines?: Json
-          p_release_stock?: boolean
-          p_user_id: string
-          p_warehouse_id?: string
-        }
-        Returns: Json
-      }
       confirm_invoice_atomic:
         | {
             Args: {
@@ -25582,10 +24404,6 @@ export type Database = {
             }
             Returns: Json
           }
-      confirm_sales_order_atomic: {
-        Args: { p_so_id: string; p_user_id: string }
-        Returns: Json
-      }
       consolidation_diagnose_eliminations: {
         Args: { _date_from: string; _date_to: string; _group_id: string }
         Returns: {
@@ -25891,16 +24709,8 @@ export type Database = {
         }
         Returns: Json
       }
-      convert_estimate_to_so_atomic: {
-        Args: { p_estimate_id: string; p_user_id: string }
-        Returns: Json
-      }
       convert_proforma_to_invoice_atomic: {
         Args: { p_proforma_id: string; p_user_id: string }
-        Returns: Json
-      }
-      convert_so_to_invoice_atomic: {
-        Args: { p_so_id: string; p_user_id: string }
         Returns: Json
       }
       convert_uom: {
@@ -25920,19 +24730,6 @@ export type Database = {
         Returns: number
       }
       create_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
-      create_delivery_from_sales_order_atomic: {
-        Args: {
-          p_delivery_date?: string
-          p_line_qtys?: Json
-          p_so_id: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      create_delivery_note_atomic: {
-        Args: { p_lines: Json; p_payload: Json; p_user_id: string }
-        Returns: Json
-      }
       create_estimate_atomic: {
         Args: {
           p_costs?: Json
@@ -25950,10 +24747,6 @@ export type Database = {
           p_items: Json
           p_user_id?: string
         }
-        Returns: Json
-      }
-      create_invoice_from_delivery_atomic: {
-        Args: { p_dn_id: string; p_user_id: string }
         Returns: Json
       }
       create_journal_entry_atomic: {
@@ -26099,17 +24892,6 @@ export type Database = {
         Args: { p_header: Json; p_items: Json }
         Returns: Json
       }
-      create_return_delivery_atomic: {
-        Args: {
-          p_lines: Json
-          p_original_dn_id: string
-          p_post_immediately?: boolean
-          p_reason?: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
-      create_sales_return_atomic: { Args: { _payload: Json }; Returns: Json }
       create_scanner_session: {
         Args: {
           p_branch_id: string
@@ -26229,10 +25011,6 @@ export type Database = {
           p_organization_id: string
         }
         Returns: number
-      }
-      dispatch_delivery_atomic: {
-        Args: { p_dn_id: string; p_payload?: Json; p_user_id: string }
-        Returns: Json
       }
       dissolve_department: {
         Args: { _department_id: string }
@@ -27447,9 +26225,7 @@ export type Database = {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_delivery_number:
-        | { Args: { _org_id: string }; Returns: string }
-        | { Args: { _business_id: string; _org_id: string }; Returns: string }
+      get_next_delivery_number: { Args: { _org_id: string }; Returns: string }
       get_next_document_number: {
         Args: {
           p_business: string
@@ -27498,16 +26274,7 @@ export type Database = {
         Args: { _branch_id?: string; _business_id?: string; _org_id: string }
         Returns: string
       }
-      get_next_sales_return_number: {
-        Args: { _branch_id?: string; _business_id?: string; _org_id: string }
-        Returns: string
-      }
-      get_next_so_number:
-        | { Args: { _org_id: string }; Returns: string }
-        | {
-            Args: { _branch_id?: string; _business_id: string; _org_id: string }
-            Returns: string
-          }
+      get_next_so_number: { Args: { _org_id: string }; Returns: string }
       get_or_create_default_business_for_org: {
         Args: { _org_id: string }
         Returns: string
@@ -27652,16 +26419,6 @@ export type Database = {
           p_date?: string
           p_organization_id: string
           p_register_id?: string
-        }
-        Returns: Json
-      }
-      get_sales_dashboard_kpis: {
-        Args: {
-          p_branch_id?: string
-          p_business_id: string
-          p_date_from: string
-          p_date_to: string
-          p_org_id: string
         }
         Returns: Json
       }
@@ -28375,10 +27132,6 @@ export type Database = {
       mark_appointment_arrived: {
         Args: { p_appointment_id: string }
         Returns: undefined
-      }
-      mark_delivery_ready_atomic: {
-        Args: { p_dn_id: string; p_user_id: string }
-        Returns: Json
       }
       mark_onboarding_done: {
         Args: {
@@ -29547,18 +28300,6 @@ export type Database = {
         }
         Returns: Json
       }
-      record_partial_delivery_atomic: {
-        Args: {
-          p_create_backorder?: boolean
-          p_dn_id: string
-          p_line_qtys: Json
-          p_pod?: Json
-          p_received_by?: string
-          p_received_by_user_id?: string
-          p_user_id: string
-        }
-        Returns: Json
-      }
       record_payment_atomic: {
         Args: {
           _amount: number
@@ -29671,10 +28412,6 @@ export type Database = {
       }
       reinstate_supplier: {
         Args: { p_notes?: string; p_supplier_id: string }
-        Returns: Json
-      }
-      release_sales_order_reservations_atomic: {
-        Args: { p_so_id: string }
         Returns: Json
       }
       remove_device: { Args: { p_device_id: string }; Returns: boolean }
@@ -30556,15 +29293,6 @@ export type Database = {
         }
         Returns: Json
       }
-      set_sales_order_approval_state_atomic: {
-        Args: {
-          p_action: string
-          p_notes?: string
-          p_so_id: string
-          p_user_id?: string
-        }
-        Returns: Json
-      }
       set_sms_provider_config: {
         Args: {
           p_account_sid?: string
@@ -30753,10 +29481,6 @@ export type Database = {
         }
         Returns: Json
       }
-      transition_sales_return: {
-        Args: { _reason?: string; _return_id: string; _to_status: string }
-        Returns: Json
-      }
       trust_device: {
         Args: { p_device_id: string; p_trust_days?: number }
         Returns: boolean
@@ -30804,10 +29528,6 @@ export type Database = {
         Returns: undefined
       }
       update_credit_note_atomic: { Args: { _payload: Json }; Returns: Json }
-      update_delivery_logistics_atomic: {
-        Args: { p_dn_id: string; p_payload: Json; p_user_id: string }
-        Returns: Json
-      }
       update_estimate_atomic: {
         Args: {
           p_costs?: Json
@@ -30906,15 +29626,6 @@ export type Database = {
           p_organization_id: string
         }
         Returns: undefined
-      }
-      update_sales_order_atomic: {
-        Args: {
-          p_header: Json
-          p_items: Json
-          p_so_id: string
-          p_user_id?: string
-        }
-        Returns: Json
       }
       upsert_collector_assignment: {
         Args: {
@@ -31238,13 +29949,6 @@ export type Database = {
           id: string
         }[]
       }
-      wms_manifest_delivery_notes: {
-        Args: { p_manifest_id: string }
-        Returns: {
-          delivery_note_id: string
-          status: string
-        }[]
-      }
       wms_manifest_proof_status: {
         Args: { p_manifest_id: string }
         Returns: Json
@@ -31323,23 +30027,6 @@ export type Database = {
         Returns: string
       }
       wms_sscc_is_valid: { Args: { p_sscc: string }; Returns: boolean }
-      wms_wave_demand: {
-        Args: { p_business_id: string; p_warehouse_id?: string }
-        Returns: {
-          block_reason: string
-          carrier_id: string
-          contact_id: string
-          covered_units: number
-          customer_name: string
-          eligible: boolean
-          expected_date: string
-          open_lines: number
-          open_units: number
-          order_status: string
-          sales_order_id: string
-          so_number: string
-        }[]
-      }
     }
     Enums: {
       account_type: "asset" | "liability" | "equity" | "income" | "expense"

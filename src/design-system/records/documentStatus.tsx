@@ -27,10 +27,7 @@ export type DocumentKind =
   | "invoice"
   | "estimate"
   | "proforma"
-  | "sales_order"
-  | "delivery_note"
   | "credit_note"
-  | "sales_return"
   | "customer_payment"
   | "recurring_invoice"
   | "statement"
@@ -98,17 +95,6 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
     // A sent estimate is awaiting a customer decision, not merely dispatched.
     sent: { label: "Awaiting response", tone: "info" },
   },
-  sales_order: {
-    partial: { label: "Partially delivered", tone: "warning" },
-    completed: { label: "Fulfilled", tone: "success" },
-    confirmed: { label: "Confirmed", tone: "info" },
-  },
-  delivery_note: {
-    partial: { label: "Partially delivered", tone: "warning" },
-    sent: { label: "Dispatched", tone: "info" },
-    completed: { label: "Delivered", tone: "success" },
-    returned: { label: "Returned", tone: "warning" },
-  },
   credit_note: {
     applied: { label: "Applied", tone: "success" },
     partial: { label: "Partially applied", tone: "warning" },
@@ -124,10 +110,6 @@ const OVERRIDES: Partial<Record<DocumentKind, Record<string, StatusMeta>>> = {
     paused: { label: "Paused", tone: "warning" },
     cancelled: { label: "Cancelled", tone: "danger" },
     completed: { label: "Completed", tone: "neutral" },
-  },
-  sales_return: {
-    approved: { label: "Approved", tone: "info" },
-    cancelled: { label: "Cancelled", tone: "danger" },
   },
   journal_entry: {
     // A posted entry has hit the ledger and can no longer be edited freely.

@@ -29,9 +29,6 @@ const NON_POS_DOC_TYPES = [
   "credit_note",
   "purchase_order",
   "receipt",
-  "sales_order",
-  "delivery_note",
-  "sales_return",
   "customer_statement",
   "vendor_statement",
   "bill",
@@ -59,7 +56,7 @@ describe("coercePaperRenderMode (Phase 4)", () => {
   });
 
   it("allows Sales/Purchases business documents to stream ESC/POS on thermal paper", () => {
-    for (const docType of ["invoice", "purchase_order", "bill", "sales_order"] as const) {
+    for (const docType of ["invoice", "purchase_order", "bill"] as const) {
       const out = coercePaperRenderMode(docType, "80mm", "escpos");
       expect(out.render_mode).toBe("escpos");
       expect(out.paper_format).toBe("80mm");

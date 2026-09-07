@@ -13,7 +13,6 @@
  *   LineItemsGrid       the only line-item renderer (container-adaptive)
  *   panels              totals / activity / attachments right-rail blocks
  *   documentStatus      the single status label + tone vocabulary
- *   DocumentLifecycleStrip  the order-to-cash / procure-to-pay traversal
  *
  * Do not fork any of these inside a feature module.
  */
@@ -63,11 +62,6 @@ export type { DocumentStatusTone, DocumentKind } from "./documentStatus";
 // Money summary derivation — one implementation.
 export { buildTotalsRows, deriveMoney } from "./money";
 export type { DocumentMoney } from "./money";
-
-// Lifecycle traversal.
-export { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
-export type { LifecycleDocType } from "./DocumentLifecycleStrip";
-export { DocumentSettlementStrip } from "./DocumentSettlementStrip";
 
 // The canonical document descriptor + the shared renderer both projections use.
 export type { DocumentRecordView } from "./types";

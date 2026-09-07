@@ -12,7 +12,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "delivery_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "sales_return" | "sales_order" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
+type EmailDocumentType = "invoice" | "estimate" | "proforma" | "credit_note" | "purchase_order" | "bill" | "customer_statement" | "receipt" | "report" | "payslip" | "pos_receipt" | "contract_letter" | "rfq" | "purchase_return" | "vendor_credit_note";
 
 interface SendDocumentEmailRequest {
   documentType: EmailDocumentType;
@@ -56,12 +56,12 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   estimate: { table: "estimates", numberField: "estimate_number", statusField: "status", itemsTable: "estimate_items" },
   proforma: { table: "proforma_invoices", numberField: "proforma_number", statusField: "status", itemsTable: "proforma_invoice_items" },
   credit_note: { table: "credit_notes", numberField: "credit_note_number", statusField: "status", itemsTable: "credit_note_items" },
-  delivery_note: { table: "delivery_notes", numberField: "delivery_number", statusField: "status", itemsTable: "delivery_note_items" },
+  
   purchase_order: { table: "purchase_orders", numberField: "po_number", statusField: "status", itemsTable: "purchase_order_items", contactField: "vendor_id" },
   bill: { table: "bills", numberField: "bill_number", statusField: "status", itemsTable: "bill_items", contactField: "vendor_id" },
   customer_statement: { table: "customer_statements", numberField: "id", statusField: undefined, itemsTable: undefined, contactField: "contact_id" },
   receipt: { table: "customer_payments", numberField: "receipt_number", statusField: undefined, itemsTable: undefined },
-  sales_return: { table: "sales_returns", numberField: "return_number", statusField: "status", itemsTable: "sales_return_items" },
+  
   // Purchase (vendor) return / RMA. `statusField` is deliberately omitted:
   // the return's status is a lifecycle value owned by the server-side
   // lifecycle commands (draft → … → closed) and client roles have no write
@@ -71,7 +71,7 @@ const documentTableMap: Record<EmailDocumentType, { table: string; numberField: 
   // owned by the ADR 0132 lifecycle commands, so `statusField` is omitted:
   // emailing must never stamp a commercial state.
   vendor_credit_note: { table: "vendor_credit_notes", numberField: "credit_note_number", statusField: undefined, itemsTable: "vendor_credit_note_items", contactField: "vendor_id" },
-  sales_order: { table: "sales_orders", numberField: "order_number", statusField: "status", itemsTable: "sales_order_items" },
+  
   // Payroll — number is synthesized from payroll_runs.payroll_number; recipient is the employee's work_email/email.
   payslip: { table: "payslips", numberField: "payslip_number", statusField: "status", itemsTable: undefined, contactField: "employee_id" },
   // POS receipt — A4 invoice-style receipt, generated via the unified generate-document engine (already supports pos_receipt).
@@ -91,15 +91,15 @@ const documentLabels: Record<EmailDocumentType, string> = {
   estimate: "Estimate",
   proforma: "Proforma Invoice",
   credit_note: "Credit Note",
-  delivery_note: "Delivery Note",
+  
   purchase_order: "Purchase Order",
   bill: "Bill",
   customer_statement: "Customer Statement",
   receipt: "Payment Receipt",
-  sales_return: "Sales Return",
+  
   purchase_return: "Purchase Return",
   vendor_credit_note: "Vendor Credit Note",
-  sales_order: "Sales Order",
+  
   report: "Report",
   payslip: "Payslip",
   pos_receipt: "Sales Receipt",
