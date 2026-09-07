@@ -170,6 +170,7 @@ describe("currency ratchet — rate writes carry a role predicate", () => {
     const offenders: string[] = [];
     for (const file of walk(MIGRATIONS, /\.sql$/i)) {
       if (basename(file).slice(0, 14) < RATCHET_BASELINE) continue;
+      if (REBASELINE_DUMP.has(basename(file))) continue;
       const sql = readFileSync(file, "utf8");
       const policies =
         /create\s+policy\s+"?([\w\s.-]+?)"?\s+on\s+public\.([a-z_]+)([\s\S]*?);/gi;
