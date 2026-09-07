@@ -1560,34 +1560,11 @@ serve(async (req) => {
         role: "user", 
         content: data.prompt 
       });
-    } else if (type === "document_text" && data) {
-      // Build document context prompt
-      const docType = data.documentType || "document";
-      const action = data.action || "generate";
-      const fieldType = data.fieldType || "notes";
-      
-      let userPrompt = "";
-      
-      if (action === "generate") {
-        userPrompt = `Generate professional ${fieldType} for a ${docType.replace("_", " ")}.`;
-      } else if (action === "improve") {
-        userPrompt = `Improve the following ${fieldType} text while keeping the same meaning:\n\n"${data.currentText}"`;
-      } else if (action === "professional") {
-        userPrompt = `Rewrite the following ${fieldType} to be more professional and polished:\n\n"${data.currentText}"`;
-      }
-      
-      // Add context
-      const contextParts: string[] = [];
-      if (data.customerName) contextParts.push(`Customer: ${data.customerName}`);
-      if (data.documentNumber) contextParts.push(`Document: ${data.documentNumber}`);
-      if (data.lineItemsSummary) contextParts.push(`Items: ${data.lineItemsSummary}`);
-      if (data.totalAmount && data.currency) contextParts.push(`Total: ${data.currency} ${data.totalAmount.toLocaleString()}`);
-      
-      if (contextParts.length > 0) {
-        userPrompt += `\n\nContext:\n${contextParts.join("\n")}`;
-      }
-      
-      aiMessages.push({ role: "user", content: userPrompt });
+    } else if (data) {
+      aiMessages.push({
+        role: "user",
+        content: `Please analyze the following data:\n\n${JSON.stringify(data, null, 2)}`
+      });
     } else if (data) {
       aiMessages.push({ 
         role: "user", 
