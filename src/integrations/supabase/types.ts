@@ -16058,63 +16058,6 @@ export type Database = {
         }
         Relationships: []
       }
-      platform_demo_videos: {
-        Row: {
-          app_key: string | null
-          audience: string
-          category: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          difficulty: string | null
-          duration_seconds: number | null
-          id: string
-          is_published: boolean | null
-          published_at: string | null
-          sort_order: number | null
-          thumbnail_url: string | null
-          title: string
-          updated_at: string
-          video_url: string
-        }
-        Insert: {
-          app_key?: string | null
-          audience?: string
-          category?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          difficulty?: string | null
-          duration_seconds?: number | null
-          id?: string
-          is_published?: boolean | null
-          published_at?: string | null
-          sort_order?: number | null
-          thumbnail_url?: string | null
-          title: string
-          updated_at?: string
-          video_url: string
-        }
-        Update: {
-          app_key?: string | null
-          audience?: string
-          category?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          difficulty?: string | null
-          duration_seconds?: number | null
-          id?: string
-          is_published?: boolean | null
-          published_at?: string | null
-          sort_order?: number | null
-          thumbnail_url?: string | null
-          title?: string
-          updated_at?: string
-          video_url?: string
-        }
-        Relationships: []
-      }
       platform_exchange_rates: {
         Row: {
           created_at: string
