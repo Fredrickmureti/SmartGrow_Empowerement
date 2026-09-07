@@ -115,40 +115,6 @@ export function useAIAssistant(options: UseAIAssistantOptions = {}) {
     }
   }, [organizationId, businessId]);
 
-  const analyzeInvoice = useCallback(async (invoiceData: {
-    invoice_number: string;
-    contact_name: string;
-    amount: number;
-    due_date: string;
-    status: string;
-    items?: any[];
-  }) => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke<AIResponse>("ai-assistant", {
-        body: { 
-          type: "analyze_invoice", 
-          data: invoiceData,
-          organizationId,
-          businessId
-        }
-      });
-
-      if (error) throw error;
-      if (data?.error) {
-        toast.error(data.error);
-        return null;
-      }
-
-      return data?.data;
-    } catch (error: any) {
-      console.error("Error analyzing invoice:", error);
-      toast.error("Failed to analyze invoice");
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [organizationId, businessId]);
 
   const getFinancialInsights = useCallback(async (financialData: {
     revenue: number;
