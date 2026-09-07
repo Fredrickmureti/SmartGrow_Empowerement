@@ -418,35 +418,6 @@ export default function WorkspaceSettings() {
             </TabsContent>
           )}
 
-          <TabsContent value="data" className="space-y-6">
-            <Card className="border-primary/20">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <DatabaseZap className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle>Data Migration</CardTitle>
-                    <CardDescription>
-                      Import financial data from another accounting system with guided validation.
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Migrate your chart of accounts, trial balance, bank balances, client records, and
-                  loan portfolio from any CSV/XLSX export.
-                </p>
-                <Button onClick={() => (window.location.href = "/settings/migration")} className="gap-2">
-                  Open Migration Workbench
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-
-
-          </TabsContent>
         </Tabs>
       </div>
     </PlatformAppLayout>
