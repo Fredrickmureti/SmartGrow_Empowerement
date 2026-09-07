@@ -455,9 +455,7 @@ function EditBusinessDialog({ business, onClose, onSave }: EditBusinessDialogPro
         state: business.state || "",
         postal_code: business.postal_code || "",
         country: business.country || "",
-        invoice_prefix: business.invoice_prefix || "",
-        estimate_prefix: business.estimate_prefix || "",
-        bill_prefix: business.bill_prefix || "",
+
       });
     }
   }, [business]);
@@ -597,32 +595,7 @@ function EditBusinessDialog({ business, onClose, onSave }: EditBusinessDialogPro
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Invoice Prefix</Label>
-              <Input
-                value={formData.invoice_prefix || business.invoice_prefix || ""}
-                onChange={(e) => updateField("invoice_prefix", e.target.value)}
-                placeholder="INV"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Estimate Prefix</Label>
-              <Input
-                value={formData.estimate_prefix || business.estimate_prefix || ""}
-                onChange={(e) => updateField("estimate_prefix", e.target.value)}
-                placeholder="EST"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Bill Prefix</Label>
-              <Input
-                value={formData.bill_prefix || business.bill_prefix || ""}
-                onChange={(e) => updateField("bill_prefix", e.target.value)}
-                placeholder="BILL"
-              />
-            </div>
-          </div>
+
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
