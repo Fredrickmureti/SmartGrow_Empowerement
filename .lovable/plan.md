@@ -351,9 +351,20 @@ Verification: `bunx tsgo --noEmit -p tsconfig.app.json` clean; build OK.
 - `signup_cleanup_log` (edge-function-only): grants revoked from `anon`/`authenticated`, service-role-only RLS policy added.
 - Revoked `EXECUTE` on every public-schema function from `anon` and `PUBLIC` (explicitly granting `authenticated`/`service_role` first), plus a default-privileges revoke for `anon`. Linter: anon-executable SECURITY DEFINER findings 581 → 0; total findings 1789 → 1203.
 
+### Session log — 2026-09-07 (resume #2) — Wave 10 security posture
+
+Verified before acting (not trusted from the log):
+- `app_role` enum already carries `branch_manager, loan_officer, credit_officer, collections_officer, auditor` — the blocking item at line 322 is DONE; `bunx tsgo --noEmit -p tsconfig.app.json` is clean and the build is OK.
+
+DONE this session:
+- **Mutable `search_path` (was 49)** — one migration pinning `search_path = public` on all 49 non-extension public functions (the earlier count included `cube`/`earthdistance`/`btree_gist` extension functions, which are not ours and were excluded). Linter finding now 0.
+- **SECURITY DEFINER views (was 5)** — `v_branch_scoped_policy_check`, `v_business_event_outbox_health`, `v_employee_branch_scope`, `v_fiscal_workspace_health` converted to `security_invoker = true`; `employee_loan_state_transitions` DROPPED (static VALUES list for the retired payroll employee-loan state machine; only reference outside the DB was the generated `types.ts`). Linter ERROR count now 0.
+
+Linter posture now: 1149 findings, all WARN — 1144 "signed-in users can execute SECURITY DEFINER function" (by design: these are the app RPCs, each enforcing access internally), 4 "extension in public" (pg_trgm/cube/earthdistance/btree_gist — moving them is riskier than the finding), 1 leaked-password protection.
+
 ### REMAINING
 1. **Leaked-password protection** — dashboard toggle, user action: Supabase → Authentication → Policies.
-2. **49 functions with mutable `search_path`** — set `search_path = public` per function; do in small batches (one migration per group), lowest risk last.
-3. **5 SECURITY DEFINER views** — review each; convert to `security_invoker = true` where the underlying RLS suffices.
-4. **1144 "signed-in users can execute SECURITY DEFINER function"** — expected by design (these are the app's RPCs, each enforcing access internally). No blanket action; revisit only for functions that should be service-role-only.
-5. **Next wave — remaining SaaS/platform tables from the old ERP** (user-requested): `platform_exchange_rates`, `platform_apps`, `platform_demo_videos`, `platform_integration_*`, `organization_installed_apps`, `app_*` install/launch tables, `org_usage_counters`, and their consumers. This is a single-tenant institution, not a SaaS: audit consumers first (`publish_platform_rates()` cron reads `platform_exchange_rates` and feeds `exchange_rates` — do NOT drop it before the FX publishing path is re-pointed or retired), then remove in dependency order.
+2. **Wave 9c** — remaining legacy table groups (POS, projects, consolidation, payroll, inventory) plus the inert `sales_order`/`delivery_note` label-map entries in `_shared/pdfGenerator.ts`, `_shared/receipt/documentToInput.ts`, `_shared/templateRenderer.ts`, `_shared/documents/persistArtifact.ts`, `outbox-dispatcher/index.ts`; grep `src/` + `supabase/functions/` immediately before each drop.
+3. **Wave 9d** — orphan function purge (sales/delivery/WMS `*_atomic`, `get_next_so_number`, `get_next_delivery_number`, `*sales_return*`).
+4. **Next wave — remaining SaaS/platform tables from the old ERP** (user-requested): `platform_exchange_rates`, `platform_apps`, `platform_demo_videos`, `platform_integration_*`, `organization_installed_apps`, `app_*` install/launch tables, `org_usage_counters`. Audit consumers first — `publish_platform_rates()` cron reads `platform_exchange_rates` and feeds `exchange_rates`; do NOT drop it before the FX publishing path is re-pointed or retired.
+
