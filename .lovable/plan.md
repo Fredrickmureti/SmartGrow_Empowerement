@@ -244,4 +244,8 @@ A `pg_proc` sweep for legacy-domain names returns ~150 functions (`_consolidatio
 5. `payment_requests`: RETAIN — live M-Pesa flow (`mpesa-outbound`, `mpesa-callback`).
 
 ### Next action
-Start Wave 9a: inventory the delivery-note and AI-assistant references to `sales_order*`, decide keep-vs-drop for delivery notes, then migrate.
+
+
+I checked the previous session's claims independently and they hold up: the payment-gateway, card, crypto and document-template screens are genuinely gone (only stray comments mention them), the numbering, notification and audit work is in place, the nightly check no longer looks for sales invoices, supplier bills or payroll runs, and the project has no type errors. I also renamed one leftover example text in a bank-matching field from a card processor to M-Pesa.
+
+One important correction: the "dozens of leftover background routines" aren't loose orphans — they're rules attached to the old tables that still exist, so they'll disappear with those tables. I've folded that into the table clean-up instead of a separate pass, and the plan log now records all of this plus the exact next step: untangling delivery notes and the assistant from the old sales-order tables so those can finally be dropped.
