@@ -1,7 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
-import { normalizeError } from "@/services/resilience";
+/**
+ * Retired: the SaaS marketing "demo videos" library.
+ *
+ * `platform_demo_videos` was part of the inherited multi-tenant ERP/SaaS
+ * marketing surface and has been dropped from the database. Smart Grow
+ * Empowerment is a single institution, not a SaaS product, so there is no
+ * demo-video catalogue to administer.
+ *
+ * The hook is kept as an inert stub so the Resource Center launcher keeps
+ * compiling and simply renders no videos. Delete it together with the
+ * launcher's video section when the Resource Center is reworked.
+ */
+import { useCallback } from "react";
 
 export type DemoVideoAudience = "public" | "authenticated";
 export type DemoVideoDifficulty = "intro" | "deep-dive";
@@ -20,11 +29,8 @@ export interface DemoVideo {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  /** Product area the video belongs to (matches AppDefinition.id). null = platform-wide / getting-started. */
   app_key: string | null;
-  /** "public" = visible on marketing /demo. "authenticated" = signed-in only. */
   audience: DemoVideoAudience;
-  /** Optional learning-track tag. */
   difficulty: DemoVideoDifficulty | null;
 }
 
@@ -41,172 +47,20 @@ export interface CreateDemoVideoInput {
   difficulty?: DemoVideoDifficulty | null;
 }
 
-export function useDemoVideos(publicOnly = false) {
-  const [videos, setVideos] = useState<DemoVideo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+const NO_VIDEOS: DemoVideo[] = [];
 
-  const fetchVideos = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      let query = supabase
-        .from("platform_demo_videos")
-        .select("*")
-        .order("sort_order", { ascending: true });
-
-      if (publicOnly) {
-        query = query.eq("is_published", true);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-      setVideos((data as DemoVideo[]) || []);
-    } catch (error: any) {
-      console.error("Error fetching demo videos:", error);
-      if (!publicOnly) {
-        toast.error("Failed to load demo videos");
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [publicOnly]);
-
-  useEffect(() => {
-    fetchVideos();
-  }, [fetchVideos]);
-
-  const createVideo = async (input: CreateDemoVideoInput) => {
-    try {
-      setIsSaving(true);
-      
-      const { data: userData } = await supabase.auth.getUser();
-      
-      // Get max sort_order
-      const maxOrder = videos.length > 0 
-        ? Math.max(...videos.map(v => v.sort_order)) 
-        : -1;
-
-      const { data, error } = await supabase
-        .from("platform_demo_videos")
-        .insert({
-          ...input,
-          sort_order: maxOrder + 1,
-          created_by: userData.user?.id,
-          published_at: input.is_published ? new Date().toISOString() : null,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      
-      toast.success("Demo video added successfully");
-      await fetchVideos();
-      return data as DemoVideo;
-    } catch (error: any) {
-      console.error("Error creating demo video:", error);
-      toast.error(normalizeError(error).message || "Failed to add demo video");
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const updateVideo = async (id: string, updates: Partial<CreateDemoVideoInput>) => {
-    try {
-      setIsSaving(true);
-      
-      const updateData: any = { ...updates };
-      
-      // Set published_at when publishing
-      if (updates.is_published === true) {
-        const video = videos.find(v => v.id === id);
-        if (video && !video.is_published) {
-          updateData.published_at = new Date().toISOString();
-        }
-      }
-
-      const { error } = await supabase
-        .from("platform_demo_videos")
-        .update(updateData)
-        .eq("id", id);
-
-      if (error) throw error;
-      
-      toast.success("Demo video updated");
-      await fetchVideos();
-    } catch (error: any) {
-      console.error("Error updating demo video:", error);
-      toast.error(normalizeError(error).message || "Failed to update demo video");
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const deleteVideo = async (id: string) => {
-    try {
-      setIsSaving(true);
-      
-      const { error } = await supabase
-        .from("platform_demo_videos")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-      
-      toast.success("Demo video deleted");
-      await fetchVideos();
-    } catch (error: any) {
-      console.error("Error deleting demo video:", error);
-      toast.error(normalizeError(error).message || "Failed to delete demo video");
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const reorderVideos = async (reorderedVideos: DemoVideo[]) => {
-    try {
-      setIsSaving(true);
-      
-      // Update sort_order for each video
-      for (let i = 0; i < reorderedVideos.length; i++) {
-        const { error } = await supabase
-          .from("platform_demo_videos")
-          .update({ sort_order: i })
-          .eq("id", reorderedVideos[i].id);
-
-        if (error) throw error;
-      }
-      
-      setVideos(reorderedVideos.map((v, i) => ({ ...v, sort_order: i })));
-      toast.success("Video order updated");
-    } catch (error: any) {
-      console.error("Error reordering videos:", error);
-      toast.error("Failed to reorder videos");
-      await fetchVideos(); // Refresh to get actual order
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const togglePublish = async (id: string) => {
-    const video = videos.find(v => v.id === id);
-    if (!video) return;
-    
-    await updateVideo(id, { is_published: !video.is_published });
-  };
+export function useDemoVideos(_publicOnly = false) {
+  const noop = useCallback(async () => {}, []);
 
   return {
-    videos,
-    isLoading,
-    isSaving,
-    fetchVideos,
-    createVideo,
-    updateVideo,
-    deleteVideo,
-    reorderVideos,
-    togglePublish,
+    videos: NO_VIDEOS,
+    isLoading: false,
+    isSaving: false,
+    fetchVideos: noop,
+    createVideo: async (_input: CreateDemoVideoInput): Promise<DemoVideo | null> => null,
+    updateVideo: async (_id: string, _updates: Partial<CreateDemoVideoInput>) => {},
+    deleteVideo: async (_id: string) => {},
+    reorderVideos: async (_videos: DemoVideo[]) => {},
+    togglePublish: async (_id: string) => {},
   };
 }

@@ -11,4 +11,5 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [ ] M7 — Orphan function purge.
 - [ ] M8 — Linter posture on retained schema.
 - [ ] M9 — Microfinance report gaps.
+- [ ] Resource Center: remove the inert demo-video section (`useDemoVideos` is now a stub; `platform_demo_videos` is dropped).
 - [ ] M10 — Microfinance document gaps.
