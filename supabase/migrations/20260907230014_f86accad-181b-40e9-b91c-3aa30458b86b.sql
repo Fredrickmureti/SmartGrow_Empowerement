@@ -1,0 +1,1 @@
+ALTER FUNCTION public._approval_history_chain() SET search_path = public, extensions;

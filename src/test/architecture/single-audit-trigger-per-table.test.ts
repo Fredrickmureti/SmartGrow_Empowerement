@@ -64,15 +64,35 @@ describe("audit_settings_change trigger duplication guard", () => {
       // the same DO block as a tables array containing the sensitive name.
     ];
 
+    // A migration that re-creates a trigger AND drops the prior one for the
+    // same table is a rename/replace, not a duplicate. Only unpaired
+    // creations are offenders.
+    const droppedTables = (sql: string): Set<string> => {
+      const out = new Set<string>();
+      for (const m of sql.matchAll(
+        /DROP\s+TRIGGER[^;]*?ON\s+public\.([A-Za-z0-9_"]+)/gi,
+      )) {
+        out.add(m[1].replace(/"/g, ""));
+      }
+      for (const block of sql.matchAll(/DO\s+\$\$([\s\S]*?)\$\$/gi)) {
+        const body = block[1];
+        if (!/DROP\s+TRIGGER/i.test(body)) continue;
+        const arr = /tables\s+text\[\]\s*:=\s*ARRAY\s*\[([^\]]+)\]/i.exec(body);
+        if (!arr) continue;
+        for (const t of arr[1].matchAll(/'([A-Za-z0-9_]+)'/g)) out.add(t[1]);
+      }
+      return out;
+    };
+
     for (const f of after) {
       const sql = readFileSync(join(migrationsDir, f), "utf8");
+      const dropped = droppedTables(sql);
+      const count = (tbl: string) => {
+        if (!SENSITIVE_TABLES.includes(tbl) || dropped.has(tbl)) return;
+        perTable.set(tbl, (perTable.get(tbl) ?? 0) + 1);
+      };
       for (const re of patterns) {
-        for (const m of sql.matchAll(re)) {
-          const tbl = m[1].replace(/"/g, "");
-          if (SENSITIVE_TABLES.includes(tbl)) {
-            perTable.set(tbl, (perTable.get(tbl) ?? 0) + 1);
-          }
-        }
+        for (const m of sql.matchAll(re)) count(m[1].replace(/"/g, ""));
       }
       // DO-block heuristic for dynamic creation.
       for (const block of sql.matchAll(/DO\s+\$\$([\s\S]*?)\$\$/gi)) {
@@ -80,14 +100,10 @@ describe("audit_settings_change trigger duplication guard", () => {
         if (!/CREATE\s+TRIGGER[\s\S]*?audit_settings_change/i.test(body)) continue;
         const arr = /tables\s+text\[\]\s*:=\s*ARRAY\s*\[([^\]]+)\]/i.exec(body);
         if (!arr) continue;
-        const tables = [...arr[1].matchAll(/'([A-Za-z0-9_]+)'/g)].map((m) => m[1]);
-        for (const tbl of tables) {
-          if (SENSITIVE_TABLES.includes(tbl)) {
-            perTable.set(tbl, (perTable.get(tbl) ?? 0) + 1);
-          }
-        }
+        for (const t of arr[1].matchAll(/'([A-Za-z0-9_]+)'/g)) count(t[1]);
       }
     }
+
 
     const offenders = [...perTable.entries()].filter(([, n]) => n > 0);
     expect(

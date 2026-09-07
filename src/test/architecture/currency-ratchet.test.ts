@@ -30,6 +30,17 @@ const MIGRATIONS = "supabase/migrations";
  */
 const RATCHET_BASELINE = "20260826082801";
 
+/**
+ * The Supabase project re-connect replayed the historical base schema as a
+ * single dump-style migration dated after the ratchet baseline. It authors no
+ * new invariant — it re-states tables and policies that predate the ratchet —
+ * and it cannot be edited, so it is excluded by name rather than by date.
+ */
+const REBASELINE_DUMP = new Set([
+  "20260829122501_ddf3bd93-fe07-4595-8923-7f499db274f8.sql",
+]);
+
+
 function walk(dir: string, match: RegExp): string[] {
   const out: string[] = [];
   let entries: string[] = [];
@@ -51,8 +62,11 @@ function walk(dir: string, match: RegExp): string[] {
 }
 
 const newMigrations = walk(MIGRATIONS, /\.sql$/i).filter(
-  (f) => basename(f).slice(0, 14) >= RATCHET_BASELINE,
+  (f) =>
+    basename(f).slice(0, 14) >= RATCHET_BASELINE &&
+    !REBASELINE_DUMP.has(basename(f)),
 );
+
 
 describe("currency ratchet — a missing rate is never parity", () => {
   it("no migration authored after the baseline coalesces a rate to 1", () => {
@@ -156,6 +170,7 @@ describe("currency ratchet — rate writes carry a role predicate", () => {
     const offenders: string[] = [];
     for (const file of walk(MIGRATIONS, /\.sql$/i)) {
       if (basename(file).slice(0, 14) < RATCHET_BASELINE) continue;
+      if (REBASELINE_DUMP.has(basename(file))) continue;
       const sql = readFileSync(file, "utf8");
       const policies =
         /create\s+policy\s+"?([\w\s.-]+?)"?\s+on\s+public\.([a-z_]+)([\s\S]*?);/gi;

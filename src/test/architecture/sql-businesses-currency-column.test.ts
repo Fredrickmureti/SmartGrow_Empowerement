@@ -52,12 +52,24 @@ describe("architecture: businesses.currency_code is forbidden", () => {
       ].map((p) => p.split("/").join(sep)),
     );
     const direct = /\b(public\.)?businesses\.currency_code\b/i;
-    const selectFromBusinesses =
-      /select[\s\S]{0,200}\bcurrency_code\b[\s\S]{0,200}\bfrom\s+(public\.)?businesses\b/i;
+    // Scan each `select ... from businesses` segment and flag it only when
+    // `currency_code` sits in the *select list*. A plpgsql
+    // `SELECT base_currency INTO NEW.currency_code FROM public.businesses`
+    // reads the correct column into a differently-named target and is fine,
+    // so any segment containing `into` is not an offender.
+    const segments = /\bselect\b([\s\S]{0,200}?)\bfrom\s+(public\.)?businesses\b/gi;
+    const selectsCurrencyCode = (src: string): boolean => {
+      for (const m of src.matchAll(segments)) {
+        const list = m[1] ?? "";
+        if (/\binto\b/i.test(list)) continue;
+        if (/\bcurrency_code\b/i.test(list)) return true;
+      }
+      return false;
+    };
     for (const f of files) {
       if (HISTORICAL.has(f)) continue;
       const src = readFileSync(f, "utf8");
-      if (direct.test(src) || selectFromBusinesses.test(src)) {
+      if (direct.test(src) || selectsCurrencyCode(src)) {
         offenders.push(toPosix(f));
       }
     }

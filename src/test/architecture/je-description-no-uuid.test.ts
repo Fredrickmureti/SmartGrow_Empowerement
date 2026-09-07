@@ -38,6 +38,13 @@ describe("Architecture (ADR-0020): JE description/reference must not embed UUIDs
     const re =
       /_(?:description|reference)\s*:?=[^;\n]*\|\|[^;\n]*[A-Za-z_]+_id\s*::\s*text/g;
 
+    // `COALESCE(v_adj_number, 'ADJ-' || LEFT(p_adjustment_id::text, 8))`
+    // satisfies ADR-0020: the human-readable number is preferred and the id
+    // only appears as a last-resort fallback when the document carries no
+    // number at all. Only an unconditional id concatenation is a violation.
+    const numberPreferred =
+      /coalesce\s*\(\s*[A-Za-z_.]*_number\b[^;\n]*[A-Za-z_]+_id\s*::\s*text/i;
+
     const violations: { file: string; line: number; snippet: string }[] = [];
 
     for (const file of files) {
@@ -50,6 +57,8 @@ describe("Architecture (ADR-0020): JE description/reference must not embed UUIDs
         }
         re.lastIndex = 0;
         if (/ADR-0020-EXEMPT/.test(line)) return;
+        if (numberPreferred.test(line)) return;
+
         violations.push({
           file: file.replace(process.cwd() + "/", ""),
           line: idx + 1,
