@@ -243,75 +243,72 @@ async function handleConfirmation(req: Request): Promise<Response> {
         ? "paybill"
         : "till";
 
-    let matchedInvoiceId: string | null = null;
-    let matchedContactId: string | null = null;
-    let matchedPosTransactionId: string | null = null;
+    // ── Match the receipt to a loan ────────────────────────────────────
+    // Kenyan PayBill practice: the account/reference field carries the loan
+    // reference, or failing that the client reference. We never guess by
+    // amount — an unmatched receipt goes to the unmatched-receipts queue.
+    let matchedLoanId: string | null = null;
+    let matchedClientId: string | null = null;
     let matchReason: string | null = null;
 
-    if (BillRefNumber) {
-      const { data: invoice } = await supabase
-        .from("invoices")
-        .select("id, contact_id, invoice_number")
-        .eq("organization_id", organizationId)
-        .eq("invoice_number", BillRefNumber)
+    const { data: orgBusinesses } = await supabase
+      .from("businesses")
+      .select("id")
+      .eq("organization_id", organizationId);
+    const businessIds = (orgBusinesses ?? []).map((b: { id: string }) => b.id);
+
+    const ref = typeof BillRefNumber === "string" ? BillRefNumber.trim() : "";
+
+    if (!ref) {
+      matchReason = "NO_BILL_REF";
+    } else if (businessIds.length === 0) {
+      matchReason = "NO_BUSINESS_IN_SCOPE";
+    } else {
+      const OPEN_STATUSES = ["active", "disbursed", "in_arrears", "overdue"];
+
+      const { data: loan } = await supabase
+        .from("mf_loans")
+        .select("id, client_id, loan_number, status")
+        .in("business_id", businessIds)
+        .eq("loan_number", ref)
         .maybeSingle();
 
-      if (invoice) {
-        matchedInvoiceId = invoice.id;
-        matchedContactId = invoice.contact_id;
-        matchReason = "AUTO_INVOICE";
+      if (loan) {
+        matchedLoanId = loan.id;
+        matchedClientId = loan.client_id;
+        matchReason = "AUTO_LOAN_REF";
       } else {
-        const { data: partialMatch } = await supabase
-          .from("invoices")
-          .select("id, contact_id, invoice_number")
-          .eq("organization_id", organizationId)
-          .ilike("invoice_number", `%${BillRefNumber}%`)
-          .limit(1)
+        // Client reference: settle only when the client has exactly one open loan.
+        const { data: client } = await supabase
+          .from("mf_clients")
+          .select("id")
+          .in("business_id", businessIds)
+          .eq("client_number", ref)
           .maybeSingle();
 
-        if (partialMatch) {
-          matchedInvoiceId = partialMatch.id;
-          matchedContactId = partialMatch.contact_id;
-          matchReason = "AUTO_INVOICE";
+        if (!client) {
+          matchReason = "NO_MATCH_FOR_REF";
+        } else {
+          matchedClientId = client.id;
+          const { data: openLoans } = await supabase
+            .from("mf_loans")
+            .select("id")
+            .eq("client_id", client.id)
+            .in("status", OPEN_STATUSES)
+            .limit(5);
+
+          if ((openLoans ?? []).length === 1) {
+            matchedLoanId = openLoans![0].id;
+            matchReason = "AUTO_CLIENT_REF";
+          } else if ((openLoans ?? []).length > 1) {
+            matchReason = "AMBIGUOUS_CLIENT_LOANS";
+          } else {
+            matchReason = "CLIENT_HAS_NO_OPEN_LOAN";
+          }
         }
       }
-    } else {
-      matchReason = "NO_BILL_REF";
     }
 
-    if (!matchedInvoiceId) {
-      const sinceIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      const amt = parseFloat(TransAmount);
-      const { data: openSales } = await supabase
-        .from("pos_transactions")
-        .select("id, total, business_id, organization_id, created_at")
-        .eq("organization_id", organizationId)
-        .in("payment_status", ["pending", "partial"])
-        .gte("created_at", sinceIso)
-        .limit(50);
-
-      const candidates: string[] = [];
-      for (const sale of openSales ?? []) {
-        const { data: paid } = await supabase
-          .from("pos_transaction_payments")
-          .select("amount")
-          .eq("transaction_id", sale.id)
-          .eq("status", "completed");
-        const paidSum = (paid ?? []).reduce((s: number, r: any) => s + Number(r.amount || 0), 0);
-        const remaining = Number(sale.total || 0) - paidSum;
-        if (remaining > 0 && Math.abs(remaining - amt) < 0.01) candidates.push(sale.id);
-      }
-      if (candidates.length === 1) {
-        matchedPosTransactionId = candidates[0];
-        matchReason = "AUTO_POS";
-        console.log("Auto-matched C2B to POS transaction:", matchedPosTransactionId);
-      } else if (candidates.length > 1) {
-        matchReason = "AMBIGUOUS_CANDIDATES";
-        console.log(`Ambiguous POS match (${candidates.length} candidates) — leaving for cashier`);
-      } else {
-        matchReason = "NO_OPEN_SALE";
-      }
-    }
 
     const { data: insertedTx, error: insertError } = await supabase
       .from("mpesa_c2b_transactions")
