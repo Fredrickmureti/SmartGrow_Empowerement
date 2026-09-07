@@ -30,6 +30,17 @@ const MIGRATIONS = "supabase/migrations";
  */
 const RATCHET_BASELINE = "20260826082801";
 
+/**
+ * The Supabase project re-connect replayed the historical base schema as a
+ * single dump-style migration dated after the ratchet baseline. It authors no
+ * new invariant — it re-states tables and policies that predate the ratchet —
+ * and it cannot be edited, so it is excluded by name rather than by date.
+ */
+const REBASELINE_DUMP = new Set([
+  "20260829122501_ddf3bd93-fe07-4595-8923-7f499db274f8.sql",
+]);
+
+
 function walk(dir: string, match: RegExp): string[] {
   const out: string[] = [];
   let entries: string[] = [];
