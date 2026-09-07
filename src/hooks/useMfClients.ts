@@ -59,7 +59,8 @@ export interface MfClient {
 
 export type MfClientInput = Partial<Omit<MfClient, "id" | "business_id" | "created_at" | "updated_at">> & {
   branch_id: string;
-  client_number: string;
+  /** Assigned server-side by the numbering trigger; never sent on create. */
+  client_number?: string;
   full_name: string;
 };
 
