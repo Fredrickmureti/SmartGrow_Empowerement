@@ -12,8 +12,6 @@ import { SummaryPanel } from "@/design-system";
 import { RecordBody } from "./RecordBody";
 import { DocumentActivityPanel, DocumentTotalsPanel } from "./panels";
 import type { DocumentActivityEntry } from "./panels";
-import { DocumentLifecycleStrip } from "./DocumentLifecycleStrip";
-import { DocumentSettlementStrip } from "./DocumentSettlementStrip";
 import { buildTotalsRows } from "./money";
 import { DocumentStatusBadge } from "./documentStatus";
 import { useDocumentActivity } from "./useDocumentActivity";
@@ -62,23 +60,6 @@ export function DocumentWorkspaceBody({
 }) {
   return (
     <>
-      {view.lifecycle && (
-        <>
-          <DocumentLifecycleStrip
-            docType={view.lifecycle.docType}
-            docId={view.lifecycle.docId}
-            dense={dense}
-            className={dense ? "mb-2" : "mb-2"}
-          />
-          <DocumentSettlementStrip
-            docType={view.lifecycle.docType}
-            docId={view.lifecycle.docId}
-            dense={dense}
-            className={dense ? "mb-4" : "mb-6"}
-          />
-        </>
-      )}
-
       <RecordBody
         detailFields={view.detailFields}
         detailsTitle={view.detailsTitle}
