@@ -790,12 +790,11 @@ async function getFinancialContext(
 
 // Build context string for AI with branch awareness
 function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCurrencyContext): string {
-  const { 
-    organization, bankAccounts, recentInvoices, recentExpenses, pendingBills, summary,
-    lowStockProducts, employees, leaveRequests, projects, projectTasks, crmLeads,
-    fixedAssets, posTransactions, estimates, salesOrders, creditNotes, purchaseOrders, accounts
+  const {
+    organization, recentExpenses, summary, employees, fixedAssets, accounts,
+    clients, loans, applications, repayments,
   } = context;
-  
+
   // Extract branch context (stored as internal properties)
   const branches = (context as any)._branches || [];
   const isAdmin = (context as any)._isAdmin || false;
@@ -803,14 +802,13 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
   const currentBranchId = (context as any)._currentBranchId;
   const businessName = (context as any)._businessName;
   const businessId = (context as any)._businessId;
-  
+
   // The workspace currency comes from the canonical resolver
   // (businesses.base_currency). There is no literal fallback anywhere on this
   // path: when it cannot be resolved the model is told it is unknown.
   const cur = currencyCtx.baseCurrency;
 
   const today = new Date().toLocaleDateString();
-  const todayISO = new Date().toISOString().split('T')[0];
 
   let prompt = `\n\n---\n**COMPLETE SYSTEM DATA (as of ${today}):**\n\n`;
 
@@ -840,52 +838,6 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `\n`;
   }
 
-  // ===== BRANCH PERFORMANCE BREAKDOWN (Admin only with multiple branches) =====
-  if (isAdmin && branches.length > 1 && posTransactions.length > 0) {
-    prompt += `## 🏢 Branch Performance Summary\n\n`;
-    
-    // Group POS sales by branch
-    const salesByBranch: Record<string, { today: number; week: number; count: number; name: string }> = {};
-    
-    branches.forEach((branch: any) => {
-      salesByBranch[branch.id] = { today: 0, week: 0, count: 0, name: branch.name };
-    });
-    
-    posTransactions
-      .filter((t: any) => t.payment_status === 'completed')
-      .forEach((t: any) => {
-        const branchId = t.register?.branch_id;
-        if (branchId && salesByBranch[branchId]) {
-          salesByBranch[branchId].week += t.total || 0;
-          salesByBranch[branchId].count += 1;
-          if (t.created_at.startsWith(todayISO)) {
-            salesByBranch[branchId].today += t.total || 0;
-          }
-        }
-      });
-    
-    prompt += `| Branch | Today's Sales | 7-Day Sales | Transactions | Avg Ticket |\n`;
-    prompt += `|--------|---------------|-------------|--------------|------------|\n`;
-    
-    let totalToday = 0;
-    let totalWeek = 0;
-    let totalCount = 0;
-    
-    Object.entries(salesByBranch)
-      .filter(([_, data]) => data.count > 0)
-      .sort((a, b) => b[1].week - a[1].week)
-      .forEach(([_, data]) => {
-        const avgTicket = data.count > 0 ? data.week / data.count : 0;
-        prompt += `| ${data.name} | ${formatCurrency(data.today, cur)} | ${formatCurrency(data.week, cur)} | ${data.count} | ${formatCurrency(avgTicket, cur)} |\n`;
-        totalToday += data.today;
-        totalWeek += data.week;
-        totalCount += data.count;
-      });
-    
-    const totalAvg = totalCount > 0 ? totalWeek / totalCount : 0;
-    prompt += `| **TOTAL** | **${formatCurrency(totalToday, cur)}** | **${formatCurrency(totalWeek, cur)}** | **${totalCount}** | **${formatCurrency(totalAvg, cur)}** |\n\n`;
-  }
-
   // ===== FINANCIAL SUMMARY (ledger-grounded) =====
   // `money()` renders an unavailable read honestly. Nothing here may print a
   // zero that was really a failed query.
@@ -903,16 +855,16 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
 
   prompt += `## 💰 Financial Summary\n`;
   prompt += `- **Total Bank Balance (statement position, all active accounts):** ${money(summary.totalBankBalance, bankPositions)}\n`;
-  prompt += `- **Accounts Receivable (Money owed to you):** ${money(summary.totalReceivables, receivables)}\n`;
+  prompt += `- **Receivables (open items):** ${money(summary.totalReceivables, receivables)}\n`;
   prompt += `- **Overdue Receivables:** ${money(summary.overdueReceivables, receivables)}\n`;
-  prompt += `- **Accounts Payable (Money you owe):** ${money(summary.totalPayables, payables)}\n`;
+  prompt += `- **Payables (money you owe):** ${money(summary.totalPayables, payables)}\n`;
   const netCash = summary.recentRevenue !== null && summary.recentExpenses !== null
     ? summary.recentRevenue - summary.recentExpenses
     : null;
-  prompt += `- **Net Profit (posted GL, last 30 days):** ${money(netCash, ledger)}\n`;
-  prompt += `  - Revenue (posted income accounts): ${money(summary.recentRevenue, ledger)}\n`;
+  prompt += `- **Net Result (posted GL, last 30 days):** ${money(netCash, ledger)}\n`;
+  prompt += `  - Income (posted income accounts, incl. interest & fees): ${money(summary.recentRevenue, ledger)}\n`;
   prompt += `  - Expenses (posted expense accounts): ${money(summary.recentExpenses, ledger)}\n`;
-  prompt += `\n*Sources: cash = \`bank_account_positions\`; revenue/expenses = posted journal entries via \`get_account_movements\`; receivables = \`finance_ar_open_items\`; payables = open bills net of payments and vendor credit notes. These are the same seams the finance reports use.*\n\n`;
+  prompt += `\n*Sources: cash = \`bank_account_positions\`; income/expenses = posted journal entries via \`get_account_movements\`; receivables/payables = the finance open-item seams. These are the same seams the finance reports use.*\n\n`;
 
   // Bank Accounts — per-account positions, with the reconciliation state
   if (bankPositions && !bankPositions.ok) {
@@ -930,163 +882,60 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     prompt += `\n`;
   }
 
-
-  // ===== POS SALES =====
-  prompt += `## 🛒 POS Sales\n`;
-  prompt += `- **Today's POS Sales:** ${formatCurrency(summary.todayPOSSales, cur)}\n`;
-  if (posTransactions.length > 0) {
-    const last7DaysSales = posTransactions
-      .filter((t: any) => t.payment_status === 'completed')
-      .reduce((sum: number, t: any) => sum + (t.total || 0), 0);
-    const completedTxCount = posTransactions.filter((t: any) => t.payment_status === 'completed').length;
-    prompt += `- **Last 7 Days Sales:** ${formatCurrency(last7DaysSales, cur)} (${completedTxCount} transactions)\n`;
-    
-    // Add context about data scope for non-admins
-    if (!isAdmin && branchIds.length > 0) {
-      prompt += `- *(Data filtered to your accessible branch${branchIds.length > 1 ? 'es' : ''})*\n`;
-    }
-  }
-  prompt += `\n`;
-
-  // ===== PRODUCTS & INVENTORY =====
-  prompt += `## 📦 Products & Inventory\n`;
-  prompt += `- **Total Active Products:** ${summary.totalProducts}\n`;
-  prompt += `- **Low Stock Items:** ${summary.lowStockCount}\n`;
-  if (lowStockProducts.length > 0) {
-    prompt += `\n**Low Stock Alert:**\n`;
-    lowStockProducts.slice(0, 10).forEach((p: any) => {
-      prompt += `- ${p.name} (SKU: ${p.sku || 'N/A'}): ${p.stock_quantity ?? 0} units (reorder at ${p.reorder_level || 0})\n`;
-    });
-    if (lowStockProducts.length > 10) {
-      prompt += `  ...and ${lowStockProducts.length - 10} more items\n`;
-    }
-  }
-  prompt += `\n`;
-
-  // ===== OUTSTANDING INVOICES =====
-  const unpaidInvoices = recentInvoices.filter((inv: any) => 
-    ["sent", "overdue", "partial"].includes(inv.status)
-  );
-  if (unpaidInvoices.length > 0) {
-    prompt += `## 📄 Outstanding Invoices (${unpaidInvoices.length} total)\n`;
-    unpaidInvoices.slice(0, 10).forEach((inv: any) => {
-      const outstanding = inv.total - (inv.amount_paid || 0);
-      const contactName = inv.contact?.company || inv.contact?.name || 'Unknown';
-      const isOverdue = inv.status === 'overdue' || new Date(inv.due_date) < new Date();
-      prompt += `- **${inv.invoice_number}** - ${contactName}: ${formatCurrency(outstanding, cur)} due ${inv.due_date}${isOverdue ? ' ⚠️ OVERDUE' : ''}\n`;
-    });
-    if (unpaidInvoices.length > 10) {
-      prompt += `  ...and ${unpaidInvoices.length - 10} more\n`;
-    }
-    prompt += `\n`;
-  }
-
-  // ===== PENDING BILLS =====
-  if (pendingBills.length > 0) {
-    prompt += `## 📑 Bills to Pay (${pendingBills.length} total)\n`;
-    pendingBills.slice(0, 10).forEach((bill: any) => {
-      const outstanding = bill.total - (bill.amount_paid || 0);
-      const vendorName = bill.vendor?.company || bill.vendor?.name || 'Unknown';
-      const isOverdue = bill.status === 'overdue' || new Date(bill.due_date) < new Date();
-      prompt += `- **${bill.bill_number}** - ${vendorName}: ${formatCurrency(outstanding, cur)} due ${bill.due_date}${isOverdue ? ' ⚠️ OVERDUE' : ''}\n`;
-    });
-    if (pendingBills.length > 10) {
-      prompt += `  ...and ${pendingBills.length - 10} more\n`;
-    }
-    prompt += `\n`;
-  }
-
-  // ===== ESTIMATES & SALES ORDERS =====
-  if (estimates.length > 0 || salesOrders.length > 0) {
-    prompt += `## 📋 Estimates & Sales Orders\n`;
-    if (estimates.length > 0) {
-      prompt += `**Pending Estimates (${estimates.length}):**\n`;
-      estimates.slice(0, 5).forEach((est: any) => {
-        const contactName = est.contact?.company || est.contact?.name || 'Unknown';
-        prompt += `- ${est.estimate_number} - ${contactName}: ${formatCurrency(est.total, cur)} (valid until ${est.valid_until})\n`;
-      });
-    }
-    if (salesOrders.length > 0) {
-      prompt += `**Active Sales Orders (${salesOrders.length}):**\n`;
-      salesOrders.slice(0, 5).forEach((so: any) => {
-        const contactName = so.contact?.company || so.contact?.name || 'Unknown';
-        prompt += `- ${so.order_number} - ${contactName}: ${formatCurrency(so.total, cur)} [${so.status}]\n`;
-      });
-    }
-    prompt += `\n`;
-  }
-
-  // ===== PURCHASE ORDERS =====
-  if (purchaseOrders.length > 0) {
-    prompt += `## 🛍️ Purchase Orders (${purchaseOrders.length} pending)\n`;
-    purchaseOrders.slice(0, 5).forEach((po: any) => {
-      const vendorName = po.vendor?.company || po.vendor?.name || 'Unknown';
-      prompt += `- ${po.po_number} - ${vendorName}: ${formatCurrency(po.total, cur)} (expected ${po.expected_delivery_date || 'TBD'})\n`;
-    });
-    prompt += `\n`;
-  }
-
-  // ===== CREDIT NOTES =====
-  if (creditNotes.length > 0) {
-    prompt += `## 📝 Credit Notes (${creditNotes.length} active)\n`;
-    creditNotes.slice(0, 5).forEach((cn: any) => {
-      const contactName = cn.contact?.company || cn.contact?.name || 'Unknown';
-      const remaining = cn.total - (cn.amount_applied || 0);
-      prompt += `- ${cn.credit_note_number} - ${contactName}: ${formatCurrency(remaining, cur)} remaining\n`;
-    });
-    prompt += `\n`;
-  }
-
-  // ===== EMPLOYEES & HR =====
-  prompt += `## 👥 Employees & HR\n`;
-  prompt += `- **Active Employees:** ${summary.totalEmployees}\n`;
-  prompt += `- **Pending Leave Requests:** ${summary.pendingLeaveRequests}\n`;
-  if (leaveRequests.length > 0) {
-    prompt += `\n**Pending Leave Requests:**\n`;
-    leaveRequests.slice(0, 5).forEach((lr: any) => {
-      const empName = lr.employee ? `${lr.employee.first_name} ${lr.employee.last_name}` : 'Unknown';
-      prompt += `- ${empName}: ${lr.leave_type} (${lr.start_date} to ${lr.end_date})\n`;
+  // ===== LOAN PORTFOLIO =====
+  prompt += `## 🏦 Loan Portfolio\n`;
+  prompt += `- **Active Loans:** ${summary.activeLoans ?? 'unavailable'}\n`;
+  prompt += `- **Disbursed Principal (active loans):** ${formatCurrency(summary.activePrincipal ?? 0, cur)}\n`;
+  prompt += `*Outstanding balances are NOT stored on the loan — derive them from the schedule and repayments with the data tools, or point the user to the portfolio report. Never present disbursed principal as an outstanding balance.*\n`;
+  if (loans.length > 0) {
+    prompt += `\n**Most recent loans (${Math.min(loans.length, 10)} of ${loans.length} read):**\n`;
+    loans.slice(0, 10).forEach((l: any) => {
+      prompt += `- **${l.loan_number}** [${l.status}]: principal ${formatRecordMoney(Number(l.principal ?? 0), l.currency_code ?? null, cur)}, ${l.term_installments ?? '?'} × ${l.repayment_frequency ?? 'installments'}, ${l.interest_method ?? 'interest method n/a'} @ ${l.interest_rate ?? '?'}%${l.disbursed_at ? `, disbursed ${String(l.disbursed_at).split('T')[0]}` : ''}\n`;
     });
   }
   prompt += `\n`;
 
-  // ===== PROJECTS & TASKS =====
-  prompt += `## 📊 Projects & Tasks\n`;
-  prompt += `- **Active Projects:** ${summary.activeProjects}\n`;
-  if (projects.length > 0) {
-    prompt += `\n**Active Projects:**\n`;
-    projects.slice(0, 5).forEach((p: any) => {
-      const progress = p.progress || 0;
-      prompt += `- **${p.name}** [${p.status}]: ${progress}% complete, budget ${formatCurrency(p.budget || 0, cur)}, deadline ${p.deadline || 'TBD'}\n`;
-    });
-  }
-  if (projectTasks.length > 0) {
-    prompt += `\n**Pending Tasks (${projectTasks.length}):**\n`;
-    projectTasks.slice(0, 5).forEach((t: any) => {
-      prompt += `- ${t.name} (${t.project?.name || 'No project'}): [${t.priority}] due ${t.due_date || 'TBD'}\n`;
+  // ===== LOAN APPLICATIONS =====
+  prompt += `## 📝 Loan Applications\n`;
+  prompt += `- **Applications in the pipeline (submitted/under review/approved-not-disbursed):** ${summary.pendingApplications ?? 'unavailable'}\n`;
+  if (applications.length > 0) {
+    applications.slice(0, 10).forEach((a: any) => {
+      prompt += `- ${a.application_number} [${a.status}]: requested ${formatCurrency(Number(a.requested_amount ?? 0), cur)}${a.approved_amount ? `, approved ${formatCurrency(Number(a.approved_amount), cur)}` : ''}${a.submitted_at ? ` (submitted ${String(a.submitted_at).split('T')[0]})` : ''}\n`;
     });
   }
   prompt += `\n`;
 
-  // ===== CRM LEADS =====
-  prompt += `## 🎯 CRM & Leads\n`;
-  prompt += `- **Open Leads:** ${summary.openLeads}\n`;
-  if (crmLeads.length > 0) {
-    const pipelineValue = crmLeads.reduce((sum: number, l: any) => sum + ((l.expected_revenue || 0) * (l.probability || 0) / 100), 0);
-    prompt += `- **Weighted Pipeline Value:** ${formatCurrency(pipelineValue, cur)}\n`;
-    prompt += `\n**Top Leads:**\n`;
-    crmLeads.slice(0, 5).forEach((l: any) => {
-      prompt += `- **${l.name}** (${l.email || 'No email'}): ${formatCurrency(l.expected_revenue || 0, cur)} at ${l.probability || 0}% [${l.stage}]\n`;
+  // ===== REPAYMENTS / COLLECTIONS =====
+  prompt += `## 💵 Repayments & Collections\n`;
+  prompt += `- **Collected in the last 30 days (non-reversed receipts):** ${formatCurrency(summary.repaymentsLast30 ?? 0, cur)} across ${repayments.length} receipt(s)\n`;
+  if (repayments.length > 0) {
+    prompt += `\n**Latest receipts:**\n`;
+    repayments.slice(0, 10).forEach((r: any) => {
+      prompt += `- ${r.receipt_number || r.id} on ${r.paid_on}: ${formatCurrency(Number(r.amount ?? 0), cur)} via ${r.method || 'n/a'} [${r.status}]\n`;
     });
   }
   prompt += `\n`;
+
+  // ===== CLIENTS =====
+  prompt += `## 👤 Borrowers\n`;
+  prompt += `- **Active Clients:** ${summary.totalClients ?? 'unavailable'}\n`;
+  if (clients.length > 0) {
+    prompt += `\n**Recently onboarded:**\n`;
+    clients.slice(0, 8).forEach((c: any) => {
+      prompt += `- ${c.full_name} (${c.client_number}) [${c.status}]${c.joined_on ? `, joined ${c.joined_on}` : ''}, completed cycles: ${c.completed_cycles ?? 0}\n`;
+    });
+  }
+  prompt += `\n`;
+
+  // ===== STAFF =====
+  prompt += `## 👥 Staff\n`;
+  prompt += `- **Active Employees:** ${summary.totalEmployees}\n\n`;
 
   // ===== FIXED ASSETS =====
   prompt += `## 🏢 Fixed Assets\n`;
   prompt += `- **Total Asset Value:** ${formatCurrency(summary.totalAssetValue, cur)}\n`;
   if (fixedAssets.length > 0) {
     prompt += `- **Active Assets:** ${fixedAssets.length}\n`;
-    prompt += `\n**Top Assets:**\n`;
     fixedAssets.slice(0, 5).forEach((a: any) => {
       prompt += `- ${a.name} (${a.asset_number}): ${formatCurrency(a.current_value, cur)} (purchased ${formatCurrency(a.purchase_price, cur)})\n`;
     });
@@ -1100,7 +949,7 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
       const category = exp.category?.name || 'Uncategorized';
       expensesByCategory[category] = (expensesByCategory[category] || 0) + exp.amount;
     });
-    
+
     prompt += `## 💸 Expenses by Category (Last 30 days)\n`;
     Object.entries(expensesByCategory)
       .sort((a, b) => b[1] - a[1])
@@ -1112,9 +961,6 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
   }
 
   // ===== ACCOUNT BALANCES BY TYPE (posted ledger, ALL accounts) =====
-  // Previously summed a 50-row page of a denormalised column, which silently
-  // truncated the totals. Now derived from posted journal entries over the
-  // complete chart of accounts.
   prompt += `## 📒 Account Balances by Type (posted journal entries, all accounts)\n`;
   if (!ledger || !ledger.ok) {
     prompt += `UNAVAILABLE — the ledger could not be read (${ledger && !ledger.ok ? ledger.reason : 'no ledger read'}). Do NOT state balances by type.\n\n`;
@@ -1129,17 +975,19 @@ function buildContextPrompt(context: FinancialContext, currencyCtx: WorkspaceCur
     }
     prompt += `*Covers all ${ledger.value.accountCount} accounts in the chart, not a sample.*\n\n`;
   }
-
+  if (accounts.length > 0) {
+    prompt += `*Chart of accounts sample available: ${accounts.length} active account(s) read.*\n\n`;
+  }
 
   prompt += `---\n\n**ANSWERING RULES (non-negotiable):**\n`;
   prompt += `1. Quote ONLY figures present above or returned by a data tool. Never estimate, infer or carry a number over from a previous answer.\n`;
   prompt += `2. If a figure is marked UNAVAILABLE, say plainly that it could not be read and suggest where the user can see it. Never substitute 0.\n`;
   prompt += `3. A zero is only a zero when it is stated as a figure above — a missing section is not evidence of zero.\n`;
-  prompt += `4. Name the basis when it matters (statement position vs GL balance, posted vs draft) so the user can reconcile your answer with the reports.\n`;
+  prompt += `4. Name the basis when it matters (statement position vs GL balance, disbursed principal vs outstanding balance, posted vs draft) so the user can reconcile your answer with the reports.\n`;
 
-  
   return prompt;
 }
+
 
 function formatCurrency(amount: number, currency: string | null): string {
   // CRITICAL: We render the ISO currency CODE explicitly (e.g. "KES 1,234.50")
@@ -2222,17 +2070,14 @@ serve(async (req) => {
       systemPrompt += buildContextPrompt(financialContext, currencyCtx);
     }
 
-    // ── Inject route catalog + action-block protocol + payroll diagnostics
-    //    so the assistant can emit verified, actionable buttons.
+    // ── Inject route catalog + action-block protocol so the assistant can
+    //    emit verified, actionable buttons.
     if (type === "chat") {
       systemPrompt += "\n\n" + ROUTE_CATALOG_PROMPT;
       systemPrompt += "\n\n" + ACTION_BLOCK_PROTOCOL_PROMPT;
       systemPrompt += "\n\n" + DATA_TOOLS_PROMPT;
-      if (organizationId) {
-        const diag = await buildPayrollDiagnostics(supabaseClient, organizationId, businessId);
-        if (diag) systemPrompt += "\n\n" + diag;
-      }
     }
+
     
     let aiMessages: Array<Record<string, any>> = [
       { role: "system", content: systemPrompt }
