@@ -372,13 +372,22 @@ export function MpesaC2BProviderCard() {
                 </p>
               </div>
               <div className="p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium">Business Short Code</p>
+                <p className="text-sm font-medium">PayBill Number</p>
                 <p className="text-sm text-muted-foreground font-mono">
                   {(c2bConfig?.config as MpesaC2BConfig)?.business_short_code || "Not set"}
                 </p>
               </div>
             </div>
 
+            {c2bConfig?.callback_url && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">Callback URL</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">
+                      {c2bConfig.callback_url}
+                    </p>
+                  </div>
                   <Button variant="ghost" size="icon" onClick={handleCopyCallback}>
                     <Copy className="h-4 w-4" />
                   </Button>
