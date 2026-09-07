@@ -116,7 +116,7 @@ export interface WorkingContext {
 }
 
 interface AIRequest {
-  type: "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions" | "email_assist" | "match_transactions" | "document_text";
+  type: "categorize_expense" | "financial_insights" | "chat" | "suggest_actions" | "email_assist";
   data?: Record<string, any>;
   messages?: Array<{ role: string; content: string }>;
   organizationId?: string;
