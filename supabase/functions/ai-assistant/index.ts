@@ -1561,11 +1561,6 @@ serve(async (req) => {
         content: data.prompt 
       });
     } else if (data) {
-      aiMessages.push({
-        role: "user",
-        content: `Please analyze the following data:\n\n${JSON.stringify(data, null, 2)}`
-      });
-    } else if (data) {
       aiMessages.push({ 
         role: "user", 
         content: `Please analyze the following data:\n\n${JSON.stringify(data, null, 2)}` 
