@@ -12,7 +12,7 @@ import {
 import { deriveWorkingContext, type ScopeMode } from "@/lib/ai/workingContext";
 import { useAIConversation } from "@/hooks/useAIConversation";
 
-type AIRequestType = "categorize_expense" | "analyze_invoice" | "financial_insights" | "chat" | "suggest_actions";
+type AIRequestType = "categorize_expense" | "financial_insights" | "chat" | "suggest_actions";
 
 export interface Message {
   role: "user" | "assistant";
