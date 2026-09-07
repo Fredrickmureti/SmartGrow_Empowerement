@@ -48,8 +48,12 @@ export interface ToolScope {
 interface TableSpec {
   /** Columns the model may project and filter on. */
   columns: string[];
-  /** Column holding the organization id (always enforced). */
-  orgColumn: string;
+  /**
+   * Column holding the organization id, when the table carries one. Purely
+   * business-scoped tables (the microfinance chain) omit it and are narrowed by
+   * `businessColumn` against the caller's permitted businesses instead.
+   */
+  orgColumn?: string;
   /** Column holding the business id, when the table is business-scoped. */
   businessColumn?: string;
   /** Column holding the branch id, for non-admin narrowing. */
@@ -59,18 +63,39 @@ interface TableSpec {
 }
 
 export const DATA_TABLES: Record<string, TableSpec> = {
-  invoices: {
-    columns: ["id", "invoice_number", "status", "subtotal", "tax_amount", "total", "amount_paid", "currency", "issue_date", "due_date", "contact_id", "business_id", "created_at"],
-    orgColumn: "organization_id",
+  // ─── Microfinance core ────────────────────────────────────────────────────
+  mf_clients: {
+    columns: ["id", "client_number", "full_name", "national_id", "gender", "phone", "email", "occupation", "business_type", "business_location", "physical_address", "loan_officer_id", "joined_on", "status", "completed_cycles", "branch_id", "business_id", "created_at"],
     businessColumn: "business_id",
-    description: "Customer invoices (AR). `total`/`amount_paid` are in `currency`.",
+    branchColumn: "branch_id",
+    description: "Microfinance borrowers. `status` covers the client lifecycle; `completed_cycles` is how many loan cycles they have finished. Never project identity document paths.",
   },
-  bills: {
-    columns: ["id", "bill_number", "status", "subtotal", "tax_amount", "total", "amount_paid", "currency", "bill_date", "due_date", "vendor_id", "voided_at", "business_id", "created_at"],
-    orgColumn: "organization_id",
+  mf_groups: {
+    columns: ["id", "group_number", "name", "loan_officer_id", "meeting_day", "meeting_time", "meeting_place", "formed_on", "status", "branch_id", "business_id", "created_at"],
     businessColumn: "business_id",
-    description: "Supplier bills (AP).",
+    branchColumn: "branch_id",
+    description: "Borrower groups (group lending) and their meeting schedule.",
   },
+  mf_loan_applications: {
+    columns: ["id", "application_number", "client_id", "group_id", "product_id", "loan_officer_id", "requested_amount", "requested_term_installments", "purpose", "status", "submitted_at", "approved_amount", "approved_term_installments", "decision_at", "decision_notes", "rejection_reason", "branch_id", "business_id", "created_at"],
+    businessColumn: "business_id",
+    branchColumn: "branch_id",
+    description: "Loan applications and their approval decisions. Requested vs approved amounts may differ — quote the one the question asks for.",
+  },
+  mf_loans: {
+    columns: ["id", "loan_number", "application_id", "client_id", "group_id", "product_id", "loan_officer_id", "currency_code", "principal", "term_installments", "repayment_frequency", "interest_method", "interest_rate", "interest_rate_period", "grace_period_installments", "penalty_rate", "penalty_basis", "expected_disbursement_date", "first_installment_date", "status", "disbursed_at", "closed_at", "branch_id", "business_id", "created_at"],
+    businessColumn: "business_id",
+    branchColumn: "branch_id",
+    description: "The loan book. `principal` is the disbursed/approved principal in `currency_code`; outstanding balances are derived from the schedule and repayments, never stored here.",
+  },
+  mf_repayments: {
+    columns: ["id", "receipt_number", "loan_id", "client_id", "batch_id", "paid_on", "amount", "method", "reference", "status", "reversal_reason", "reversed_at", "received_by", "branch_id", "business_id", "created_at"],
+    businessColumn: "business_id",
+    branchColumn: "branch_id",
+    description: "Repayment receipts against loans. Reversed receipts keep a row — exclude `status = 'reversed'` when totalling collections.",
+  },
+
+  // ─── Finance / accounting ─────────────────────────────────────────────────
   expenses: {
     columns: ["id", "description", "amount", "currency", "expense_date", "status", "category_id", "vendor_id", "business_id", "created_at"],
     orgColumn: "organization_id",
@@ -81,207 +106,20 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     columns: ["id", "amount", "payment_date", "payment_method", "reference", "receipt_number", "status", "contact_id", "outstanding_amount", "applied_amount", "business_id", "created_at"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Customer payments received, in the workspace base currency. Allocation to invoices lives in payment_allocations, not here.",
+    description: "Payments recorded in the workspace base currency. Loan repayments live in mf_repayments, not here.",
   },
-  bank_accounts: {
-    // NOTE: this table stores no running balance column at all. A balance is a
-    // projection (`bank_account_positions`), never a stored column — the
-    // assistant's snapshot already carries the positions.
-
-    columns: ["id", "name", "bank_name", "account_number", "currency", "opening_balance", "bank_reported_balance", "bank_balance_as_of", "is_primary", "is_active", "lifecycle_status", "business_id"],
+  accounts: {
+    columns: ["id", "code", "name", "account_type", "detail_type", "is_header", "is_active", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Bank account master data in the account's own `currency`. This table holds NO current balance: `opening_balance` is the day-one figure and `bank_reported_balance` is the bank's own last reported figure as at `bank_balance_as_of`. For an actual cash position use the Bank Accounts section of the snapshot, which comes from the `bank_account_positions` projection.",
+    description: "Chart of accounts (structure only). Do NOT derive balances here — account balances come from posted journal entries and are already summarised in the snapshot.",
   },
-
-  bank_transactions: {
-    columns: ["id", "bank_account_id", "transaction_date", "posting_date", "description", "reference", "amount", "transaction_type", "is_reconciled", "reconciled_at", "lifecycle_status", "original_currency", "original_amount", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Bank statement lines.",
-  },
-  contacts: {
-    columns: ["id", "name", "email", "phone", "type", "is_company", "default_currency", "credit_limit", "credit_hold", "is_active", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Customers, suppliers and other parties.",
-  },
-  products: {
-    // Physical columns. There is no `selling_price`/`quantity_on_hand`/`currency`
-    // on this table — asking for them made every product read fail.
-    columns: [
-      "id", "name", "sku", "type", "unit_price", "cost_price", "tax_rate",
-      "stock_quantity", "reorder_level", "reorder_quantity", "track_inventory",
-      "is_lot_tracked", "is_expiry_tracked", "is_serial_tracked", "expiry_alert_days",
-      "requires_qc", "status", "category_id", "base_uom_id", "sales_uom_id",
-      "purchase_uom_id", "is_active", "business_id", "created_at", "updated_at",
-    ],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description:
-      "Product catalogue. `stock_quantity` is the org-wide on-hand in the product's BASE unit of measure; per-warehouse on-hand lives in `warehouse_stock` and per-location in `stock_quants`. `cost_price` is the unit cost used for valuation. Prices are in the business base currency.",
-  },
-  product_categories: {
-    columns: ["id", "name", "description", "parent_id", "is_active", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Product categories (hierarchical via parent_id).",
-  },
-  product_packaging: {
-    columns: ["id", "product_id", "name", "qty_in_base_uom", "is_purchase_default", "is_sales_default", "is_shipping_unit", "parent_packaging_id", "qty_in_parent", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description:
-      "Alternate packs per product (e.g. 'Case of 12'). `qty_in_base_uom` is the conversion factor to the product's base unit. Never invent a pack factor — read it here.",
-  },
-  units_of_measure: {
-    columns: ["id", "code", "name", "category_id", "factor_to_reference", "rounding", "uom_type", "is_active", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Units of measure. Join `products.base_uom_id` here to name the stocking unit.",
-  },
-  uom_categories: {
-    columns: ["id", "name", "dimension", "reference_uom_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "UoM categories; conversion is only valid inside one category.",
-  },
-  warehouses: {
-    columns: ["id", "code", "name", "city", "country", "is_default", "is_active", "is_in_transit", "branch_id", "business_id"],
+  journal_entries: {
+    columns: ["id", "entry_number", "entry_date", "status", "description", "reference", "source_module", "currency", "total_debit", "total_credit", "posted_at", "branch_id", "business_id", "created_at"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
     branchColumn: "branch_id",
-    description: "Warehouses / stock sites.",
-  },
-  stock_locations: {
-    columns: ["id", "code", "name", "warehouse_id", "parent_location_id", "location_type", "usage", "is_active", "is_blocked", "branch_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Bins / locations inside a warehouse.",
-  },
-  warehouse_stock: {
-    columns: ["id", "warehouse_id", "product_id", "quantity", "reserved_quantity", "average_cost", "reorder_level", "reorder_quantity", "bin_location", "last_counted_at", "branch_id", "business_id", "updated_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "On-hand per product per warehouse, in the product's base unit. `average_cost` is the moving average unit cost for valuation.",
-  },
-  stock_quants: {
-    columns: ["id", "product_id", "location_id", "lot_number", "quantity", "reserved_quantity", "branch_id", "business_id", "updated_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Authoritative on-hand per product/location/lot (base units). `reserved_quantity` is derived — available = quantity - reserved_quantity.",
-  },
-  stock_lots: {
-    columns: ["id", "product_id", "lot_number", "serial_number", "manufacture_date", "expiry_date", "supplier_id", "goods_receipt_id", "notes", "is_active", "business_id", "created_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Lot / batch register with expiry dates. Quantities per lot live in `warehouse_stock_lots` and `stock_quants`.",
-  },
-  warehouse_stock_lots: {
-    columns: ["id", "warehouse_id", "product_id", "lot_id", "quantity", "reserved_quantity", "business_id", "updated_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Quantity on hand per lot per warehouse.",
-  },
-  stock_serials: {
-    columns: ["id", "product_id", "serial_number", "lot_number", "status", "current_warehouse_id", "current_location_id", "received_at", "shipped_at", "branch_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Serial-number register for serial-tracked products.",
-  },
-  stock_movements: {
-    columns: ["id", "product_id", "movement_type", "quantity", "unit_cost", "reference_type", "reference_id", "movement_date", "notes", "warehouse_id", "lot_number", "serial_number", "display_quantity", "uom_snapshot_pack_name", "uom_snapshot_factor", "uom_snapshot_base_code", "source_location_id", "destination_location_id", "branch_id", "business_id", "created_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Stock ledger: every in/out movement in base units. `display_quantity` + `uom_snapshot_pack_name` record what the operator typed.",
-  },
-  stock_reservations: {
-    columns: ["id", "product_id", "warehouse_id", "location_id", "lot_number", "quantity", "quantity_consumed", "status", "source_type", "source_id", "expires_at", "released_at", "branch_id", "business_id", "created_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Soft reservations against stock (orders, picks).",
-  },
-  stock_adjustments: {
-    columns: ["id", "adjustment_number", "adjustment_date", "adjustment_type", "reason", "notes", "status", "warehouse_id", "approved_at", "branch_id", "business_id", "created_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Stock adjustment headers (counts, write-offs, corrections).",
-  },
-  stock_transfers: {
-    columns: ["id", "transfer_number", "from_warehouse_id", "to_warehouse_id", "status", "transfer_date", "expected_arrival_date", "actual_arrival_date", "notes", "business_id", "created_at"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Inter-warehouse transfers.",
-  },
-  product_reorder_rules: {
-    columns: ["id", "product_id", "min_quantity", "max_quantity", "warning_threshold", "critical_threshold", "safety_stock", "reorder_quantity", "lead_time_days", "preferred_supplier_id", "auto_create_po", "is_active", "branch_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Per-product replenishment rules.",
-  },
-
-  employees: {
-    columns: ["id", "employee_number", "first_name", "last_name", "email", "work_email", "department_id", "job_position_id", "employment_type", "lifecycle_status", "is_active", "hire_date", "termination_date", "branch_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    branchColumn: "branch_id",
-    description: "Employee register. Never project salary or bank details here.",
-  },
-  leave_requests: {
-    columns: ["id", "employee_id", "leave_type_id", "request_number", "start_date", "end_date", "days_requested", "status", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Leave requests.",
-  },
-  projects: {
-    columns: ["id", "project_number", "name", "status", "priority", "budget", "currency", "start_date", "end_date", "spent_hours", "allocated_hours", "is_active", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Projects and their budgets.",
-  },
-  project_tasks: {
-    columns: ["id", "task_number", "name", "project_id", "stage_id", "priority", "deadline", "is_done", "is_blocked", "progress", "is_active", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Project tasks.",
-  },
-  crm_leads: {
-    columns: ["id", "lead_number", "name", "email", "stage_id", "expected_revenue", "probability", "expected_close_date", "won_at", "lost_at", "is_active", "created_at", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "CRM pipeline.",
-  },
-  estimates: {
-    columns: ["id", "estimate_number", "status", "total", "currency", "issue_date", "expiry_date", "contact_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Quotes / estimates.",
-  },
-  sales_orders: {
-    columns: ["id", "so_number", "status", "total", "currency", "order_date", "expected_date", "contact_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Sales orders.",
-  },
-  purchase_orders: {
-    columns: ["id", "po_number", "status", "total", "currency", "order_date", "expected_date", "vendor_id", "billing_status", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Purchase orders.",
-  },
-  credit_notes: {
-    columns: ["id", "credit_note_number", "status", "total", "amount_applied", "currency", "issue_date", "contact_id", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Customer credit notes.",
+    description: "Journal entry headers. Only `status = 'posted'` entries affect the ledger; drafts must never be quoted as balances.",
   },
   fixed_assets: {
     columns: ["id", "name", "asset_number", "purchase_price", "accumulated_depreciation", "book_value", "status", "purchase_date", "disposal_date", "business_id"],
@@ -289,11 +127,43 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     businessColumn: "business_id",
     description: "Fixed asset register.",
   },
-  accounts: {
-    columns: ["id", "code", "name", "account_type", "detail_type", "is_header", "is_active", "business_id"],
+
+  // ─── Treasury ─────────────────────────────────────────────────────────────
+  bank_accounts: {
+    // NOTE: this table stores no running balance column at all. A balance is a
+    // projection (`bank_account_positions`), never a stored column — the
+    // assistant's snapshot already carries the positions.
+    columns: ["id", "name", "bank_name", "account_number", "currency", "opening_balance", "bank_reported_balance", "bank_balance_as_of", "is_primary", "is_active", "lifecycle_status", "business_id"],
     orgColumn: "organization_id",
     businessColumn: "business_id",
-    description: "Chart of accounts (structure only). Do NOT derive balances here — account balances come from posted journal entries and are already summarised in the snapshot.",
+    description: "Bank account master data in the account's own `currency`. This table holds NO current balance: `opening_balance` is the day-one figure and `bank_reported_balance` is the bank's own last reported figure as at `bank_balance_as_of`. For an actual cash position use the Bank Accounts section of the snapshot, which comes from the `bank_account_positions` projection.",
+  },
+  bank_transactions: {
+    columns: ["id", "bank_account_id", "transaction_date", "posting_date", "description", "reference", "amount", "transaction_type", "is_reconciled", "reconciled_at", "lifecycle_status", "original_currency", "original_amount", "business_id"],
+    orgColumn: "organization_id",
+    businessColumn: "business_id",
+    description: "Bank statement lines.",
+  },
+  exchange_rates: {
+    columns: ["id", "from_currency", "to_currency", "rate", "effective_date", "source", "business_id"],
+    orgColumn: "organization_id",
+    businessColumn: "business_id",
+    description: "Tenant rate book. Use this instead of guessing a conversion — never invent a rate.",
+  },
+
+  // ─── Parties, people, organisation ────────────────────────────────────────
+  contacts: {
+    columns: ["id", "name", "email", "phone", "type", "is_company", "default_currency", "is_active", "business_id"],
+    orgColumn: "organization_id",
+    businessColumn: "business_id",
+    description: "Suppliers, service providers and other non-borrower parties. Borrowers live in mf_clients.",
+  },
+  employees: {
+    columns: ["id", "employee_number", "first_name", "last_name", "email", "work_email", "department_id", "job_position_id", "employment_type", "lifecycle_status", "is_active", "hire_date", "termination_date", "branch_id", "business_id"],
+    orgColumn: "organization_id",
+    businessColumn: "business_id",
+    branchColumn: "branch_id",
+    description: "Staff register (loan officers, tellers, back office). Never project salary or bank details here.",
   },
   branches: {
     columns: ["id", "name", "code", "is_active", "business_id"],
@@ -306,12 +176,6 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     orgColumn: "organization_id",
     description: "Businesses in this organization, each with its own base currency.",
   },
-  exchange_rates: {
-    columns: ["id", "from_currency", "to_currency", "rate", "effective_date", "source", "business_id"],
-    orgColumn: "organization_id",
-    businessColumn: "business_id",
-    description: "Tenant rate book. Use this instead of guessing a conversion — never invent a rate.",
-  },
   business_active_currencies: {
     columns: ["id", "business_id", "currency_code", "is_enabled"],
     orgColumn: "organization_id",
@@ -319,6 +183,7 @@ export const DATA_TABLES: Record<string, TableSpec> = {
     description: "Currencies switched on for transacting.",
   },
 };
+
 
 const OPS = ["eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "in", "is_null", "not_null"] as const;
 type Op = typeof OPS[number];
