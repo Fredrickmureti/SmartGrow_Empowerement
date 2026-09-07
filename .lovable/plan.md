@@ -226,5 +226,12 @@ Each wave is independently shippable and reversible.
 - Remaining `get_next_*_number` functions (`invoice`, `estimate`, `credit_note`, `proforma`, `so`, `sales_return`, `receipt`, `expense`, `delivery`, `document`, `employee`, `asset`, `opening_stock`, `journal_entry`) all still have DB callers and/or app callers — each needs its consumer retired first.
 
 ### Next action
-Start the delivery-notes/commercial-document retirement wave: retire the `delivery_notes` FKs into `sales_orders`, then the 32 dependent DB functions, then the tables.
 
+Here's where things stand.
+
+Fixed this turn
+
+The build error is resolved: the document view no longer imports the two lineage strips that were removed with the sales paperwork.
+The audit-log "Clear All" dialog now mounts properly, and two out-of-date code checks were corrected. The project type-checks cleanly.
+Background database routines: the automation notifier used by clients, staff and expense records was cleaned up (it also had an old hardcoded link to a previous project, now removed); three unused sales-lineage reports were retired; and the "preview what a company reset would delete" routine was rebuilt around the record types this system actually has.
+Still outstanding Seven routines still mention removed tables and would fail if called — none are used by the app today: the company base-currency readiness/change pair, the contact-deletion dependency check, the FX rate coverage report, the sample-data counter, and the reversal-preview helper. Beyond those, a wider sweep found several dozen more orphaned invoice/purchase-order routines inherited from the old ERP; that deserves its own dedicated clean-up wave rather than piecemeal edits. Five remaining check failures are historical migration records and are safe to leave as they are.
