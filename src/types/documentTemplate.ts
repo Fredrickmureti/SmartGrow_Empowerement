@@ -220,10 +220,9 @@ export const DEFAULT_TEMPLATE: DocumentTemplateInput = {
  * Document type labels
  */
 export const DOCUMENT_TYPE_LABELS: Record<DocumentTemplateType, string> = {
-  invoice: 'Invoice',
-  estimate: 'Estimate',
-  proforma: 'Proforma Invoice',
-  credit_note: 'Credit Note',
-  receipt: 'Receipt',
-  purchase_order: 'Purchase Order',
+  loan_agreement: 'Loan Agreement',
+  repayment_schedule: 'Repayment Schedule',
+  loan_statement: 'Loan Statement',
+  client_statement: 'Client Statement',
+  loan_payment_receipt: 'Repayment Receipt',
 };
