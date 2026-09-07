@@ -75,8 +75,6 @@ export interface DocumentRecordView {
    * e-signature, a conversion timestamp). Merged into the audit feed.
    */
   activityExtra?: DocumentActivityEntry[];
-  /** Order-to-cash traversal anchor. Omit for non-lifecycle documents. */
-  lifecycle?: { docType: LifecycleDocType; docId: string };
   /** Additional right-rail panels. */
   extraAside?: ReactNode;
 }
