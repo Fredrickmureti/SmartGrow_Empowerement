@@ -29,7 +29,6 @@ export type DocumentKind =
   | "proforma"
   | "credit_note"
   | "customer_payment"
-  | "recurring_invoice"
   | "statement"
   | "customer"
   | "bill"
