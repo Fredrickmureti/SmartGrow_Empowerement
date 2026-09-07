@@ -221,3 +221,66 @@ Here's where the governance and settings cleanup stands.
 Done in this pass: the governed-action list now includes the lending actions (approve, disburse, restructure, write-off, repayment reversal), the expense workflow actions and app-access grants, with matching record pickers for loan applications, loans, repayments and access grants; the leftover ERP wording is gone from Branch Operations, Workspace Settings, Access Groups and the branch inherited-values panel (invoice/estimate/bill prefixes removed, imports reworded to client and loan data, action tooltips now describe loan approvals, postings, disbursements and portfolio exports). Type checks pass and the governance/approval tests are green.
 
 Remaining: I wrote a new parity test file but hadn't run it yet, and the signed-in walk of the Company, Workspace and Governance settings tabs plus the self-approval refusal checks (Wave G-5) are still outstanding.
+---
+
+## Wave S-3 — Documents & communications settings vocabulary (logged 2026-09-07)
+
+Re-verified now, so the next agent does not repeat it:
+
+- `governance_action_registry` parity is **green**: `governance-action-registry-parity`
+  and `governance-single-engine` both pass (8 tests). The catalogue/table mirror is
+  no longer an open item. **FACT**
+- `permission_groups` holds exactly 7 system groups — Institution Admin, Branch
+  Manager, Loan Officer, Credit Analyst, Cashier / Teller, Accountant, Auditor.
+  No ERP group (HR Manager, Payroll Admin, Attendance Officer, Internal User)
+  remains. Access-group seeding is **done**; do not re-audit it. **FACT**
+- `src/lib/permissions.ts` mentions the inherited ERP permissions only in a
+  header comment; no ERP permission literals remain. **FACT**
+
+Still ERP-shaped, all presentation/config surfaces inside Settings (evidence:
+grep hits recorded below):
+
+1. `src/types/documentTemplate.ts` — `DocumentTemplateType` is
+   `invoice | estimate | proforma | credit_note | receipt | purchase_order`, with
+   matching `DOCUMENT_TYPE_LABELS`. Both `document_templates` and
+   `email_templates` are **empty tables**, so the type set can be narrowed with
+   no data migration. Target set: `receipt` (repayment receipt),
+   `statement` (client/loan statement), `schedule` (repayment schedule),
+   `disbursement_voucher`. Confirm against the document engine's registered
+   artifact kinds before renaming — the renderer, not this file, is authoritative.
+2. `src/components/settings/DocumentTemplateSettings.tsx` — tabs and the
+   `["invoice","estimate","proforma","credit_note"]` array (lines ~55, 76,
+   137-167) follow whatever set (1) settles on.
+3. `src/components/settings/EmailTemplateEditor.tsx` — template keys
+   `invoice_sent`, `estimate_sent`, `invoice_overdue` and the
+   `{{invoice_number}}` / `{{estimate_number}}` sample tokens (lines 36-120).
+   Replace with `receipt_sent`, `statement_sent`, `repayment_overdue` and
+   `{{receipt_number}}` / `{{loan_number}}` / `{{amount_due}}`.
+4. `src/components/settings/PaymentMethodsSettings.tsx` — the `EXPECTED_TYPES`
+   guard at line 121 lists eight ERP document types; the copy at 290/307 says
+   "invoices, sale orders, proforma invoices". This array is a runtime guard,
+   so narrow it in the same commit as (1) or the guard will reject valid rows.
+5. `src/components/settings/AddPaymentMethodDialog.tsx` line 287,
+   `src/components/settings/PaymentGatewaySettings.tsx` lines 111/266,
+   `src/components/settings/BusinessLogoUpload.tsx` lines 8/255,
+   `src/components/settings/MpesaC2BProviderCard.tsx` line 257,
+   `src/pages/settings/CompanySettings.tsx` line 311,
+   `src/pages/settings/UserProfilePage.tsx` line 5,
+   `src/components/settings/AppAccessApprovalsInbox.tsx` line 272,
+   `src/components/governance/GovernedEntityPicker.tsx` line 6 — pure copy /
+   comments. Reword to receipts, statements and repayments; M-Pesa C2B matches
+   to loan repayments, not invoices.
+
+Order: (1) → (4) → (2) → (3) → (5). Typecheck after (1)+(4) together, since the
+type narrowing and the guard array must land in the same step. No migration is
+required in this wave.
+
+## Wave G-5 — Verification (still outstanding, unchanged)
+
+Signed in as `fredrickmureti612@gmail.com`: walk Company and Workspace settings
+tabs plus Settings → Governance and confirm no ERP word remains on screen; then
+the self-approval refusals (payment and loan approval must fail with
+`GOV_SELF_ACTION` and write an `audit_logs` row), Loan Officer cannot approve or
+disburse, Branch Manager cannot act on another branch's loan.
+
+Run G-5 only after S-3, otherwise the settings walk will re-find the same wording.
