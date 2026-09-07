@@ -799,45 +799,16 @@ Return JSON with structure:
   ]
 }`,
 
-  email_assist: `You are an expert business email writer. Your task is to improve or rewrite email messages for business documents like invoices, estimates, and quotes.
+  email_assist: `You are an expert business email writer for a Kenyan microfinance institution. Your task is to improve or rewrite messages that accompany lending documents (loan agreements, repayment schedules, loan and client statements, repayment receipts, repayment reminders).
 
 Rules:
 - Maintain the same core information and intent
-- Keep the message professional and appropriate for business communication
+- Keep the message professional, respectful and appropriate for a borrower
 - Output ONLY the improved email text, nothing else
 - Do not include explanations or commentary
-- Preserve any specific amounts, dates, or reference numbers mentioned`,
+- Preserve any specific amounts, dates, loan/receipt numbers mentioned`,
 
-  match_transactions: `You are an expert bank reconciliation AI assistant. Your task is to analyze bank transactions and match them with invoices, bills, or expenses.
 
-For each bank transaction, analyze:
-1. Transaction description and reference
-2. Amount (positive = credit/income, negative = debit/expense)
-3. Transaction date
-
-Compare against the provided list of pending invoices (for credits) and bills/expenses (for debits).
-
-Matching criteria:
-- Amount match (exact or close within 5%)
-- Description/reference similarity
-- Date proximity (transaction within reasonable time of invoice/bill date)
-
-Return your response as JSON with structure:
-{
-  "matches": [
-    {
-      "transaction_id": "uuid",
-      "matched_type": "invoice" | "bill" | "expense" | null,
-      "matched_entity_id": "uuid" | null,
-      "matched_entity_reference": "INV-001" | null,
-      "confidence": 0.95,
-      "reasoning": "Brief explanation of why this match was chosen"
-    }
-  ]
-}
-
-If no confident match is found (confidence < 0.7), set matched_type and matched_entity_id to null.
-Be conservative - only suggest matches with high confidence.`,
 
   chat: `You are AccrualFlow AI, an expert business management assistant with FULL ACCESS to the organization's complete real-time data.
 
