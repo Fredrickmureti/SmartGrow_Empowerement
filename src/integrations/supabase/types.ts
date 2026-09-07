@@ -7361,7 +7361,6 @@ export type Database = {
           organization_id: string | null
           published_at: string | null
           scope: string | null
-          template_id: string | null
           theme_id: string | null
           updated_at: string
           version: number
@@ -7382,7 +7381,6 @@ export type Database = {
           organization_id?: string | null
           published_at?: string | null
           scope?: string | null
-          template_id?: string | null
           theme_id?: string | null
           updated_at?: string
           version?: number
@@ -7403,7 +7401,6 @@ export type Database = {
           organization_id?: string | null
           published_at?: string | null
           scope?: string | null
-          template_id?: string | null
           theme_id?: string | null
           updated_at?: string
           version?: number
@@ -7459,251 +7456,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "document_template_ast_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "document_templates"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "document_template_ast_theme_id_fkey"
-            columns: ["theme_id"]
-            isOneToOne: false
-            referencedRelation: "document_theme"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      document_templates: {
-        Row: {
-          accent_color: string | null
-          ast: Json
-          background_color: string | null
-          bank_details: Json | null
-          branch_id: string | null
-          business_id: string
-          created_at: string
-          created_by: string | null
-          custom_css: string | null
-          description: string | null
-          document_title_format: string | null
-          font_family: string | null
-          font_size_base: number | null
-          footer_id: string | null
-          footer_text: string | null
-          header_id: string | null
-          header_text: string | null
-          id: string
-          is_active: boolean
-          is_default: boolean
-          logo_size: string | null
-          name: string
-          organization_id: string
-          paper_format: string | null
-          payment_instructions: string | null
-          payment_method_ids: string[] | null
-          primary_color: string | null
-          secondary_color: string | null
-          settings: Json
-          show_bank_details: boolean | null
-          show_company_address: boolean | null
-          show_company_email: boolean | null
-          show_company_phone: boolean | null
-          show_discount_column: boolean | null
-          show_discount_total: boolean | null
-          show_item_description: boolean | null
-          show_item_sku: boolean | null
-          show_payment_methods: boolean | null
-          show_quantity: boolean | null
-          show_signature_line: boolean | null
-          show_status_badge: boolean | null
-          show_subtotals_per_item: boolean | null
-          show_tax_breakdown: boolean | null
-          show_tax_column: boolean | null
-          show_tax_id: boolean | null
-          show_terms: boolean | null
-          show_total_in_words: boolean | null
-          show_unit_price: boolean | null
-          signature_label: string | null
-          template_name: string | null
-          template_type: string
-          terms_text: string | null
-          theme_id: string | null
-          totals_position: string | null
-          updated_at: string
-          version: number
-          watermark_opacity: number | null
-        }
-        Insert: {
-          accent_color?: string | null
-          ast?: Json
-          background_color?: string | null
-          bank_details?: Json | null
-          branch_id?: string | null
-          business_id: string
-          created_at?: string
-          created_by?: string | null
-          custom_css?: string | null
-          description?: string | null
-          document_title_format?: string | null
-          font_family?: string | null
-          font_size_base?: number | null
-          footer_id?: string | null
-          footer_text?: string | null
-          header_id?: string | null
-          header_text?: string | null
-          id?: string
-          is_active?: boolean
-          is_default?: boolean
-          logo_size?: string | null
-          name: string
-          organization_id: string
-          paper_format?: string | null
-          payment_instructions?: string | null
-          payment_method_ids?: string[] | null
-          primary_color?: string | null
-          secondary_color?: string | null
-          settings?: Json
-          show_bank_details?: boolean | null
-          show_company_address?: boolean | null
-          show_company_email?: boolean | null
-          show_company_phone?: boolean | null
-          show_discount_column?: boolean | null
-          show_discount_total?: boolean | null
-          show_item_description?: boolean | null
-          show_item_sku?: boolean | null
-          show_payment_methods?: boolean | null
-          show_quantity?: boolean | null
-          show_signature_line?: boolean | null
-          show_status_badge?: boolean | null
-          show_subtotals_per_item?: boolean | null
-          show_tax_breakdown?: boolean | null
-          show_tax_column?: boolean | null
-          show_tax_id?: boolean | null
-          show_terms?: boolean | null
-          show_total_in_words?: boolean | null
-          show_unit_price?: boolean | null
-          signature_label?: string | null
-          template_name?: string | null
-          template_type: string
-          terms_text?: string | null
-          theme_id?: string | null
-          totals_position?: string | null
-          updated_at?: string
-          version?: number
-          watermark_opacity?: number | null
-        }
-        Update: {
-          accent_color?: string | null
-          ast?: Json
-          background_color?: string | null
-          bank_details?: Json | null
-          branch_id?: string | null
-          business_id?: string
-          created_at?: string
-          created_by?: string | null
-          custom_css?: string | null
-          description?: string | null
-          document_title_format?: string | null
-          font_family?: string | null
-          font_size_base?: number | null
-          footer_id?: string | null
-          footer_text?: string | null
-          header_id?: string | null
-          header_text?: string | null
-          id?: string
-          is_active?: boolean
-          is_default?: boolean
-          logo_size?: string | null
-          name?: string
-          organization_id?: string
-          paper_format?: string | null
-          payment_instructions?: string | null
-          payment_method_ids?: string[] | null
-          primary_color?: string | null
-          secondary_color?: string | null
-          settings?: Json
-          show_bank_details?: boolean | null
-          show_company_address?: boolean | null
-          show_company_email?: boolean | null
-          show_company_phone?: boolean | null
-          show_discount_column?: boolean | null
-          show_discount_total?: boolean | null
-          show_item_description?: boolean | null
-          show_item_sku?: boolean | null
-          show_payment_methods?: boolean | null
-          show_quantity?: boolean | null
-          show_signature_line?: boolean | null
-          show_status_badge?: boolean | null
-          show_subtotals_per_item?: boolean | null
-          show_tax_breakdown?: boolean | null
-          show_tax_column?: boolean | null
-          show_tax_id?: boolean | null
-          show_terms?: boolean | null
-          show_total_in_words?: boolean | null
-          show_unit_price?: boolean | null
-          signature_label?: string | null
-          template_name?: string | null
-          template_type?: string
-          terms_text?: string | null
-          theme_id?: string | null
-          totals_position?: string | null
-          updated_at?: string
-          version?: number
-          watermark_opacity?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_templates_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_templates_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_templates_footer_id_fkey"
-            columns: ["footer_id"]
-            isOneToOne: false
-            referencedRelation: "document_header_footer"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_templates_header_id_fkey"
-            columns: ["header_id"]
-            isOneToOne: false
-            referencedRelation: "document_header_footer"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_templates_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "document_templates_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "document_templates_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_templates_theme_id_fkey"
             columns: ["theme_id"]
             isOneToOne: false
             referencedRelation: "document_theme"
@@ -31505,10 +31258,6 @@ export type Database = {
       wms_resolve_receiving_staging_location: {
         Args: { p_warehouse_id: string }
         Returns: string
-      }
-      wms_seed_returns_document_templates: {
-        Args: { _actor?: string; _business_id: string; _org_id: string }
-        Returns: undefined
       }
       wms_sscc_build: {
         Args: {
