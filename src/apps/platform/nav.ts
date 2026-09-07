@@ -35,8 +35,6 @@ export const PLATFORM_NAV: WorkspaceNav = {
       label: "Company",
       items: [
         { to: "/settings/company",   label: "Company",          icon: Building2 },
-        { to: "/settings/migration", label: "Data Migration",   icon: GitCompare },
-        { to: "/settings/scanner",   label: "Scanner",          icon: ScanLine },
       ],
     },
 
