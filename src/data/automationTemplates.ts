@@ -100,61 +100,6 @@ export const automationTemplates: AutomationTemplate[] = [
     ],
     isPopular: true,
   },
-  {
-    id: "estimate-accepted-to-order",
-    name: "Auto-Create Order on Estimate Acceptance",
-    description: "Automatically create a sales order when an estimate is accepted",
-    category: "sales",
-    icon: ShoppingCart,
-    triggerType: "field_change",
-    targetModel: "estimates",
-    triggerConditions: { field: "status", value: "accepted" },
-    steps: [
-      {
-        actionType: "convert_document",
-        stepName: "Create Sales Order",
-        actionConfig: {
-          target_type: "sales_order",
-          copy_items: true,
-        },
-      },
-      {
-        actionType: "send_notification",
-        stepName: "Notify Team",
-        actionConfig: {
-          title: "New Sales Order",
-          message: "Estimate {{estimate_number}} has been accepted and converted to sales order",
-        },
-      },
-    ],
-  },
-  {
-    id: "sales-order-confirmed-delivery",
-    name: "Auto-Create Delivery on Order Confirmation",
-    description: "Automatically create a delivery note when a sales order is confirmed",
-    category: "sales",
-    icon: Package,
-    triggerType: "field_change",
-    targetModel: "sales_orders",
-    triggerConditions: { field: "status", value: "confirmed" },
-    steps: [
-      {
-        actionType: "create_linked",
-        stepName: "Create Delivery Note",
-        actionConfig: {
-          target_type: "delivery_note",
-          copy_items: true,
-        },
-      },
-      {
-        actionType: "update_record",
-        stepName: "Update Order Status",
-        actionConfig: {
-          status: "processing",
-        },
-      },
-    ],
-  },
 
   // === CRM AUTOMATIONS ===
   {
@@ -389,34 +334,6 @@ export const automationTemplates: AutomationTemplate[] = [
         actionConfig: {
           title: "Recurring Invoice Due",
           message: "Recurring invoice for {{contact.name}} will be generated in 3 days",
-        },
-      },
-    ],
-  },
-  {
-    id: "sales-return-credit-note",
-    name: "Auto-Create Credit Note on Return",
-    description: "Automatically create a credit note when a sales return is approved",
-    category: "accounting",
-    icon: CheckCircle,
-    triggerType: "field_change",
-    targetModel: "sales_returns",
-    triggerConditions: { field: "status", value: "approved" },
-    steps: [
-      {
-        actionType: "convert_document",
-        stepName: "Create Credit Note",
-        actionConfig: {
-          target_type: "credit_note",
-          copy_items: true,
-        },
-      },
-      {
-        actionType: "send_notification",
-        stepName: "Notify Accounts",
-        actionConfig: {
-          title: "Credit Note Created",
-          message: "Credit note created from return {{return_number}}",
         },
       },
     ],

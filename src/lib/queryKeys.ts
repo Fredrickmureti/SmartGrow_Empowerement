@@ -72,15 +72,6 @@ export const queryKeys = {
       ['expense-categories', orgId] as const,
   },
   
-  // ========== Sales Orders ==========
-  salesOrders: {
-    all: (orgId: string) => ['sales-orders', orgId] as const,
-    list: (orgId: string, businessId?: string | null) => 
-      ['sales-orders', orgId, businessId] as const,
-    detail: (orgId: string, orderId: string) =>
-      ['sales-order', orgId, orderId] as const,
-  },
-  
   // ========== Purchase Orders ==========
   purchaseOrders: {
     all: (orgId: string) => ['purchase-orders', orgId] as const,
@@ -162,13 +153,6 @@ export const queryKeys = {
       ['estimates', orgId, businessId] as const,
   },
   
-  // ========== Delivery Notes ==========
-  deliveryNotes: {
-    all: (orgId: string) => ['delivery-notes', orgId] as const,
-    list: (orgId: string, businessId?: string | null) => 
-      ['delivery-notes', orgId, businessId] as const,
-  },
-
   // ========== Proforma Invoices ==========
   proformaInvoices: {
     all: (orgId: string) => ['proforma-invoices', orgId] as const,

@@ -172,18 +172,6 @@ const TABLE_HANDLERS: Record<string, TableHandler> = {
 
   // ══════════════ SALES-CRITICAL TABLES ══════════════
 
-  delivery_notes: createDefaultHandler((orgId, businessId) => [
-    queryKeys.deliveryNotes.all(orgId),
-    queryKeys.deliveryNotes.list(orgId, businessId),
-    ...getDashboardKeys(orgId, businessId),
-  ]),
-
-  sales_orders: createDefaultHandler((orgId, businessId) => [
-    queryKeys.salesOrders.all(orgId),
-    queryKeys.salesOrders.list(orgId, businessId),
-    ...getDashboardKeys(orgId, businessId),
-  ]),
-
   estimates: createDefaultHandler((orgId, businessId) => [
     queryKeys.estimates.all(orgId),
     queryKeys.estimates.list(orgId, businessId),
@@ -200,11 +188,6 @@ const TABLE_HANDLERS: Record<string, TableHandler> = {
     queryKeys.recurringInvoices.list(orgId, businessId),
   ]),
 
-  sales_returns: createDefaultHandler((orgId, businessId) => [
-    queryKeys.salesReturns.all(orgId),
-    queryKeys.salesReturns.list(orgId, businessId),
-    ...getDashboardKeys(orgId, businessId),
-  ]),
 };
 
 const SUBSCRIBED_TABLES = Object.keys(TABLE_HANDLERS);
@@ -278,8 +261,8 @@ export function useUnifiedRealtimeSync(): void {
       ['account-balances-rpc'], ['financial-report'], ['general-ledger'],
       ['trial-balance'], ['aging-report'], ['cash-flow-report'], ['budget-vs-actual'],
       ['depreciation-schedules'],
-      ['delivery-notes'], ['sales-orders'], ['estimates'],
-      ['proforma-invoices'], ['recurring-invoices'], ['sales-returns'],
+      ['estimates'],
+      ['proforma-invoices'], ['recurring-invoices'],
     ];
 
     const qc = queryClientRef.current;

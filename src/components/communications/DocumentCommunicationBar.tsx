@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useSmsAvailability } from "@/hooks/useSmsAvailability";
 
 export interface DocumentCommunicationContext {
-  /** Logical entity type, e.g. "invoice", "sales_order", "estimate". */
+  /** Logical entity type, e.g. "invoice", "estimate". */
   entityType: string;
   entityId: string;
   /** Optional business scope for the SMS log. */

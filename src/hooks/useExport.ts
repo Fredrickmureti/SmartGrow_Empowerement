@@ -446,66 +446,6 @@ export function useExport() {
     [exportToCSV]
   );
 
-  const exportSalesOrders = useCallback(
-    (salesOrders: any[]) => {
-      const data = salesOrders.map((so) => ({
-        so_number: so.so_number,
-        customer: so.contact?.name || "",
-        order_date: so.order_date,
-        expected_date: so.expected_date || "",
-        status: so.status,
-        subtotal: so.subtotal,
-        tax_amount: so.tax_amount,
-        total: so.total,
-        currency: so.currency,
-      }));
-
-      exportToCSV(data, {
-        filename: `sales_orders_${new Date().toISOString().split("T")[0]}`,
-        headers: [
-          "so_number",
-          "customer",
-          "order_date",
-          "expected_date",
-          "status",
-          "subtotal",
-          "tax_amount",
-          "total",
-          "currency",
-        ],
-      });
-    },
-    [exportToCSV]
-  );
-
-  const exportDeliveryNotes = useCallback(
-    (deliveryNotes: any[]) => {
-      const data = deliveryNotes.map((dn) => ({
-        delivery_number: dn.delivery_number,
-        customer: dn.contact?.name || "",
-        delivery_date: dn.delivery_date,
-        status: dn.status,
-        driver_name: dn.driver_name || "",
-        vehicle_number: dn.vehicle_number || "",
-        sales_order: dn.sales_order?.so_number || "",
-      }));
-
-      exportToCSV(data, {
-        filename: `delivery_notes_${new Date().toISOString().split("T")[0]}`,
-        headers: [
-          "delivery_number",
-          "customer",
-          "delivery_date",
-          "status",
-          "driver_name",
-          "vehicle_number",
-          "sales_order",
-        ],
-      });
-    },
-    [exportToCSV]
-  );
-
   const exportEmployees = useCallback(
     (employees: any[]) => {
       const data = employees.map((emp) => ({
@@ -588,8 +528,6 @@ export function useExport() {
     exportCreditNotes,
     exportPurchaseOrders,
     exportAccounts,
-    exportSalesOrders,
-    exportDeliveryNotes,
     exportEmployees,
     exportJournalEntries,
   };

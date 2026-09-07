@@ -103,8 +103,6 @@ describe("Architecture: branch_id stamping on accounting writes", () => {
     "estimates",
     "proforma_invoices",
     "recurring_invoices",
-    "sales_orders",
-    "delivery_notes",
     "vendor_credit_notes",
   ];
 

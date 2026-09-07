@@ -32,11 +32,8 @@ import type { DocumentKind } from "./documentStatus";
 const ENTITY_TYPE: Partial<Record<DocumentKind, string>> = {
   invoice: "invoice",
   estimate: "estimate",
-  sales_order: "sales_order",
   proforma: "proforma_invoice",
-  delivery_note: "delivery_note",
   credit_note: "credit_note",
-  sales_return: "sales_return",
   customer_payment: "payment",
   recurring_invoice: "recurring_invoice",
   statement: "customer_statement",

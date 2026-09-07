@@ -933,7 +933,7 @@ export function EntityFieldSettings({
               </div>
 
               {/* Document Placement - only for document entity types */}
-              {['invoice', 'estimate', 'sales_order', 'purchase_order', 'bill', 'expense'].includes(entityType) && (
+              {['invoice', 'estimate', 'purchase_order', 'bill', 'expense'].includes(entityType) && (
                 <div className="space-y-2">
                   <Label htmlFor="edit-document-section">Document Placement</Label>
                   <Select
