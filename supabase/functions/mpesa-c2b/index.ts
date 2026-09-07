@@ -326,11 +326,12 @@ async function handleConfirmation(req: Request): Promise<Response> {
         first_name: FirstName || null,
         middle_name: MiddleName || null,
         last_name: LastName || null,
-        matched_invoice_id: matchedInvoiceId,
-        matched_contact_id: matchedContactId,
-        matched_pos_transaction_id: matchedPosTransactionId,
-        is_reconciled: matchedPosTransactionId !== null,
-        reconciled_at: matchedPosTransactionId ? new Date().toISOString() : null,
+        matched_loan_id: matchedLoanId,
+        matched_client_id: matchedClientId,
+        matched_contact_id: null,
+        is_reconciled: false,
+        reconciled_at: null,
+
         match_reason: matchReason,
         raw_payload: body,
       })
