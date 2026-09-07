@@ -1688,13 +1688,6 @@ serve(async (req) => {
       );
     }
 
-    // Document text returns the generated text directly
-    if (type === "document_text") {
-      return new Response(
-        JSON.stringify({ success: true, data: { content: content.trim(), text: content.trim() } }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     return new Response(
       JSON.stringify({ success: true, data: { content } }),
