@@ -112,6 +112,66 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: r.employee_id ? map.get(r.employee_id) ?? null : r.created_by ?? null,
     }));
   },
+  loan_application: async (orgId) => {
+    const { data, error } = await supabase
+      .from("mf_loan_applications")
+      .select("id, application_number, requested_amount, status, created_at, created_by")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.application_number ?? `Application ${r.id.slice(0, 8)}`,
+      hint: `${fmtMoney(r.requested_amount, null)} • ${r.status ?? ""}`.trim(),
+      subject_user_id: r.created_by ?? null,
+    }));
+  },
+  loan: async (orgId) => {
+    const { data, error } = await supabase
+      .from("mf_loans")
+      .select("id, loan_number, principal_amount, status, created_at, created_by")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.loan_number ?? `Loan ${r.id.slice(0, 8)}`,
+      hint: `${fmtMoney(r.principal_amount, null)} • ${r.status ?? ""}`.trim(),
+      subject_user_id: r.created_by ?? null,
+    }));
+  },
+  repayment: async (orgId) => {
+    const { data, error } = await supabase
+      .from("mf_repayments")
+      .select("id, receipt_number, amount, payment_date, status, created_by")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: r.receipt_number ?? `Repayment ${r.id.slice(0, 8)}`,
+      hint: `${fmtMoney(r.amount, null)} • ${fmtDate(r.payment_date)}`.trim(),
+      subject_user_id: r.created_by ?? null,
+    }));
+  },
+  app_access: async (orgId) => {
+    const { data, error } = await supabase
+      .from("member_permission_groups")
+      .select("id, user_id, permission_group_id, created_at")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(LIMIT);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id,
+      label: `Access grant ${r.id.slice(0, 8)}`,
+      hint: fmtDate(r.created_at),
+      subject_user_id: r.user_id ?? null,
+    }));
+  },
 };
 
 export function useGovernedEntityOptions(
