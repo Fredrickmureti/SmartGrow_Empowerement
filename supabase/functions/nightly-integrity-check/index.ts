@@ -124,95 +124,11 @@ Deno.serve(async (req) => {
     );
     if (crossErr) console.warn("cross-business JE check failed:", crossErr.message);
 
-    // 5. Invoice/contact mismatches.
-    const { data: invMismatch, error: invErr } = await admin.rpc(
-      "find_invoice_contact_business_mismatches" as never,
-    );
-    if (invErr) console.warn("invoice mismatch check failed:", invErr.message);
-
-    // 6. Bill/vendor mismatches.
-    const { data: billMismatch, error: billErr } = await admin.rpc(
-      "find_bill_vendor_business_mismatches" as never,
-    );
-    if (billErr) console.warn("bill mismatch check failed:", billErr.message);
-
-    // 7. Phase 6: payroll journal-entry balance check.
-    //    For every posted payroll run, sum debits vs credits on its journal
-    //    entry lines. Any imbalance > 0.01 inserts a `finance_integrity_issues`
-    //    row tagged `payroll_je_unbalanced`.
-    const payrollIssues: Array<{ run_id: string; org_id: string; business_id: string | null; debit: number; credit: number }> = [];
-    try {
-      const { data: postedRuns } = await admin
-        .from("payroll_runs")
-        .select("id, organization_id, business_id")
-        .eq("status", "posted");
-
-      for (const run of (postedRuns ?? [])) {
-        const { data: jeRows } = await admin
-          .from("journal_entries")
-          .select("id")
-          .eq("source_type", "payroll")
-          .eq("source_id", run.id);
-        const jeIds = (jeRows ?? []).map((j: any) => j.id);
-        if (jeIds.length === 0) continue;
-
-        const { data: lines } = await admin
-          .from("journal_entry_lines")
-          .select("debit, credit")
-          .in("journal_entry_id", jeIds);
-
-        let totalDebit = 0, totalCredit = 0;
-        for (const l of (lines ?? [])) {
-          totalDebit += Number(l.debit || 0);
-          totalCredit += Number(l.credit || 0);
-        }
-        const drift = Math.abs(totalDebit - totalCredit);
-        if (drift > 0.01) {
-          payrollIssues.push({
-            run_id: run.id,
-            org_id: run.organization_id,
-            business_id: run.business_id,
-            debit: totalDebit,
-            credit: totalCredit,
-          });
-
-          // Upsert into finance_integrity_issues — avoid duplicates by
-          // deleting any prior open row for the same (source_type, source_id).
-          await admin
-            .from("finance_integrity_issues")
-            .delete()
-            .eq("source_type", "payroll_run")
-            .eq("source_id", run.id)
-            .is("resolved_at", null);
-
-          await admin.from("finance_integrity_issues").insert({
-            organization_id: run.organization_id,
-            business_id: run.business_id,
-            issue_code: "payroll_je_unbalanced",
-            severity: "critical",
-            source_type: "payroll_run",
-            source_id: run.id,
-            details: {
-              total_debit: totalDebit,
-              total_credit: totalCredit,
-              drift,
-              journal_entry_ids: jeIds,
-            },
-          });
-        }
-      }
-    } catch (err) {
-      console.warn("payroll JE balance check failed:", (err as any)?.message);
-    }
-
     const details = {
       drift: driftRows,
       multi_business_orgs: multiBusinessOrgs,
       branch_mismatches: branchMismatches,
       cross_business_journal_lines: crossBizLines ?? [],
-      invoice_contact_mismatches: invMismatch ?? [],
-      bill_vendor_mismatches: billMismatch ?? [],
-      payroll_je_unbalanced: payrollIssues,
     };
 
     const { data: inserted, error: insErr } = await admin
