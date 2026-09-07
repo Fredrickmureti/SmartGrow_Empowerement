@@ -570,28 +570,19 @@ export async function generateDocumentPdf(
       lines.push(`${m.label}`);
       const d = m.details || {};
       switch (m.type) {
+        // Kenya-only MFI channels: bank transfer/deposit, M-Pesa PayBill, cash.
+        // Card acquiring, crypto wallets and M-Pesa Till were removed.
         case "bank":
           if (d.bank_name) lines.push(`  Bank: ${d.bank_name}`);
           if (d.account_name) lines.push(`  Account Name: ${d.account_name}`);
           if (d.account_number) lines.push(`  Account No: ${d.account_number}`);
           if (d.branch) lines.push(`  Branch: ${d.branch}`);
           if (d.swift_code) lines.push(`  SWIFT: ${d.swift_code}`);
-          if (d.iban) lines.push(`  IBAN: ${d.iban}`);
           break;
         case "mobile_money":
           if (d.paybill_number) lines.push(`  Paybill: ${d.paybill_number}`);
-          if (d.till_number) lines.push(`  Till No: ${d.till_number}`);
           if (d.account_number) lines.push(`  Account: ${d.account_number}`);
           if (d.phone_number) lines.push(`  Phone: ${d.phone_number}`);
-          break;
-        case "online":
-          if (d.email) lines.push(`  Email: ${d.email}`);
-          if (d.username) lines.push(`  Username: ${d.username}`);
-          if (d.payment_link) lines.push(`  Link: ${d.payment_link}`);
-          break;
-        case "crypto":
-          if (d.network) lines.push(`  Network: ${d.network}`);
-          if (d.wallet_address) lines.push(`  Address: ${d.wallet_address}`);
           break;
         case "cash":
           if (d.instructions) lines.push(`  ${d.instructions}`);
