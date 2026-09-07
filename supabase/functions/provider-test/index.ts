@@ -180,7 +180,9 @@ Deno.serve(async (req) => {
       if (!roleData) return json({ error: "Forbidden: Platform admin access required" }, 403);
 
       const provider = body.provider as string | undefined;
-      if (!provider || !["stripe", "paypal", "pesapal", "mpesa"].includes(provider)) return json({ error: "Invalid provider" }, 400);
+      // Kenya-only MFI: card acquiring (Stripe), PayPal and PesaPal were removed
+      // with the ERP payment-gateway configuration. M-Pesa is the only provider.
+      if (provider !== "mpesa") return json({ error: "Invalid provider" }, 400);
       const { data: providerData, error: pErr } = await admin.from("platform_payment_providers").select("credentials, is_test_mode").eq("provider", provider).single();
       if (pErr || !providerData) return json({ success: false, error: "Provider configuration not found" });
 
@@ -188,26 +190,10 @@ Deno.serve(async (req) => {
       const testMode = providerData.is_test_mode;
       let success = false; let errorMessage = "";
       try {
-        if (provider === "stripe") {
-          if (!creds.secret_key) return json({ success: false, error: "Missing secret key" });
-          const r = await fetch("https://api.stripe.com/v1/balance", { headers: { Authorization: `Bearer ${creds.secret_key}` } });
-          if (r.ok) success = true; else errorMessage = (await r.json()).error?.message || "Invalid API key";
-        } else if (provider === "paypal") {
-          if (!creds.client_id || !creds.client_secret) return json({ success: false, error: "Missing client_id/secret" });
-          const baseUrl = testMode ? "https://api-m.sandbox.paypal.com" : "https://api-m.paypal.com";
-          const r = await fetch(`${baseUrl}/v1/oauth2/token`, { method: "POST", headers: { Authorization: `Basic ${btoa(`${creds.client_id}:${creds.client_secret}`)}`, "Content-Type": "application/x-www-form-urlencoded" }, body: "grant_type=client_credentials" });
-          if (r.ok) success = true; else errorMessage = (await r.json()).error_description || "Invalid credentials";
-        } else if (provider === "pesapal") {
-          if (!creds.consumer_key || !creds.consumer_secret) return json({ success: false, error: "Missing consumer_key/secret" });
-          const baseUrl = testMode ? "https://cybqa.pesapal.com/pesapalv3" : "https://pay.pesapal.com/v3";
-          const r = await fetch(`${baseUrl}/api/Auth/RequestToken`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ consumer_key: creds.consumer_key, consumer_secret: creds.consumer_secret }) });
-          if (r.ok && (await r.json()).token) success = true; else errorMessage = "Invalid credentials";
-        } else if (provider === "mpesa") {
-          if (!creds.consumer_key || !creds.consumer_secret) return json({ success: false, error: "Missing consumer_key/secret" });
-          const baseUrl = testMode ? "https://sandbox.safaricom.co.ke" : "https://api.safaricom.co.ke";
-          const r = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${btoa(`${creds.consumer_key}:${creds.consumer_secret}`)}` } });
-          if (r.ok && (await r.json()).access_token) success = true; else errorMessage = "Invalid credentials";
-        }
+        if (!creds.consumer_key || !creds.consumer_secret) return json({ success: false, error: "Missing consumer_key/secret" });
+        const baseUrl = testMode ? "https://sandbox.safaricom.co.ke" : "https://api.safaricom.co.ke";
+        const r = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${btoa(`${creds.consumer_key}:${creds.consumer_secret}`)}` } });
+        if (r.ok && (await r.json()).access_token) success = true; else errorMessage = "Invalid credentials";
       } catch (e) { errorMessage = (e as Error).message || "Connection failed"; }
 
       await admin.from("platform_payment_providers").update({
