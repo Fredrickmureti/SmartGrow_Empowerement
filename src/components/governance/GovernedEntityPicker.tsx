@@ -2,8 +2,8 @@
  * Searchable picker over the live records of a governed entity type.
  *
  * The Self-Action Override dialog uses this in place of the old "type
- * an entity_id UUID" input — co-signers pick a real row (a bill, a
- * payroll run, an expense, …) and the dialog auto-derives the subject
+ * an entity_id UUID" input — co-signers pick a real row (a loan, a
+ * repayment, an expense, …) and the dialog auto-derives the subject
  * user from that row when the catalogue marks the action as
  * `subjectMode: "from_entity"`.
  */

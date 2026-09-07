@@ -118,7 +118,7 @@ export function PaymentMethodsSettings() {
     }
     setIsTogglingGlobal(true);
 
-    const EXPECTED_TYPES = ['invoice', 'estimate', 'proforma', 'credit_note', 'receipt', 'purchase_order', 'sales_order', 'delivery_note'] as const;
+    const EXPECTED_TYPES = ['loan_agreement', 'repayment_schedule', 'loan_statement', 'client_statement', 'loan_payment_receipt'] as const;
 
     try {
       // 1. Update Company-scoped flag (single source of truth on `businesses`).
@@ -287,7 +287,7 @@ export function PaymentMethodsSettings() {
                 Payment Methods
               </CardTitle>
               <CardDescription>
-                Configure payment options that appear on your invoices and documents.
+                Configure payment options that appear on repayment receipts and statements.
                 Select which methods to display per document type in Templates.
               </CardDescription>
             </div>
@@ -304,7 +304,7 @@ export function PaymentMethodsSettings() {
               <div className="space-y-0.5">
                 <p className="text-sm font-medium">Display payment methods on all documents</p>
                 <p className="text-xs text-muted-foreground">
-                  When enabled, all active payment methods appear on invoices, sale orders, and proforma invoices by default.
+                  When enabled, all active payment methods appear on repayment receipts, loan statements, and client statements by default.
                 </p>
               </div>
               <Switch

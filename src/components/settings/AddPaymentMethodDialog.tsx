@@ -284,7 +284,7 @@ export function AddPaymentMethodDialog({
             {isEditing ? "Edit Payment Method" : "Add Payment Method"}
           </DialogTitle>
           <DialogDescription>
-            Configure a payment option to display on your invoices and documents.
+            Configure a payment option to display on repayment receipts and statements.
           </DialogDescription>
         </DialogHeader>
 

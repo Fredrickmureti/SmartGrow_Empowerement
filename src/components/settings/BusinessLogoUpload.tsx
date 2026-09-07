@@ -5,8 +5,8 @@ import { normalizeError } from "@/services/resilience";
  * Architectural notes (Odoo res.company model):
  *   - The logo is a property of the legal/accounting entity (`businesses`),
  *     NOT of the workspace/tenant (`organizations`).
- *   - Every customer-facing surface (invoices, bills, receipts, statements,
- *     payslips, PDFs, emails) renders the logo of the company that owns the
+ *   - Every client-facing surface (loan agreements, repayment schedules,
+ *     receipts, statements, PDFs, emails) renders the logo of the company that owns the
  *     document via `useDocumentBranding(business_id)`.
  *   - Storage path is `{org_id}/business/{business_id}/logo.{ext}`. The
  *     bucket's existing RLS keys on `(storage.foldername(name))[1] = org_id`,
@@ -252,7 +252,7 @@ export function BusinessLogoUpload({
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            JPG, PNG, GIF, WebP, or SVG. Max 2MB. Appears on this company's invoices, bills, receipts, statements, and PDFs.
+            JPG, PNG, GIF, WebP, or SVG. Max 2MB. Appears on this institution's loan agreements, repayment receipts, statements, and PDFs.
           </p>
         </div>
       </div>

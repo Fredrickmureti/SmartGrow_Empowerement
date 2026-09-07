@@ -269,8 +269,8 @@ export function AppAccessApprovalsInbox() {
             <DialogTitle>Deny access request</DialogTitle>
             <DialogDescription>
               The requester will be notified. You can include a short reason —
-              e.g. "Talk to your manager first" or "We're not using Payroll
-              yet".
+              e.g. "Talk to your branch manager first" or "This role does not
+              need collections access".
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
