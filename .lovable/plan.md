@@ -205,19 +205,14 @@ Each wave is independently shippable and reversible.
 
 ## 8. Execution status
 
-I stopped here — Wave 2 is finished and verified, and Wave 5 was mid-way through investigation only (no changes made to templates yet).
+I stopped mid-way through Wave 5. Here's where things stand.
 
-Completed this session
+Done this session
 
-Verified the earlier claims against the live code and database, not just the notes.
-Removed the leftover crypto icon, the card-payment gateway screen and its data hook, and dropped that screen from the Company settings page.
-Narrowed the payment providers to M-Pesa only, removed the Till (Buy Goods) option so collections are PayBill-only, and removed the IBAN field from the bank details form.
-Removed the card, PayPal and PesaPal connection tests from the provider-test backend function.
-Database: deleted the empty card-gateway table, deleted the unused point-of-sale terminal brand list, and narrowed the payment channel list to Cash, Bank and Mobile money (the online-card and cryptocurrency options no longer exist).
-Typecheck passes clean; no crypto/Stripe/Till references remain outside explanatory comments.
-Remaining (unchanged plan, resume at Wave 3)
+Checked the previous notes against the actual code — two things logged as finished were not. I removed the card/PayPal/PesaPal connection tests from the payment-provider test service, and stopped the M-Pesa Till number, card and crypto wallet details from being printed on documents.
+Started retiring the editable document-template system: documents now resolve their presentation from the institution record alone, and the "show collection details on documents" switch writes to that one place instead of creating dozens of template rows.
+Remaining
 
-Wave 3: the Cash / M-Pesa PayBill / Bank Transfer channel model.
-Wave 4: KES-only currency lock.
-Wave 5: remove the document-template editor. Investigation done and safe: the template table is empty, the six live document layouts don't reference it, so the editor screen, its builder, hook and type can go, along with the "show payment methods on documents" toggle inside the payment methods screen, then the table itself.
-Waves 6–8: microfinance document numbering, notification/email re-scope, legacy database cleanup.
+Finish Wave 5: delete the template editor screen, its builder, the payment-method selector, the hook and its type; remove the Templates tab from Company settings; then drop the now-unused document_templates table.
+Wave 3: my verdict, which differs from the plan — do not create a new organization_payment_channels table. The existing payment-method table is already narrowed to Cash / Bank / Mobile money and already links to a bank account and a branch, so adapt it in place (vocabulary and labels) rather than migrating to a parallel table for no business gain.
+Wave 4 (lock to KES), Waves 6–8 (document numbering, notification/email re-scope, legacy database cleanup).
