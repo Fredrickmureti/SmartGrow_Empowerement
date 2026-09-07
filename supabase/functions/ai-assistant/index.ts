@@ -1505,12 +1505,6 @@ serve(async (req) => {
     let systemPrompt = systemPrompts[type] || systemPrompts.chat;
 
     
-    // Handle document_text request type with specific prompts
-    if (type === "document_text" && data) {
-      const fieldType = data.fieldType || "notes";
-      systemPrompt = systemPrompts[`document_text_${fieldType}`] || systemPrompts.document_text_notes;
-    }
-    
     // The currency rule is universal: it is prepended to every request type
     // before any task-specific context.
     systemPrompt += "\n\n" + buildCurrencyRulePrompt(currencyCtx);
