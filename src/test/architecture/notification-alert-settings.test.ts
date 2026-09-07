@@ -10,7 +10,7 @@
  *   1. Hook never returns empty-string timestamps.
  *   2. All saves go through a typed RPC (`upsert_notification_alert_settings`)
  *      that whitelists + validates the payload server-side.
- *   3. Range validation (critical <= warning, hour 0..23, etc.) lives in a
+ *   3. Range validation (reminder frequency, hour 0..23, etc.) lives in a
  *      Zod schema exported from the hook and is exercised before any DB call.
  */
 import { describe, it, expect } from "vitest";
@@ -22,13 +22,9 @@ import {
 } from "@/hooks/useNotificationAlertSettings";
 
 describe("notification alert settings — save contract", () => {
-  it("Zod schema rejects critical > warning", () => {
+  it("Zod schema rejects an out-of-range arrears reminder frequency", () => {
     const r = notificationAlertSettingsSchema.safeParse({
-      low_stock_warning_threshold: 5,
-      low_stock_critical_threshold: 10,
-      out_of_stock_alert: true,
-      invoice_reminder_days_before: 7,
-      overdue_reminder_frequency_days: 7,
+      overdue_reminder_frequency_days: 0,
       overdue_escalation_enabled: true,
       payment_received_notify: true,
       large_payment_threshold: 1000,
@@ -43,10 +39,6 @@ describe("notification alert settings — save contract", () => {
 
   it("Zod schema rejects digest_send_hour out of range", () => {
     const base = {
-      low_stock_warning_threshold: 10,
-      low_stock_critical_threshold: 5,
-      out_of_stock_alert: true,
-      invoice_reminder_days_before: 7,
       overdue_reminder_frequency_days: 7,
       overdue_escalation_enabled: true,
       payment_received_notify: true,
@@ -62,10 +54,6 @@ describe("notification alert settings — save contract", () => {
 
   it("Zod schema rejects negative thresholds", () => {
     const r = notificationAlertSettingsSchema.safeParse({
-      low_stock_warning_threshold: -1,
-      low_stock_critical_threshold: -2,
-      out_of_stock_alert: true,
-      invoice_reminder_days_before: 7,
       overdue_reminder_frequency_days: 7,
       overdue_escalation_enabled: true,
       payment_received_notify: true,

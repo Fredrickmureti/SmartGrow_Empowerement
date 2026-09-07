@@ -11,13 +11,7 @@ export interface NotificationAlertSettings {
   organization_id: string;
   business_id: string | null;
 
-  // Inventory thresholds
-  low_stock_warning_threshold: number;
-  low_stock_critical_threshold: number;
-  out_of_stock_alert: boolean;
-
-  // Invoice settings
-  invoice_reminder_days_before: number;
+  // Arrears reminders
   overdue_reminder_frequency_days: number;
   overdue_escalation_enabled: boolean;
 
@@ -43,10 +37,6 @@ export interface NotificationAlertSettings {
 // type (e.g. `10`, `5`, `true`) and rejects any runtime user value at the
 // type level. Define a real mutable interface instead.
 export interface NotificationAlertSettingsInput {
-  low_stock_warning_threshold: number;
-  low_stock_critical_threshold: number;
-  out_of_stock_alert: boolean;
-  invoice_reminder_days_before: number;
   overdue_reminder_frequency_days: number;
   overdue_escalation_enabled: boolean;
   payment_received_notify: boolean;
@@ -59,10 +49,6 @@ export interface NotificationAlertSettingsInput {
 }
 
 const DEFAULT_SETTINGS: NotificationAlertSettingsInput = {
-  low_stock_warning_threshold: 10,
-  low_stock_critical_threshold: 5,
-  out_of_stock_alert: true,
-  invoice_reminder_days_before: 7,
   overdue_reminder_frequency_days: 7,
   overdue_escalation_enabled: true,
   payment_received_notify: true,
@@ -77,10 +63,6 @@ const DEFAULT_SETTINGS: NotificationAlertSettingsInput = {
 // Editable-field schema. Validates ranges before any DB call.
 export const notificationAlertSettingsSchema = z
   .object({
-    low_stock_warning_threshold: z.number().int().min(0).max(1_000_000),
-    low_stock_critical_threshold: z.number().int().min(0).max(1_000_000),
-    out_of_stock_alert: z.boolean(),
-    invoice_reminder_days_before: z.number().int().min(0).max(365),
     overdue_reminder_frequency_days: z.number().int().min(1).max(365),
     overdue_escalation_enabled: z.boolean(),
     payment_received_notify: z.boolean(),
@@ -90,14 +72,7 @@ export const notificationAlertSettingsSchema = z
     weekly_digest_enabled: z.boolean(),
     digest_send_hour: z.number().int().min(0).max(23),
     digest_timezone: z.string().min(1).max(64),
-  })
-  .refine(
-    (s) => s.low_stock_critical_threshold <= s.low_stock_warning_threshold,
-    {
-      path: ["low_stock_critical_threshold"],
-      message: "Critical threshold must be ≤ warning threshold",
-    },
-  );
+  });
 
 const EDITABLE_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof NotificationAlertSettingsInput)[];
 
