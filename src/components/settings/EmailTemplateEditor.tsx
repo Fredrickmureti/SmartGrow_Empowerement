@@ -33,32 +33,32 @@ import { normalizeError } from "@/services/resilience";
 import { sanitizeEmailHtml } from "@/lib/sanitizeEmailHtml";
 
 const TEMPLATE_LABELS: Record<string, { label: string; description: string }> = {
-  invoice_sent: {
-    label: "Invoice Sent",
-    description: "Email sent when an invoice is delivered to customer",
+  loan_approved: {
+    label: "Loan Approved",
+    description: "Email sent to the client when a loan application is approved",
   },
-  payment_reminder: {
-    label: "Payment Reminder",
-    description: "Reminder email for upcoming or due payments",
+  loan_disbursed: {
+    label: "Loan Disbursed",
+    description: "Email sent when loan funds are released to the client",
   },
-  payment_receipt: {
-    label: "Payment Receipt",
-    description: "Confirmation email when payment is received",
+  repayment_receipt: {
+    label: "Repayment Receipt",
+    description: "Confirmation email when a repayment is received",
   },
-  estimate_sent: {
-    label: "Estimate Sent",
-    description: "Email sent when an estimate/quote is delivered",
+  repayment_reminder: {
+    label: "Repayment Reminder",
+    description: "Reminder email for an instalment falling due",
   },
-  invoice_overdue: {
-    label: "Invoice Overdue",
-    description: "Email for overdue invoices requiring attention",
+  repayment_overdue: {
+    label: "Repayment Overdue",
+    description: "Email for loans in arrears requiring attention",
   },
 };
 
 export function EmailTemplateEditor() {
   const { templates, isLoading, updateTemplate, resetToDefault, getTemplateByKey, reseedDefaults } =
     useEmailTemplates();
-  const [selectedKey, setSelectedKey] = useState<TemplateKey>("invoice_sent");
+  const [selectedKey, setSelectedKey] = useState<TemplateKey>("loan_approved");
   const [editMode, setEditMode] = useState(false);
   const [previewMode, setPreviewMode] = useState<"html" | "preview">("preview");
   const [isSeeding, setIsSeeding] = useState(false);
@@ -116,10 +116,14 @@ export function EmailTemplateEditor() {
   // Replace variables with sample data for preview
   const getPreviewHtml = (html: string) => {
     const sampleData: Record<string, string> = {
-      "{{invoice_number}}": "INV-2024-0001",
-      "{{estimate_number}}": "EST-2024-0001",
+      "{{loan_number}}": "LN-2024-0001",
       "{{receipt_number}}": "RCP-2024-0001",
+      "{{client_name}}": "John Doe",
       "{{customer_name}}": "John Doe",
+      "{{principal}}": "50,000.00",
+      "{{amount_due}}": "5,250.00",
+      "{{outstanding_balance}}": "44,750.00",
+      "{{arrears_amount}}": "5,250.00",
       "{{business_name}}": "Your Business",
       "{{total}}": "1,500.00",
       "{{amount}}": "500.00",
