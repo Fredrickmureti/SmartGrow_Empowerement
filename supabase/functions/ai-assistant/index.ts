@@ -157,26 +157,17 @@ interface ApiKeyConfig {
 interface FinancialContext {
   organization: any;
   bankAccounts: any[];
-  recentInvoices: any[];
   recentExpenses: any[];
   recentPayments: any[];
-  pendingBills: any[];
   contacts: any[];
-  // Extended data
-  products: any[];
-  lowStockProducts: any[];
   employees: any[];
-  leaveRequests: any[];
-  projects: any[];
-  projectTasks: any[];
-  crmLeads: any[];
   fixedAssets: any[];
-  posTransactions: any[];
-  estimates: any[];
-  salesOrders: any[];
-  creditNotes: any[];
-  purchaseOrders: any[];
   accounts: any[];
+  // Microfinance core
+  clients: any[];
+  loans: any[];
+  applications: any[];
+  repayments: any[];
   summary: {
     // `null` means the sanctioned read failed. It is rendered as
     // "unavailable" — never as 0, which the model would quote as fact.
@@ -187,15 +178,15 @@ interface FinancialContext {
     recentRevenue: number | null;
     recentExpenses: number | null;
 
-    // Extended summaries
-    totalProducts: number;
-    lowStockCount: number;
     totalEmployees: number;
-    pendingLeaveRequests: number;
-    activeProjects: number;
-    openLeads: number;
     totalAssetValue: number;
-    todayPOSSales: number;
+
+    // Lending aggregates
+    totalClients: number | null;
+    activeLoans: number | null;
+    activePrincipal: number | null;
+    pendingApplications: number | null;
+    repaymentsLast30: number | null;
   };
 }
 
@@ -204,46 +195,36 @@ function isAdminRole(role: string | undefined): boolean {
   return ['super_admin', 'owner', 'admin'].includes(role || '');
 }
 
-/** Which module each snapshot collection belongs to. */
+/** Which module each snapshot collection belongs to (keys of `AI_MODULES`). */
 const CONTEXT_FIELD_MODULE: Record<string, string> = {
-  bankAccounts: "financials",
-  recentExpenses: "financials",
-  accounts: "financials",
-  fixedAssets: "financials",
-  recentInvoices: "sales",
-  recentPayments: "sales",
-  estimates: "sales",
-  salesOrders: "sales",
-  creditNotes: "sales",
-  crmLeads: "sales",
-  pendingBills: "purchases",
-  purchaseOrders: "purchases",
-  contacts: "contacts",
-  products: "products",
-  lowStockProducts: "inventory",
-  posTransactions: "pos",
-  employees: "hr",
-  leaveRequests: "leave",
-  projects: "projects",
-  projectTasks: "projects",
+  bankAccounts: "treasury",
+  recentExpenses: "accounting",
+  recentPayments: "accounting",
+  accounts: "accounting",
+  fixedAssets: "accounting",
+  contacts: "clients",
+  employees: "team",
+  clients: "clients",
+  loans: "loans",
+  applications: "applications",
+  repayments: "repayments",
 };
 
 /** Summary figures that must be hidden with their module. */
 const CONTEXT_SUMMARY_MODULE: Record<string, string> = {
-  totalBankBalance: "financials",
-  recentExpenses: "financials",
-  totalAssetValue: "financials",
-  totalReceivables: "sales",
-  overdueReceivables: "sales",
-  recentRevenue: "sales",
-  openLeads: "sales",
-  totalPayables: "purchases",
-  totalProducts: "products",
-  lowStockCount: "inventory",
-  todayPOSSales: "pos",
-  totalEmployees: "hr",
-  pendingLeaveRequests: "leave",
-  activeProjects: "projects",
+  totalBankBalance: "treasury",
+  recentExpenses: "accounting",
+  recentRevenue: "accounting",
+  totalReceivables: "accounting",
+  overdueReceivables: "accounting",
+  totalPayables: "accounting",
+  totalAssetValue: "accounting",
+  totalEmployees: "team",
+  totalClients: "clients",
+  activeLoans: "loans",
+  activePrincipal: "loans",
+  pendingApplications: "applications",
+  repaymentsLast30: "repayments",
 };
 
 /**
