@@ -2,7 +2,7 @@
  * Track C — Naming hygiene aliases.
  *
  * Several DB tables are prefixed `organization_*` for legacy reasons
- * (`organization_payment_methods`, `organization_payment_gateways`) but
+ * (`organization_payment_methods`) but
  * are operationally scoped at the **business** (company) level — they
  * carry `business_id` and, in some cases, `branch_id`.
  *
@@ -23,16 +23,9 @@ export type CompanyPaymentMethodInsert =
 export type CompanyPaymentMethodUpdate =
   Database["public"]["Tables"]["organization_payment_methods"]["Update"];
 
-export type CompanyPaymentGatewayRow =
-  Database["public"]["Tables"]["organization_payment_gateways"]["Row"];
-export type CompanyPaymentGatewayInsert =
-  Database["public"]["Tables"]["organization_payment_gateways"]["Insert"];
-export type CompanyPaymentGatewayUpdate =
-  Database["public"]["Tables"]["organization_payment_gateways"]["Update"];
 
 /**
  * The DB table name. Centralised so a future rename migration only
  * has to update this constant.
  */
 export const COMPANY_PAYMENT_METHODS_TABLE = "organization_payment_methods" as const;
-export const COMPANY_PAYMENT_GATEWAYS_TABLE = "organization_payment_gateways" as const;

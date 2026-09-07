@@ -5,7 +5,13 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 
-export type PaymentProvider = "mpesa" | "mpesa_c2b" | "stripe" | "flutterwave" | "paystack";
+/**
+ * Kenyan microfinance collection providers only. Card acquiring
+ * (Stripe/Flutterwave/Paystack) was removed with the ERP payment
+ * gateway configuration — an MFI collects via M-Pesa PayBill, bank
+ * and cash.
+ */
+export type PaymentProvider = "mpesa" | "mpesa_c2b";
 
 export interface PaymentProviderConfig {
   id: string;
@@ -29,14 +35,10 @@ export interface MpesaConfig {
   business_short_code: string;
   passkey: string;
   account_reference?: string;
-  transaction_type: "CustomerPayBillOnline" | "CustomerBuyGoodsOnline";
+  /** PayBill only. Till (CustomerBuyGoodsOnline) carries no account reference. */
+  transaction_type: "CustomerPayBillOnline";
 }
 
-export interface StripeConfig {
-  publishable_key: string;
-  secret_key: string;
-  webhook_secret?: string;
-}
 
 /**
  * Cache key. Provider configs are scoped to (organization_id, business_id),
