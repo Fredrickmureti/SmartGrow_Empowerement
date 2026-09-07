@@ -72,7 +72,7 @@ export function DocumentTemplateSettings() {
     setAsDefault 
   } = useDocumentTemplates();
 
-  const [activeType, setActiveType] = useState<DocumentTemplateType>("invoice");
+  const [activeType, setActiveType] = useState<DocumentTemplateType>("loan_agreement");
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<DocumentTemplate | null>(null);
   const [deleteConfirmTemplate, setDeleteConfirmTemplate] = useState<DocumentTemplate | null>(null);
