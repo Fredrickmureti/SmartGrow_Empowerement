@@ -28532,6 +28532,10 @@ export type Database = {
         }
         Returns: string
       }
+      mf_default_number_prefix: {
+        Args: { p_sequence_key: string }
+        Returns: string
+      }
       mf_disburse_loan: {
         Args: {
           p_amount: number
@@ -28553,6 +28557,18 @@ export type Database = {
       }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
+      mf_next_number: {
+        Args: {
+          p_branch_id: string
+          p_business_id: string
+          p_sequence_key: string
+        }
+        Returns: string
+      }
+      mf_number_period_key: {
+        Args: { p_at?: string; p_reset: string }
+        Returns: string
+      }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
