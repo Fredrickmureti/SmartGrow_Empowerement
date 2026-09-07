@@ -342,14 +342,6 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     }
 
     toast.success("Company created with chart of accounts and fiscal periods");
-    // Seed POS defaults (default payment methods etc.). Non-blocking.
-    try {
-      await supabase.rpc("seed_pos_defaults_for_business" as any, {
-        _business_id: newBusinessId as string,
-      } as any);
-    } catch (e) {
-      console.warn("Non-blocking: seed_pos_defaults_for_business failed", e);
-    }
     await fetchBusinesses();
     return row;
   };
