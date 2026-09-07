@@ -363,8 +363,10 @@ DONE this session:
 Linter posture now: 1149 findings, all WARN — 1144 "signed-in users can execute SECURITY DEFINER function" (by design: these are the app RPCs, each enforcing access internally), 4 "extension in public" (pg_trgm/cube/earthdistance/btree_gist — moving them is riskier than the finding), 1 leaked-password protection.
 
 ### REMAINING
-1. **Leaked-password protection** — dashboard toggle, user action: Supabase → Authentication → Policies.
-2. **Wave 9c** — remaining legacy table groups (POS, projects, consolidation, payroll, inventory) plus the inert `sales_order`/`delivery_note` label-map entries in `_shared/pdfGenerator.ts`, `_shared/receipt/documentToInput.ts`, `_shared/templateRenderer.ts`, `_shared/documents/persistArtifact.ts`, `outbox-dispatcher/index.ts`; grep `src/` + `supabase/functions/` immediately before each drop.
-3. **Wave 9d** — orphan function purge (sales/delivery/WMS `*_atomic`, `get_next_so_number`, `get_next_delivery_number`, `*sales_return*`).
-4. **Next wave — remaining SaaS/platform tables from the old ERP** (user-requested): `platform_exchange_rates`, `platform_apps`, `platform_demo_videos`, `platform_integration_*`, `organization_installed_apps`, `app_*` install/launch tables, `org_usage_counters`. Audit consumers first — `publish_platform_rates()` cron reads `platform_exchange_rates` and feeds `exchange_rates`; do NOT drop it before the FX publishing path is re-pointed or retired.
+I removed the unused leftovers from the old retail, warehouse, payroll and invoicing modules from the database — around 370 dead routines are gone, and nothing still in use was touched.
 
+What's still open for this cleanup wave:
+
+11 old triggers still attached to live tables (approvals, branches, companies, journal lines, payments, SMS rules) that belong to the retired modules — these need removing together with their routines.
+7 leftover code paths still calling retired routines: company creation seeding old till/payment defaults, the payroll bank acknowledgement function, payslip and inventory report helpers, a stock reorder step, and the M-Pesa PayBill inbound handler still settling against old sales invoices instead of loan repayments. The M-Pesa one is a real functional gap, not just tidying, and deserves its own step.
+Separate open thread: the repayment posting fix — the accounting routine still compares against a status value that doesn't exist ("voided" instead of "void"); that change plus the end-to-end payment tests are still pending.
