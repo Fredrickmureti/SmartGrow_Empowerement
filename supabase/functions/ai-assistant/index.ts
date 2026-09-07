@@ -1461,13 +1461,10 @@ serve(async (req) => {
 
     const featureMap: Record<string, string> = {
       categorize_expense: "expense_categorization_enabled",
-      analyze_invoice: "invoice_analysis_enabled",
       financial_insights: "financial_insights_enabled",
       chat: "chat_enabled",
       suggest_actions: "financial_insights_enabled",
       email_assist: "chat_enabled",
-      match_transactions: "expense_categorization_enabled",
-      document_text: "chat_enabled",
     };
 
     const featureKey = featureMap[type];
