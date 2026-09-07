@@ -210,7 +210,21 @@ Each wave is independently shippable and reversible.
 - `ClientFormDialog` / `ApplicationFormDialog`: removed the client-side guessed numbers (`nextClientNumber`, `nextApplicationNumber` no longer used); the reference field is now read-only "Assigned automatically" on create and read-only on edit. `client_number` / `application_number` made optional in `MfClientInput` / `MfLoanApplicationInput` and no longer sent on insert. Unused `existingClients` / `existing` props dropped from both pages.
 - `npx tsgo --noEmit` clean.
 
-### Remaining
+### Completed (Wave 7) — 2026-09-07
+- Verified already-MFI-scoped: `useNotifications` categories (loan/payment/collection/expense/team/system), `EmailTemplateEditor` keys (5 lending templates), `ensure_default_email_templates` (same 5 keys, no ERP templates). No change needed.
+- `notification_alert_settings`: dropped ERP columns `low_stock_warning_threshold`, `low_stock_critical_threshold`, `out_of_stock_alert`, `invoice_reminder_days_before`; `upsert_notification_alert_settings` rewritten (SECURITY DEFINER, same authz) without those keys.
+- `src/hooks/useNotificationAlertSettings.ts`: interfaces, defaults and Zod schema pruned (critical<=warning refine removed with the fields).
+- `src/test/architecture/notification-alert-settings.test.ts` updated; 14 tests pass; `npx tsgo --noEmit` clean.
 
+### Completed (Wave 8, partial)
+- Dropped ERP numbering functions with zero DB and zero app consumers: `get_next_rfq_number`, `get_next_lead_number`, `get_next_task_number`, `get_next_project_number`, `get_next_wave_number`, `get_next_manifest_number`, `get_next_carton_number`, `get_next_asn_number`, `get_next_adjustment_number`, `get_next_draft_transaction_number`, `get_next_leave_request_number`.
+- Dropped `businesses.credit_note_prefix` and `businesses.proforma_prefix` (referenced only by generated types + a guard test).
 
-Picked up where it stopped and finished that piece: the reference-numbering screen is now a "Numbering" tab on Company settings, and the New client and New loan application forms no longer show an editable guessed reference — they show "Assigned automatically", and the real number comes from the system when the record is saved (I confirmed in the database that it always assigns the number itself). The type check passes; I couldn't click through the screen here because the test browser has no signed-in session, so please open Company settings → Numbering once to confirm it looks right. Waves 7 (notifications/email templates) and 8 (legacy database cleanup) are still outstanding.
+### Remaining (Wave 8) — deliberately NOT done, with evidence
+- `sales_orders`, `sales_order_items`, `sales_returns`, `sales_return_items`, `sales_return_cost_basis`, `sales_document_idempotency`: all 0 rows, BUT `sales_orders` is referenced by 32 DB functions, `sales_order_items` by 13, `sales_returns` by 12, and `delivery_notes.sales_order_id` / `delivery_note_items.sales_order_item_id` FK into them. Also referenced by `supabase/functions/{generate-document,send-document-email,ai-assistant}` and `src/hooks/{useExport,realtime/useUnifiedRealtimeSync}`. Dropping requires a dedicated delivery-notes/AI-assistant wave — out of Settings scope.
+- `payment_requests`: RETAIN. Actively consumed by `supabase/functions/mpesa-outbound` and `mpesa-callback` (live M-Pesa flow), not just the debugger.
+- Remaining `get_next_*_number` functions (`invoice`, `estimate`, `credit_note`, `proforma`, `so`, `sales_return`, `receipt`, `expense`, `delivery`, `document`, `employee`, `asset`, `opening_stock`, `journal_entry`) all still have DB callers and/or app callers — each needs its consumer retired first.
+
+### Next action
+Start the delivery-notes/commercial-document retirement wave: retire the `delivery_notes` FKs into `sales_orders`, then the 32 dependent DB functions, then the tables.
+
