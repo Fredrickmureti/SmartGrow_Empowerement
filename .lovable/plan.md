@@ -363,10 +363,16 @@ DONE this session:
 Linter posture now: 1149 findings, all WARN — 1144 "signed-in users can execute SECURITY DEFINER function" (by design: these are the app RPCs, each enforcing access internally), 4 "extension in public" (pg_trgm/cube/earthdistance/btree_gist — moving them is riskier than the finding), 1 leaked-password protection.
 
 ### REMAINING
-I removed the unused leftovers from the old retail, warehouse, payroll and invoicing modules from the database — around 370 dead routines are gone, and nothing still in use was touched.
 
-What's still open for this cleanup wave:
 
-11 old triggers still attached to live tables (approvals, branches, companies, journal lines, payments, SMS rules) that belong to the retired modules — these need removing together with their routines.
-7 leftover code paths still calling retired routines: company creation seeding old till/payment defaults, the payroll bank acknowledgement function, payslip and inventory report helpers, a stock reorder step, and the M-Pesa PayBill inbound handler still settling against old sales invoices instead of loan repayments. The M-Pesa one is a real functional gap, not just tidying, and deserves its own step.
-Separate open thread: the repayment posting fix — the accounting routine still compares against a status value that doesn't exist ("voided" instead of "void"); that change plus the end-to-end payment tests are still pending.
+Done this session
+
+Verified the previous notes against the live database rather than trusting them.
+Removed the five leftover automatic rules from the retired retail, payroll and warehouse modules (company creation seeding old till/payment defaults, two payroll accounting guards, a warehouse counting hook, and a branch-copying rule on payments). Each pointed at records or routines that no longer exist, so any save touching them would have failed.
+Repaired M-Pesa PayBill receipts: they now record the matched loan, client and repayment, and the obsolete point-of-sale match column is gone.
+Rewrote the M-Pesa PayBill handler so an incoming payment is matched by loan reference (falling back to client reference when the client has exactly one open loan) and settled through the loan repayment engine, with duplicate deliveries from Safaricom safely ignored. Previously it looked for sales invoices and wrote to a column that no longer exists — every PayBill receipt would have been lost. Ambiguous or unrecognised references are now left unreconciled with a clear reason instead of being guessed at by amount.
+Still open
+
+Removing the company-creation step that still seeds old till/payment defaults (seed_pos_defaults_for_business in the company context) — the database routine is already gone, so it's a harmless failed call today.
+Six other code paths still calling deleted routines: the customer and supplier statement send queues, the payslip snapshot, the bank payroll acknowledgement, the inventory and payroll report helpers, and the label-template lookup.
+Typecheck plus the M-Pesa test suite have not been run since my last edits, so those changes are unverified.
