@@ -25481,16 +25481,6 @@ export type Database = {
         Args: { _actor: string; _gr_id: string }
         Returns: Json
       }
-      finance_sales_revenue_reconciliation: {
-        Args: {
-          _branch_id?: string
-          _business_id?: string
-          _from: string
-          _org_id: string
-          _to: string
-        }
-        Returns: Json
-      }
       find_cross_business_journal_lines: {
         Args: never
         Returns: {
@@ -25976,14 +25966,6 @@ export type Database = {
       get_direct_reports: {
         Args: { _manager_employee_id: string }
         Returns: string[]
-      }
-      get_document_lineage: {
-        Args: { p_doc_id: string; p_doc_type: string }
-        Returns: Json
-      }
-      get_document_settlement_lineage: {
-        Args: { p_doc_id: string; p_doc_type: string }
-        Returns: Json
       }
       get_effective_company_config: {
         Args: { p_branch_id?: string; p_business_id: string }
