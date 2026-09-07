@@ -37,7 +37,6 @@ import {
   CreditCard,
   Store,
   Mail,
-  FileText,
   Wallet,
   ArrowLeft,
   Mail as MailIcon,
@@ -49,7 +48,6 @@ import { MpesaC2BProviderCard } from "@/components/settings/MpesaC2BProviderCard
 import { BusinessBranchSettings } from "@/components/settings/BusinessBranchSettings";
 import { PaymentsDebugger } from "@/components/settings/PaymentsDebugger";
 import { EmailTemplateEditor } from "@/components/settings/EmailTemplateEditor";
-import { DocumentTemplateSettings } from "@/components/settings/DocumentTemplateSettings";
 // PrintingSettings moved to /platform/hardware/policies (Wave 9d Phase 4).
 import { PaymentMethodsSettings } from "@/components/settings/PaymentMethodsSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
@@ -84,7 +82,6 @@ function CompanySettingsInner() {
   // in the UI. Read-only / expired-trial lifecycle states still SHOW the
   // tab; the inputs inside enforce edit-disabled via per-form gates.
   const hasFinance = appsLoading || isInstalled("finance");
-  const hasDocuments = appsLoading || isInstalled("finance");
 
   return (
     <PlatformAppLayout>
@@ -146,12 +143,6 @@ function CompanySettingsInner() {
                   <span className="hidden sm:inline">Email</span>
                 </TabsTrigger>
               )}
-              {!isPortalUser && permissions.canEditSettings && hasDocuments && (
-                <TabsTrigger value="templates" className="gap-1.5 text-xs sm:text-sm">
-                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="hidden sm:inline">Templates</span>
-                </TabsTrigger>
-              )}
 
               {/* Audit log surfaced centrally at /settings/audit-logs?tab=settings */}
 
@@ -177,9 +168,6 @@ function CompanySettingsInner() {
           </TabsContent>
 
 
-          <TabsContent value="templates">
-            <DocumentTemplateSettings />
-          </TabsContent>
 
           <TabsContent value="payment-methods">
             <PaymentMethodsSettings />

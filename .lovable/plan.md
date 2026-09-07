@@ -151,14 +151,12 @@ Each wave is independently shippable and reversible.
 - **Acceptance**: no crypto or card-acquiring concept exists anywhere.
 - **Risk**: enum recreation touches dependent columns — do it inside one transaction with explicit `ALTER TABLE ... TYPE ... USING`.
 
-### Wave 3 — Payment channels (Cash / M-Pesa PayBill / Bank Transfer)
-- **Objective**: replace the generic method catalogue with the MFI channel model.
-- **Files**: `PaymentMethodsSettings.tsx` → `PaymentChannelsSettings.tsx`, `AddPaymentMethodDialog.tsx`, `usePaymentMethods.ts`, `MpesaProviderCard.tsx`, `MpesaC2BProviderCard.tsx`, `BranchOperations.tsx`.
-- **DB**: create `organization_payment_channels` (+ RLS mirroring `organization_payment_methods`, branch/business consistency trigger, FK to `bank_accounts`); backfill; drop `organization_payment_methods` and `businesses.show_payment_methods_on_documents`.
-- **Dependencies**: repayment recording reads channel → must be migrated before the old table is dropped.
-- **Tests**: create/activate/deactivate each channel; record a repayment against each; C2B callback still reconciles.
-- **Acceptance**: exactly three channel kinds are configurable; Till is unavailable; deactivating a channel hides it from repayment capture.
-- **Rollback**: keep the old table for one release behind a feature flag before dropping.
+### Wave 3 — Payment channels (Cash / M-Pesa PayBill / Bank Transfer) — REVISED VERDICT
+- **Objective**: MFI channel vocabulary on the existing catalogue.
+- **Decision (supersedes the original)**: do NOT create `organization_payment_channels`. `organization_payment_methods` is already narrowed to `cash | mobile_money | bank`, already FKs `bank_accounts`, and already carries `branch_id`. Adapt it in place; a parallel table buys nothing and risks a data migration for cosmetic gain.
+- **Files**: `PaymentMethodsSettings.tsx`, `AddPaymentMethodDialog.tsx`, `usePaymentMethods.ts`, `MpesaC2BProviderCard.tsx`, `src/types/paymentMethod.ts`.
+- **Status**: type/label narrowing done; Till removed from M-Pesa C2B settings (PayBill only, config always `shortcode_type: "paybill"`).
+- **Acceptance**: exactly three channel kinds configurable; Till is unavailable anywhere in Settings.
 
 ### Wave 4 — KES-only currency
 - **Objective**: lock the institution to KES.
