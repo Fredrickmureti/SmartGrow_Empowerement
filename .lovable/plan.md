@@ -297,15 +297,14 @@ Execute Wave 9a part 2 exactly as specified above, starting with `capabilities.t
 
 ### Next action
 
-Done in this session:
+Done this session
 
-Removed the payroll diagnostics block (it read tables that no longer exist).
-Rewrote the assistant's data snapshot to read only live microfinance and finance data: borrowers, loans, applications, repayments, bank accounts, expenses, payments, staff, assets, chart of accounts, branches.
-Rewrote the assistant's briefing text around loan portfolio, applications, collections, borrowers, staff, assets and ledger figures, dropping all the retired sales/stock/projects/leads/payroll sections.
-Still outstanding:
+Read the saved progress notes and confirmed the real remaining item: the AI assistant was left mid-rewrite after retiring the old ERP/payroll parts.
+Verified the app itself has no code errors right now.
+Confirmed the old staff/payroll pages the assistant was still pointing at no longer exist in the app.
+Rewrote the assistant's list of allowed destinations so it now only offers real pages: borrowers, groups, loans, applications, repayments, collections, loan products, lending accounting mapping, the lending reports, the finance pages, and the settings hubs (companies & branches, numbering, payment channels, audit logs).
+Still outstanding (next step, in order)
 
-Update the context type definition and the two permission maps near the top of the assistant file so they match the new fields (the old ones still name products, projects, invoices, and so on) — until this is done the file will not typecheck.
-Delete the now-unused payroll diagnostics helper function.
-Run the typecheck and the assistant tests, then add the planned test coverage for lending questions and denied permissions.
-Then continue with the rest of the plan: removing remaining sales-order references from the email/export/sync code, dropping the six empty sales tables, the legacy cleanup groups, and the final security pass.
-Nothing is broken in the running app from these edits, but the assistant file needs items 1 and 2 finished before it will build
+In the assistant's server file: remove the leftover payroll diagnostics helper (now unused), replace its old destination list with the same lending/finance/settings list, drop the "fix payroll mappings" action, and update its data-shape definition plus the two permission maps so they name borrowers/loans/applications/repayments instead of products, projects and invoices.
+Run the checks and the assistant tests, then add the planned tests (a lending question answered from live data, and a denied-permission case).
+Then continue the plan: remove the remaining sales-order references from the email/export/sync code, drop the six empty sales tables and their dependent functions, finish the legacy clean-up groups, and do the final security pass.
