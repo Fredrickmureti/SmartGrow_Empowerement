@@ -19301,59 +19301,6 @@ export type Database = {
           },
         ]
       }
-      units_of_measure: {
-        Row: {
-          business_id: string
-          category_id: string
-          code: string
-          created_at: string
-          factor_to_reference: number
-          id: string
-          is_active: boolean
-          name: string
-          organization_id: string
-          rounding: number
-          uom_type: string
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          category_id: string
-          code: string
-          created_at?: string
-          factor_to_reference: number
-          id?: string
-          is_active?: boolean
-          name: string
-          organization_id: string
-          rounding?: number
-          uom_type: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          category_id?: string
-          code?: string
-          created_at?: string
-          factor_to_reference?: number
-          id?: string
-          is_active?: boolean
-          name?: string
-          organization_id?: string
-          rounding?: number
-          uom_type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "units_of_measure_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_active_business: {
         Row: {
           business_id: string
@@ -24182,10 +24129,6 @@ export type Database = {
       convert_proforma_to_invoice_atomic: {
         Args: { p_proforma_id: string; p_user_id: string }
         Returns: Json
-      }
-      convert_uom: {
-        Args: { p_from_uom: string; p_qty: number; p_to_uom: string }
-        Returns: number
       }
       count_my_employee_drafts: {
         Args: { p_business_id: string; p_org_id: string }
