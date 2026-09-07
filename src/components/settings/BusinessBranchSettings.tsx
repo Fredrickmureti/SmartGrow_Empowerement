@@ -455,9 +455,7 @@ function EditBusinessDialog({ business, onClose, onSave }: EditBusinessDialogPro
         state: business.state || "",
         postal_code: business.postal_code || "",
         country: business.country || "",
-        invoice_prefix: business.invoice_prefix || "",
-        estimate_prefix: business.estimate_prefix || "",
-        bill_prefix: business.bill_prefix || "",
+
       });
     }
   }, [business]);
