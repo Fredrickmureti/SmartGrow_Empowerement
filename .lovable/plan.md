@@ -251,3 +251,9 @@ no agent session can be minted; needs a human sign-in per group in the preview.
 
 Next agent action: apply the two seed decisions above once answered (single small migration
 on `permission_group_rules`), then W5 with a human.
+
+**Owner decisions applied (2026-09-08d):** Credit Analyst KEEPS `applications.can_approve`
+(seed unchanged — §D recommend-only is superseded). Loan Officer now has
+`collections` read+write+create; applied to the live rule and to
+`seed_default_permission_groups` so new institutions inherit it. Verified in the database.
+Both §D deltas are now closed; W5 remains the only open item.
