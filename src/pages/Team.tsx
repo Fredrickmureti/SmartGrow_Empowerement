@@ -724,20 +724,26 @@ export default function Team() {
                           },
                         ]).map((preset) => {
                           const selected = inviteRole === preset.value;
+                          const blocked = preset.value === "admin" && !isOwner;
                           return (
                             <button
                               type="button"
                               key={preset.value}
+                              disabled={blocked}
                               onClick={() => setInviteRole(preset.value)}
                               className={`text-left rounded-md border p-3 transition ${
-                                selected
-                                  ? "border-primary ring-2 ring-primary/30"
-                                  : "hover:border-foreground/30"
+                                blocked
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : selected
+                                    ? "border-primary ring-2 ring-primary/30"
+                                    : "hover:border-foreground/30"
                               }`}
                             >
                               <p className="font-medium text-sm">{preset.title}</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {preset.blurb}
+                                {blocked
+                                  ? "Only the institution owner can invite an administrator."
+                                  : preset.blurb}
                               </p>
                             </button>
                           );
