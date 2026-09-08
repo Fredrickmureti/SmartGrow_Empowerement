@@ -15996,6 +15996,9 @@ export type Database = {
       permission_groups: {
         Row: {
           created_at: string
+          default_branch_scope:
+            | Database["public"]["Enums"]["branch_scope_mode"]
+            | null
           description: string | null
           id: string
           is_deprecated: boolean
@@ -16006,6 +16009,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_branch_scope?:
+            | Database["public"]["Enums"]["branch_scope_mode"]
+            | null
           description?: string | null
           id?: string
           is_deprecated?: boolean
@@ -16016,6 +16022,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_branch_scope?:
+            | Database["public"]["Enums"]["branch_scope_mode"]
+            | null
           description?: string | null
           id?: string
           is_deprecated?: boolean
