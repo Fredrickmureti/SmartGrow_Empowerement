@@ -119,7 +119,7 @@ export function BranchAssignmentDialog({
     selections.find((s) => s.branchId === branchId);
 
   // Check if user is admin/owner (they have access to all branches automatically)
-  const isAdminOrOwner = member?.role === "admin" || member?.role === "owner" || member?.role === "super_admin";
+  const isAdminOrOwner = member?.role === "admin" || member?.role === "owner";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
