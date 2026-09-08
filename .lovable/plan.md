@@ -139,14 +139,45 @@ posting rules or Reports.
 
 ===IMPLEMENTATION PROGRESS==========
 
-Here's where things stand.
+**Session 2026-09-08 (b) — W1 frontend half CLOSED and verified.**
 
-Verified (not assumed) that earlier waves really landed: the seven access groups exist with their rules and branch reach (Institution Admin/Accountant/Auditor = all branches; Branch Manager/Credit Analyst = assigned; Loan Officer/Cashier = own portfolio), one group per person is enforced, and no lending or finance data rule is left permission-blind.
+Completed / verified this session:
+- `src/lib/permissions.ts`: `resolveEffectivePermissions` now derives every non-privileged
+  user's rights **only** from their access group (owner/admin/super_admin full, portal deny).
+  The dead role matrices that used to widen this — `LENDING_ROLE_PERMISSIONS` and
+  `INTERNAL_GROUP_ROLES` — are deleted, so there is no second authority in code.
+  `tsgo --noEmit -p tsconfig.app.json` is clean; no other file referenced them.
+- Parity checked against the database, not assumed: all 13 modules seeded in
+  `permission_group_rules` (clients, loan_products, applications, loans, repayments,
+  collections, accounting, treasury, reports, branches, audit, settings, team) are present in
+  `MODULE_PERMISSION_MAP`, so no group rule is silently dropped by the UI.
+- W3 confirmed live: exactly 7 active system groups, none deprecated-but-live; branch reach =
+  Institution Admin/Accountant/Auditor `all`, Branch Manager/Credit Analyst `assigned`,
+  Loan Officer/Cashier `own_portfolio`.
+- W4 confirmed live: the permission-blind-policy query over `mf_*` + finance tables returns
+  NONE (same predicate as `supabase/tests/access_group_rls_coverage_test.sql`).
 
-Fixed a real blocker: adding a new branch failed outright because of a leftover rule from the old system that tried to create a warehouse. Removed it — branches can be created again.
+Open question for the product owner (do NOT change unilaterally): `seed_default_permission_groups`
+grants Credit Analyst `applications.can_approve` ("Assesses and approves applications"), while
+§D of this plan says Credit Analyst recommends but does not approve. One of the two must give.
+Likewise Loan Officer currently has `collections` read-only, while §D describes them recording
+field collections.
 
-Branch access is now proven end to end. I added a second test branch (Kitengela), assigned the test loan officer, cashier and branch manager to it, and asked the system directly what each may do at each branch. Results were exactly right: the branch manager approves loans and records repayments in their own branch and has no access at Headquarters; the cashier can only take repayments, in their branch only; the loan officer can see clients in their branch but cannot approve; the auditor can look everywhere and change nothing.
+Blocked, not failing: W5 (invite → accept → per-group sign-in proof) cannot be run from the
+agent environment — this is an external/BYO Supabase (`LOVABLE_BROWSER_AUTH_STATUS=
+external_unmanaged`), so no test session can be minted. It needs a human to sign in as each
+test user in the preview. Branch-scope authority itself was already proven at the RPC level in
+the previous session (Headquarters vs Kitengela, per group).
 
-A genuine gap I found and was mid-fix: the app's own screens were still handing people rights based on their job label on top of their access group, so the menu and buttons could offer more than the system would actually permit. I rewrote that so the access group is the only authority (owner/admin keep full access; portal users none). This edit is complete in src/lib/permissions.ts but has not been built or tested — that is the first thing to do next.
+Next agent action, in order:
+1. W6 governance narrowing (keep `governance_assert_not_self`, `self_action_policy`,
+   `self_action_overrides`, the three `mf_*` guards; add a disbursement-approval guard; retire
+   the duty/conflict catalogue, SoD settings page and ERP-table guards) — one small migration
+   per object.
+2. W7 dashboard scope: lending reports/loan reads are already RLS-scoped, so the residual work
+   is the org-only count probes in `src/hooks/usePendingBusinessSetup.ts` and any KPI aggregate
+   that bypasses RLS views.
+3. W8 legacy cleanup last (dead `organization_installed_apps` surface, deprecated ERP groups).
 
-Remaining, in order: confirm the new rights calculation builds cleanly and that each test person's menu and dashboard match once signed in through the app (a session can't be minted here — sign in as a test user in the preview); then governance narrowing, dashboard branch scoping, and removing old ERP leftovers last.
+Do not repeat: W1–W4 are done and re-verified against the live database this session; do not
+re-audit the permission engine, the branch resolver, group seeding or the RLS coverage.

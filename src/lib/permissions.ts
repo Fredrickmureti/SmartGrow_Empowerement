@@ -81,46 +81,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   ...LENDING_PERMISSIONS,
 ];
 
-/**
- * Base-role lending matrix. Roles absent from this map get lending access only
- * through Access Groups.
- */
-export const LENDING_ROLE_PERMISSIONS: Partial<Record<AppRole, LendingPermission[]>> = {
-  branch_manager: [
-    "viewClients", "manageClients", "viewLoanProducts",
-    "viewApplications", "manageApplications", "approveApplications",
-    "viewLoans", "manageLoans", "disburseLoans",
-    "recordRepayments", "viewCollections", "manageCollections",
-    "viewLendingReports",
-  ],
-  credit_officer: [
-    "viewClients", "manageClients", "viewLoanProducts",
-    "viewApplications", "manageApplications", "approveApplications",
-    "viewLoans", "viewCollections", "viewLendingReports",
-  ],
-  loan_officer: [
-    "viewClients", "manageClients", "viewLoanProducts",
-    "viewApplications", "manageApplications",
-    "viewLoans", "recordRepayments", "viewCollections",
-    "viewLendingReports",
-  ],
-  collections_officer: [
-    "viewClients", "viewLoans", "recordRepayments",
-    "viewCollections", "manageCollections", "viewLendingReports",
-  ],
-  auditor: [
-    "viewClients", "viewLoanProducts", "viewApplications",
-    "viewLoans", "viewCollections", "viewLendingReports",
-  ],
-  // Branch teller: receives money at the counter / meeting hand-over.
-  cashier: [
-    "viewClients", "viewLoans", "recordRepayments",
-  ],
-  // Books the lending events into the GL; read-only on the portfolio.
-  accountant: [
-    "viewClients", "viewLoans", "viewLoanProducts", "viewLendingReports",
-  ],
-};
+
+
 
 // Role hierarchy (higher number = more permissions)
 export const ROLE_HIERARCHY: Record<AppRole, number> = {
@@ -312,11 +274,6 @@ export interface PermissionGroupRule {
   can_admin_override?: boolean;
 }
 
-/** Roles whose effective permissions come entirely from their Access Groups. */
-const INTERNAL_GROUP_ROLES: AppRole[] = [
-  "internal", "viewer", "staff", "accountant", "cashier",
-  "branch_manager", "loan_officer", "credit_officer", "collections_officer", "auditor",
-];
 
 /**
  * Resolves effective permissions from the user's Access Group rules.
