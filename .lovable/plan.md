@@ -1,102 +1,66 @@
-# Fix: invited admins have an empty dashboard and no app access
+# Complete and harden team access controls
 
-## What is actually happening (verified in your database)
+## Verified current state
 
-Both accounts are in the same institution (`db06d986…fdc28`):
+- `devmuret@gmail.com` is an active `admin` in Smart Grow Empowerment, has access to the Smart Grow Empowerment company, and is assigned to **Institution Admin**.
+- `fredrickmureti612@gmail.com` is the recorded owner and is also assigned to **Institution Admin**.
+- The live database permission routine now grants blanket module access to an active `owner` or `admin`; the frontend mirrors this. Institution Admin has all operations enabled across the current modules.
+- Existing affected members were backfilled: administrators have Institution Admin, while `mwenderose306@gmail.com` has Internal Users.
+- Invitation acceptance now resolves a real default group instead of silently leaving a member without one.
+- Profile, PIN, device, and login-activity settings are already available to signed-in staff. There is no signed-in **change password** control.
+- The Loan Officer access group already grants read/create/write for Clients, Groups (through the Clients module), Applications, and Collections, with `own_portfolio` scope.
+- Read access is correctly portfolio-scoped, but current create/update policies only check module and branch permission. A loan officer can therefore attempt to create an unassigned record or reassign a client/group outside their own portfolio. Group-member mutations have the same missing portfolio check.
+- The invite dialog still allows an Internal User invitation with no selected access group. The backend fallback prevents a hollow account, but the screen does not make the intended access explicit.
 
-| Account | Role row | Access groups |
-| --- | --- | --- |
-| fredrickmureti612@gmail.com | `owner`, active | none |
-| devmuret@gmail.com | `admin`, active | **none** |
-| mwenderose306@gmail.com | `internal`, active | **none** |
+## Implementation
 
-Access is decided in one place — the database routine that answers "may this
-person use this module". It currently grants everything **only** to the account
-recorded as the institution's owner, and grants everyone else *exactly* what
-their access groups allow. The front end mirrors that rule deliberately
-(`src/lib/permissions.ts:299-323` — owner is blanket, every other label,
-including `admin`, resolves to nothing without a group).
+### 1. Finish invitation safeguards
 
-So there is no inconsistency between the two accounts by accident: the seeded
-account is the recorded owner, and every invited person has **zero** access
-groups, therefore zero permissions, therefore an empty dashboard and no apps.
+- Require at least one Access Group for every non-admin invitation in the invite screen, with a clear inline message and disabled submission until valid.
+- Require at least one branch when the selected scope is **Assigned branches** or **Own portfolio**.
+- Enforce the same invariants in `upsert_organization_invitation` so a direct request cannot bypass the screen.
+- Keep Admin invitations simple: Admin remains full access, is resolved to Institution Admin, and receives all-branch scope.
+- Keep the acceptance-time default-group fallback as recovery for older pending invitations, while new invitations must be explicit.
 
-Why nobody gets a group:
+### 2. Make personal account security universal
 
-1. The invite screen lets you send an invitation with no group selected —
-   every recent invitation row has `permission_group_ids = {}`
-   (devmuret, williammutisya641, kimeumercyline71, mwenderose306).
-2. The acceptance routine has a safety net that assigns a default group named
-   **"Internal Users"** — that group does not exist in this institution. The
-   seven groups that do exist are Institution Admin, Branch Manager, Loan
-   Officer, Credit Analyst, Cashier / Teller, Accountant, Auditor. The safety
-   net silently finds nothing and the member ends up with no group.
-3. `member_permission_groups` is empty for the whole institution — confirming
-   nobody, ever, got a group through this flow.
+- Keep organization controls permission-gated, but keep **Profile**, **Appearance**, **Notifications**, and **Security** available to every signed-in team member regardless of Access Group.
+- Add an authenticated **Change password** panel to Security using the existing password-strength rules and Supabase account update flow.
+- Link the profile menu directly to personal account/security settings so a restricted team member does not need an app permission to find them.
+- Preserve per-user privacy: profile edits, PIN, devices, alerts, and login history remain limited to the signed-in user.
 
-Secondary inconsistency: the app still *describes* Admin as "Full access"
-(`src/lib/permissions.ts:401`) and the architecture doc still claims
-owner/admin/super_admin always pass, while the code grants Admin nothing.
-That mismatch is what makes this feel like a broken system rather than a
-configuration model.
+### 3. Make Loan Officer useful without widening scope
 
-## The fix
+- Preserve Access Groups as the authority: `clients.read` shows Clients and Groups; `clients.create/write/delete` controls the matching actions. No hardcoded privilege will be added merely because the role label says Loan Officer.
+- For an `own_portfolio` member, automatically assign newly created clients and groups to the signed-in officer and prevent changing the officer to someone else.
+- Limit branch choices to assigned branches and preselect the member’s primary/default allowed branch.
+- Tighten client and group create/update rules so an own-portfolio user can only write records whose `loan_officer_id` is their own user ID.
+- Tighten group-membership add/edit/remove rules so an own-portfolio user can only manage the roll of a group assigned to them.
+- Keep Admin/Owner and appropriately broader groups able to assign or reassign officers according to their branch scope.
 
-Treat **Admin as a real administrator** (matching every label and doc in the
-product and your expectation), keep access groups as the mechanism for
-everyone else, and make it impossible to create a member with no access at all.
+### 4. Verify Access Groups end to end
 
-### 1. Admin becomes a blanket authority alongside Owner
-- Update the permission routine so an active `owner` **or** `admin` role in the
-  institution passes every module/operation check; everyone else continues to
-  resolve through access groups only.
-- Mirror it in the front end so the interface never shows more or less than the
-  backend allows.
-- Keep the audit/segregation layer untouched — self-approval limits still apply
-  through the existing governance mode, so Admin is not a way around approvals.
+Add regression coverage for the actual authorization chain:
 
-### 2. No member can exist with zero access
-- Fix the acceptance routine's default group: look up the institution's
-  administrative group for admin invites and a genuine default staff group for
-  everyone else, by a name that actually exists, and create that default group
-  if the institution has none.
-- Add the safety net at invite time too: sending an invitation with no group
-  selected for a non-admin role is blocked in the invite dialog, with the
-  reason shown.
+- Owner and Admin: same module/app visibility and all-branch reach.
+- Internal user with no group: no operational access.
+- Internal user with a read-only group: pages/records visible, create/edit/delete unavailable and rejected by the database.
+- Loan Officer with `own_portfolio`: can create and edit their own clients/groups, sees only assigned portfolio records, cannot assign work to another officer or mutate another officer’s group roll.
+- Assigned-branch group: sees and writes only permitted branches.
+- Access-group reassignment/session refresh: changing a member’s group changes navigation and actions after session refresh, with no stale privilege retained.
+- Every signed-in team member can edit their own profile, set/change PIN, change password, inspect devices, and view login activity.
+- Invitation validation rejects missing groups/branches at both the screen and database boundary.
 
-### 3. Repair the people already invited
-- Assign the **Institution Admin** group to the existing `admin` members
-  (devmuret@gmail.com, williammutisya641@gmail.com).
-- Assign the default staff group to mwenderose306@gmail.com (`internal`).
-- Leave the owner as-is.
+Use database-level permission/RLS assertions plus focused frontend tests. Run the relevant test files, typecheck, inspect the latest build result, and perform a signed-in browser pass. If an alternate user session can be minted, verify `devmuret@gmail.com` directly; otherwise verify that account at the data layer and report the browser limitation explicitly.
 
-### 4. Prove it
-- Re-run the permission routine for each of the three accounts across the
-  lending, accounting, treasury, reports and settings modules and show the
-  before/after answers.
-- Sign in through the browser as the invited admin and confirm the dashboard
-  and app launcher are populated (this needs the invited account's password, or
-  I verify at the data layer only and you click through yourself).
+### 5. Align documentation and project rules
 
-### 5. Align the documentation
-- Correct `docs/architecture/SUBSCRIPTION_ENTITLEMENT_RBAC.md` so the described
-  rule matches the shipped rule, and record the model in project memory so a
-  later session does not silently strip role authority again.
+- Update the authorization documentation to state the shipped model exactly: Owner/Admin are blanket authorities; every other staff member receives module operations from Access Groups and record visibility from branch/portfolio scope.
+- Record this authorization model in project memory so later changes cannot silently restore role-based exceptions or weaken portfolio scoping.
+- Update the roadmap/plan notes only after verification succeeds.
 
-## Technical notes
+## Technical scope
 
-- `public.user_has_module_permission(_user_id,_org_id,_module,_operation)` —
-  add the role branch (`owner`,`admin`) next to the existing
-  `organizations.owner_user_id` branch; the 5-arg business overload delegates
-  to it so it inherits the fix. `user_has_module_permission_in_branch` keeps
-  branch scoping on top, unchanged.
-- `public.accept_organization_invitation_atomic` — replace the hardcoded
-  `'Internal Users'` / `'Internal User'` lookup with a role-aware resolution
-  plus creation of a default group when absent.
-- `src/lib/permissions.ts` — `resolveEffectivePermissions` and
-  `ROLE_PERMISSIONS.admin` grant full access; `ROLE_DESCRIPTIONS` copy stays
-  accurate.
-- `src/pages/Team.tsx:346` — block submit when a non-admin invite has no group.
-- Backfill via migration `INSERT ... ON CONFLICT DO NOTHING` into
-  `member_permission_groups` for the existing members.
-- No change to Payments/Settlement, Accounting, Reports or Loans logic.
+- One database migration for invitation validation and the `mf_clients`, `mf_groups`, and `mf_group_members` policy corrections; no new tables and no unrelated data changes.
+- Focused changes to Team invitation validation, personal Security settings, and client/group forms.
+- No changes to loan accounting, balances, schedules, repayment allocation, or other financial logic.
