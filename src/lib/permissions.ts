@@ -360,16 +360,18 @@ export function isRoleHigherOrEqual(role1: AppRole, role2: AppRole): boolean {
 
 export function canManageRole(managerRole: AppRole | undefined | null, targetRole: AppRole): boolean {
   if (!managerRole) return false;
-  if (targetRole === "admin" && managerRole !== "owner" && managerRole !== "super_admin") return false;
-  if (targetRole === "owner" && managerRole !== "super_admin") return false;
-  if (targetRole === "super_admin") return false;
+  // Ownership is changed only through the audited ownership-transfer flow, and
+  // the retired `super_admin` persona can neither be granted nor grant.
+  if (targetRole === "owner" || targetRole === "super_admin") return false;
+  if (managerRole === "super_admin") return false;
+  if (targetRole === "admin" && managerRole !== "owner") return false;
   return ROLE_HIERARCHY[managerRole] > ROLE_HIERARCHY[targetRole];
 }
 
 export function getAssignableRoles(managerRole: AppRole | undefined | null): AppRole[] {
   if (!managerRole) return [];
   const assignable: AppRole[] = [];
-  if (managerRole === "owner" || managerRole === "super_admin") assignable.push("admin", "internal");
+  if (managerRole === "owner") assignable.push("admin", "internal");
   else if (managerRole === "admin") assignable.push("internal");
   return assignable;
 }
