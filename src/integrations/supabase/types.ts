@@ -21996,6 +21996,10 @@ export type Database = {
         }
         Returns: Json
       }
+      accept_ownership_transfer: {
+        Args: { p_transfer_id: string }
+        Returns: undefined
+      }
       accounting_post_event: {
         Args: { p_event_id: string; p_idempotency_key?: string }
         Returns: Json
@@ -22755,6 +22759,10 @@ export type Database = {
       }
       cancel_dock_appointment: {
         Args: { p_appointment_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      cancel_ownership_transfer: {
+        Args: { p_transfer_id: string }
         Returns: undefined
       }
       cancel_scheduled_organization_deletion: {
@@ -25966,6 +25974,14 @@ export type Database = {
             Args: { p_new_role?: string; p_org_id: string; p_user_id: string }
             Returns: Json
           }
+      propose_ownership_transfer: {
+        Args: {
+          p_note?: string
+          p_organization_id: string
+          p_to_user_id: string
+        }
+        Returns: string
+      }
       provision_additional_company: {
         Args: {
           _business_type?: string

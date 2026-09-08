@@ -64,6 +64,7 @@ import { SecuritySettings } from "@/components/settings/SecuritySettings";
 import AccessGroups from "@/pages/settings/AccessGroups";
 import EmailProviderSettings from "@/pages/settings/EmailProviderSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
+import { OwnershipCard } from "@/components/settings/OwnershipCard";
 import { Link } from "react-router-dom";
 
 export default function WorkspaceSettings() {
@@ -299,7 +300,7 @@ export default function WorkspaceSettings() {
             <ThemeSettings />
           </TabsContent>
 
-          <TabsContent value="workspace">
+          <TabsContent value="workspace" className="space-y-6">
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between gap-3">
@@ -371,6 +372,8 @@ export default function WorkspaceSettings() {
                 </Alert>
               </CardContent>
             </Card>
+
+            {!isPortalUser && <OwnershipCard />}
           </TabsContent>
 
           <TabsContent value="notifications">
