@@ -81,6 +81,7 @@ import {
   History,
   Scale,
   Lightbulb,
+  Plus,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
