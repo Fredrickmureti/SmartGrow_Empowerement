@@ -69,6 +69,7 @@ export default function Accounts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const accountFieldDefinitions = ACCOUNT_IMPORT_FIELDS;
 
@@ -194,9 +195,11 @@ export default function Accounts() {
 
   const filteredAccounts = accounts.filter(
     (a) =>
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.code.toLowerCase().includes(searchQuery.toLowerCase())
+      (showArchived || a.is_active) &&
+      (a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.code.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+  const archivedCount = accounts.filter((a) => !a.is_active).length;
 
   // Use formatCurrency from hook - removed local function
 
@@ -235,6 +238,15 @@ export default function Accounts() {
               ]}
               tooltip="Refresh accounts"
             />
+            {archivedCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex-1 sm:flex-none"
+              >
+                {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+              </Button>
+            )}
             <ReportExportButtons
               getExportConfig={() => {
                 const columns: ExportColumn[] = [
