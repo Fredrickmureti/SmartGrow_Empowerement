@@ -253,7 +253,7 @@ const handler = async (req: Request): Promise<Response> => {
                       Hello,
                     </p>
                     <p style="margin: 0 0 24px; color: #18181b; font-size: 16px; line-height: 1.6;">
-                      You've been invited to join <strong style="color: #3b82f6;">${orgName}</strong> on ${platformName} as a <strong>${roleName}</strong>.
+                      You've been invited to join <strong style="color: #3b82f6;">${orgName}</strong> ${showPlatform ? `on ${platformName} ` : ""}as ${article} <strong>${roleName}</strong>.
                     </p>
                     
                     <!-- CTA Button -->
