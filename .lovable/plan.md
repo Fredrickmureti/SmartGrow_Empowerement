@@ -62,9 +62,25 @@ the group model, and everything already marked out of scope in `roadmap.md`.
   schedule and never appears in `mf_compute_loan_fees`.
 
 
-==============IMPLEMENTATION PROGRESS/STATUS/WHERE THINGS STAND==========
+==============CLOSED — VERIFIED ON LIVE DATA (2026-09-08)==========
 
-The end-to-end test ran successfully on your live data: a new client was created, the joining fee was raised and paid in cash, a new group was formed, and the client was added to that group as a member — all in one transaction with no errors, so the fee and group flow work together.
+Wave 1 and Wave 2 are complete. Evidence from the live database:
 
-One thing to note: my final check query returned nothing, which suggests the whole test block was rolled back after completing (no rows left behind). So the flow executed cleanly, but I hadn't yet confirmed the saved records — remaining work is to re-run the same steps in a way that persists, then verify the receipt number and the balanced cash/fee-income entries for that new client.
+- Policy: `mf_client_fee_policy` holds one active row (KES 150, institution
+  configurable). No amount is hardcoded in the frontend.
+- Persisting end-to-end run: new client `CL-1003` created, added to
+  `E2E Test Group`, admission fee raised and paid in cash.
+- Receipts issued in sequence: `ADM-202609-00001..00003`.
+- Accounting per paid fee, balanced and branch-attributed:
+  Dr 1111 Petty Cash 150.00 / Cr 4320 Loan Fee Income 150.00.
+- Duplicate raise for a client that already has a fee: rejected
+  ("This client already has an admission fee on record.").
+- Duplicate payment reference: rejected; the charge only settled once a fresh
+  reference was supplied.
+- Reversal (`V1-CLI-001`): original charge retained with status `reversed`,
+  original entry `JE-00034` marked reversed, mirror entry `JE-00035` posted
+  (Dr fee income / Cr petty cash). No financial history deleted.
+
+Nothing outstanding on this plan.
+
 
