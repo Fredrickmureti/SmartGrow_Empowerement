@@ -163,16 +163,14 @@ for branches whose bank sends paper statements.
 
 =================IMPLEMENTATION PROGRESS==============
 
-Here's where things stand on the bank reconciliation work.
+Done this session
 
-Done
+Bank matching now offers banked collection batches as suggestions when the real deposit is imported: it looks for a batch banked into that same account, unconfirmed, of the same amount and around the same date, and scores it higher when the batch number appears on the bank line.
+Confirming such a suggestion is link-only: it attaches the bank line to the entry the banking already posted and records the confirming line on the banking record — no second accounting entry, and the same batch can't be confirmed twice.
+Remaining (unchanged plan, needs credits)
 
-The one bank line the system had created for itself (the "Banking of collection batch" line) is now marked as excluded, so it no longer counts as an unreconciled bank item. Nothing was deleted and its accounting entry is untouched.
-A banked collection batch can now record which bank statement line confirmed it — that link can be filled in once during reconciliation, and the record stays otherwise unchangeable.
-Bank matching now understands banked collection batches: it checks the deposit is money in, belongs to the same institution, branch and bank account, is banked in full, and isn't already confirmed elsewhere; a bank charge can't be attached to it because the batch entry already posted the full amount.
-Remaining (needs credits to continue)
-
-Offer banked collection batches as suggestions on the reconciliation screen, and make confirming one link-only (no duplicate accounting entry).
-Do the same for loan disbursements on the money-out side — those records currently have no place to store the confirming bank line, so that needs a small addition first.
-Handle the split cases: several batches banked as one deposit, and a bank charge deducted from a deposit.
+Loan disbursements on the money-out side — those records need somewhere to store the confirming bank line before the same treatment can be applied.
+Split cases: several batches banked as one deposit, and a deposit reduced by a bank charge.
 Reword the reconciliation screen, which still says "invoices, bills, and expenses" instead of lending language.
+Un-matching should clear the confirming bank line from the banking record so a reversed match can be re-matched cleanly.
+The plan file's status section still needs updating to reflect all of the above (Waves 1–2 done, Wave 2 candidate/confirm work now complete).
