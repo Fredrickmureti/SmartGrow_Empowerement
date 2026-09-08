@@ -238,6 +238,15 @@ export default function Accounts() {
               ]}
               tooltip="Refresh accounts"
             />
+            {archivedCount > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setShowArchived((v) => !v)}
+                className="flex-1 sm:flex-none"
+              >
+                {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+              </Button>
+            )}
             <ReportExportButtons
               getExportConfig={() => {
                 const columns: ExportColumn[] = [
