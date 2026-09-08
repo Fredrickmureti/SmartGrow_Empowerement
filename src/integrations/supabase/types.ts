@@ -26889,6 +26889,10 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_default_permission_group: {
+        Args: { _org_id: string; _role: string }
+        Returns: string
+      }
       resolve_exchange_rate: {
         Args: {
           p_business_id: string
