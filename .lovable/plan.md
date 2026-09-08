@@ -63,13 +63,18 @@ the group model, and everything already marked out of scope in `roadmap.md`.
 
 
 ==============IMPLEMENATTION PROGRESS/STATUS/WHERE THINGS STAND==========
-The admission fee is now in place on the database side, built exactly as approved:
 
-A configuration record where the institution sets the admission fee amount, its currency, and whether the fee applies at all. With it switched off or left blank, nothing changes anywhere in the app — no amount is ever assumed.
-A per-client charge record: one admission fee per client, with date, amount, currency, status (outstanding, paid, reversed), receipt number, payment method, external reference and links to the ledger entries.
-Three server routines: raise the fee from the configuration, record its payment (money in to the mapped cash/bank account, fee credited to fee income through the existing lending accounting mappings, receipt number assigned, repeated references refused, double payment refused), and reverse a payment (original record and receipt kept, reversing ledger entry created).
-Not yet done:
 
-The screens: the admission fee card in Lending → Configuration, and the fee status plus "record admission fee payment" action and receipt on the client record. Until these exist, the fee can't be used from the app.
-Wave 2, the live end-to-end run (branch → officer → group → members → loan, disbursement fee journal, repayment cases, duplicate/reversal checks, admission fee cases).
-The lending flow as it stands today is untouched and working; nothing existing was changed. Topping up credits lets me finish the screens and run the verification.
+Built this session (files written, not yet wired in or tested):
+
+src/hooks/useMfClientCharges.ts — reads the policy and a client's charges; forwards raise / pay / reverse to the server routines.
+src/apps/lending/settings/AdmissionFeeCard.tsx — the Lending → Configuration card: on/off switch plus amount.
+src/apps/lending/clients/ClientChargesDialog.tsx — on a client: fee status, "Raise admission fee", "Record payment" (cash / bank / mobile money / cheque, reference, notes), "Reverse" with reason, and a receipt link.
+Remaining, in order (small steps):
+
+Add <AdmissionFeeCard /> to src/apps/lending/settings/AccountingMappingsPage.tsx next to AllocationPolicyCard.
+Add an "Admission fee" action per row in src/apps/lending/clients/ClientsPage.tsx that opens ClientChargesDialog (and a small status badge using useMfClientChargeSummary).
+Receipt: add fetchAndBuildClientChargeReceiptSnapshot in src/services/documents/snapshots/lending.ts (built from the charge + client + business, no loan) and register client_charge_receipt in resolveSourceDocumentRecord.ts using the existing lending.payment_receipt kind — no new renderer.
+Check the build log, then run the live end-to-end pass (Wave 2 of the plan): raise → pay → receipt → duplicate refused → reverse, confirming debits = credits in the journal.
+Update .lovable/plan.md with the result.
+Nothing existing was changed; the lending flow as it stands is untouched. Topping up credits lets me finish the three wiring steps and the verification run.
