@@ -35,10 +35,29 @@ export type BankMatchTier =
 
 export type BankMatchCandidateKind =
   | "payment"
+  | "collection_banking"
+  | "disbursement"
+  | "bill_payment"
   | "invoice"
   | "bill"
   | "transfer"
   | "account";
+
+/**
+ * How each candidate kind is named on screen. The engine emits the machine
+ * kind; this is the only place that turns it into words an operator reads.
+ */
+export const CANDIDATE_KIND_LABEL: Record<BankMatchCandidateKind, string> = {
+  payment: "Payment received",
+  collection_banking: "Banked collection",
+  disbursement: "Loan disbursement",
+  bill_payment: "Payment made",
+  invoice: "Open invoice",
+  bill: "Open bill",
+  transfer: "Transfer between own accounts",
+  account: "Categorised to an account",
+};
+
 
 export interface BankMatchAllocation {
   document_type: BankMatchCandidateKind;
