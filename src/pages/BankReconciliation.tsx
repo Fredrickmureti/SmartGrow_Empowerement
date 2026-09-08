@@ -928,6 +928,15 @@ export default function BankReconciliation() {
         sourceType={previewSource.type}
         sourceId={previewSource.id}
       />
+
+      {/* Paper/PDF statements: one typed line through the same server import engine */}
+      <AddStatementLineDialog
+        open={addLineOpen}
+        onOpenChange={setAddLineOpen}
+        accounts={bankAccounts as never}
+        defaultAccountId={selectedAccount !== "all" ? selectedAccount : undefined}
+        onAdded={() => { void fetchTransactions(); }}
+      />
     </>
   );
 }
