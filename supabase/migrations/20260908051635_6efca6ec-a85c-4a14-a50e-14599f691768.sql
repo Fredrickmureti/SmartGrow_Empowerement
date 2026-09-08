@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.sod_mf_loan_disbursements_guard() FROM PUBLIC, anon, authenticated;
