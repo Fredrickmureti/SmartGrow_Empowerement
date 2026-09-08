@@ -138,4 +138,19 @@ posting rules or Reports.
 
 
 ===IMPLEMENTATION PROGRESS==========
-Waves 1–3 are in place: permissions now come only from a person's access group, branch visibility follows one single rule everywhere, each of the seven standard groups carries its own branch reach (all branches / assigned branches / own branch), and a person can hold at most one group. Next up is Wave 4 — tightening the database itself so a branch user's queries return only their own branch's records.
+
+Wave 4 progress so far, and what's left.
+
+Done this session
+
+Confirmed the previous session's Wave 1–3 claims against the live database: permissions come only from a person's access group, branch visibility follows one shared rule, each standard group has its own branch reach, and one group per person is enforced. The seven standard groups (Institution Admin, Branch Manager, Credit Analyst, Loan Officer, Cashier/Teller, Accountant, Auditor) are seeded with sensible rules.
+Found and fixed the main Wave 4 defect: old "any member of the organisation" rules sat alongside the strict access-group rules on chart of accounts, bank accounts, financial periods, journal entry lines and bank reconciliation. Because those blanket rules were permissive they always won, so access groups had no effect on those tables. They are now removed.
+Loan detail records (schedule, charges, disbursements, event history, repayment allocations, banked collections) now require the matching loan or repayment permission, on top of the existing officer-portfolio scoping.
+Lending reference data (loan products and versions, credit assessments, accounting mappings, allocation policy, posting history) now requires the matching permission instead of plain company access.
+Wrote a CI guard at supabase/tests/access_group_rls_coverage_test.sql that fails the build if any lending or finance table ever gets a permission-blind access rule again.
+Remaining (next session)
+
+Record this Wave 4 status in .lovable/plan.md — I did not get to it, so the plan still shows Wave 4 as "next".
+Run the new SQL guard and the existing branch-scope test to prove the change end to end; no test run happened yet.
+Journal entry lines still lean on a "view consolidated finances" escape arm rather than a module permission — worth narrowing, but it belongs in its own small change.
+Then Wave 5 onward per the plan: prove the invitation flow, narrow governance, scope dashboards, and finally the legacy cleanup. The 859 database advisor warnings are pre-existing and unchanged by my work; they belong to the later security posture pass.
