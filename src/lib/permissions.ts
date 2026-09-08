@@ -274,11 +274,6 @@ export interface PermissionGroupRule {
   can_admin_override?: boolean;
 }
 
-/** Roles whose effective permissions come entirely from their Access Groups. */
-const INTERNAL_GROUP_ROLES: AppRole[] = [
-  "internal", "viewer", "staff", "accountant", "cashier",
-  "branch_manager", "loan_officer", "credit_officer", "collections_officer", "auditor",
-];
 
 /**
  * Resolves effective permissions from the user's Access Group rules.
