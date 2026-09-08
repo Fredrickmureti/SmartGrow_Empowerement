@@ -217,17 +217,15 @@ LND, branch stamped, balanced; loan outstanding returned exactly to 21,200.
 Both directions idempotent by construction (`mf_event_postings` unique key).
 
 ### Remaining work
-1. Wave F-5 — Finance Settings surface alignment: exclude the ERP-only
-   `default_account_settings` keys from the settings catalogue and promote the
-   lending mapping block as the primary section. Rows retained, nothing deleted.
-2. Money-chain steps not yet exercised live: write-off, collection banking and
-   bank reconciliation, plus a branch report cross-check. Write-off should be
-   tested on a purpose-created throwaway loan, never on LN-000001..6.
-3. Wave F-7 (accrual + impairment) stays gated and unstarted by design.
 
-### What NOT to repeat
-- Do not re-audit the lending posting engine; it is sound and already verified.
-- Do not re-verify F-1..F-4; confirmed live on 2026-09-08.
-- Do not attempt to repair `void_invoice_atomic`; it references the dropped
-  `invoices` table and is a dead orphan awaiting the orphan-function purge.
-- Do not edit posted journal headers except through the lineage-repair flag.
+
+Progress so far on this stage of the finance work:
+
+The Finance Settings surface is clean — no inventory, cost-of-sales, VAT or other shop-style wording remains in the settings screens or the default-accounts list.
+I created a throwaway test loan (LN-TEST-WO1, KES 10,000) end to end — application, field assessment, approval, cash payout, then a write-off — and the system's own safeguards correctly blocked every invalid shortcut along the way (no approval without an assessment, no application starting as "approved").
+What still needs finishing:
+
+Reading back the accounting entries for that test write-off to confirm the debits and credits, branch and journal are correct — my last query returned nothing, which most likely means the write-off entry is linked differently than I assumed, so it needs one more look before I can call it verified.
+Removing the throwaway test loan/application once verification is done.
+The remaining live checks: collection banking, bank reconciliation, and the branch report cross-check.
+The accrual/impairment decision (F-7) remains deliberately parked.
