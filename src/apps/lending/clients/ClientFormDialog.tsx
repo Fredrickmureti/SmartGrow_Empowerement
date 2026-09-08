@@ -5,7 +5,7 @@
  * data is entered or derived here.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/select";
 import { useBranches } from "@/hooks/useBranches";
 import { useOrgMembers } from "@/hooks/useOrgMembers";
+import { useAuth } from "@/contexts/AuthContext";
+import { useBranchScope } from "@/hooks/useBranchScope";
+import { useMfGroups } from "@/hooks/useMfGroups";
+import { supabase } from "@/integrations/supabase/client";
 import {
   MF_CLIENT_STATUSES,
   MF_KYC_COLUMN,

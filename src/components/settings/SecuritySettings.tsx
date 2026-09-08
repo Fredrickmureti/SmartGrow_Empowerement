@@ -5,6 +5,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PINSettings } from '@/components/settings/PINSettings';
+import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { DeviceManager } from '@/components/settings/DeviceManager';
 import { LoginActivityCard } from '@/components/settings/LoginActivityCard';
 import { useDeviceTracking } from '@/hooks/security/useDeviceTracking';
@@ -111,6 +112,9 @@ export function SecuritySettings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Personal password — available to every signed-in team member */}
+      <ChangePasswordCard />
 
       {/* Security Tabs */}
       <Tabs defaultValue="pin" className="space-y-4">

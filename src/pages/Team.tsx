@@ -657,6 +657,18 @@ export default function Team() {
     );
   }
 
+  // Mirror of the database invitation rules (upsert_organization_invitation).
+  // The server is authoritative; this only stops the user submitting an
+  // invitation the database will reject.
+  const isOwner = currentUserRole === "owner" || (!!user?.id && user.id === protectedOwnerId);
+  const inviteNeedsGroup = inviteRole === "internal" && inviteGroupIds.length === 0;
+  const inviteNeedsBranch =
+    inviteRole === "internal" &&
+    inviteBranchScope !== "all" &&
+    inviteBranchIds.length === 0;
+  const inviteAdminBlocked = inviteRole === "admin" && !isOwner;
+  const inviteInvalid = inviteNeedsGroup || inviteNeedsBranch || inviteAdminBlocked;
+
   return (
     <PlatformAppLayout>
       <div className="space-y-6 sm:space-y-8">
@@ -712,20 +724,26 @@ export default function Team() {
                           },
                         ]).map((preset) => {
                           const selected = inviteRole === preset.value;
+                          const blocked = preset.value === "admin" && !isOwner;
                           return (
                             <button
                               type="button"
                               key={preset.value}
+                              disabled={blocked}
                               onClick={() => setInviteRole(preset.value)}
                               className={`text-left rounded-md border p-3 transition ${
-                                selected
-                                  ? "border-primary ring-2 ring-primary/30"
-                                  : "hover:border-foreground/30"
+                                blocked
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : selected
+                                    ? "border-primary ring-2 ring-primary/30"
+                                    : "hover:border-foreground/30"
                               }`}
                             >
                               <p className="font-medium text-sm">{preset.title}</p>
                               <p className="text-xs text-muted-foreground mt-1">
-                                {preset.blurb}
+                                {blocked
+                                  ? "Only the institution owner can invite an administrator."
+                                  : preset.blurb}
                               </p>
                             </button>
                           );
@@ -842,7 +860,27 @@ export default function Team() {
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={isInviting}>
+                    {inviteNeedsGroup && (
+                      <p className="text-xs text-destructive">
+                        Select at least one Access Group. Without one this person would sign in
+                        with no access at all.
+                      </p>
+                    )}
+                    {inviteNeedsBranch && (
+                      <p className="text-xs text-destructive">
+                        Select at least one branch for this branch-limited invitation.
+                      </p>
+                    )}
+                    {inviteAdminBlocked && (
+                      <p className="text-xs text-destructive">
+                        Only the institution owner can invite an administrator.
+                      </p>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isInviting || inviteInvalid}
+                    >
                       {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Send Invitation
                     </Button>
