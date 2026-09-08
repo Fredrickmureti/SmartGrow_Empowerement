@@ -150,15 +150,39 @@ ownership-transfer function exists.
 
 
 =================IMPLEMENTATION PROGRESS==============
-What's now in place (verified against your live database):
 
-The institution owner can no longer be deleted, switched off, or blanked out by accident. I tested all four ways this could happen; every one is now blocked.
-The recorded owner and their membership record are kept permanently in step, and a new owner must already be an active member of the institution.
-The old shortcut that could turn any account into an administrator just by email address has been removed. Nothing in the app used it.
-Administration now follows one rule instead of two competing ones: full authority comes from being the recorded owner, and everyone else gets exactly what their Access Group grants. A job title no longer silently opens every branch. I checked all five existing users: the owner keeps everything, the four staff members keep only their group's access, and none of them are administrators.
-I started the ownership-handover feature and created the record that tracks a pending handover.
-What remains:
+Verified against the live database (re-checked, not taken on trust):
 
-The handover actions themselves (propose, accept, cancel) and the Settings screen to run them.
-Tightening who may create and assign Access Groups and invite staff, so an accountant is never automatically a security administrator.
-Retiring the unused "Super Admin" label from the remaining older database rules and the team screens.
+- Wave 1 DONE. Triggers `protect_organization_owner_role` (on `user_roles`) and
+  `sync_organization_owner` (on `organizations`) exist and are active. The owner cannot be
+  deleted, deactivated, re-roled or blanked; a new owner must already be an active member.
+- Wave 2 DONE. `bootstrap_super_admin` no longer exists in the database.
+- Wave 3 DONE for the core resolvers. `is_org_administrator(user, org)` exists;
+  `user_branch_scope`, `user_has_module_permission` and `has_dashboard_permission` now grant
+  blanket reach only to the recorded owner, never to a role label.
+- Wave 5 (part) DONE. `organization_ownership_transfers` table + RLS.
+
+Added this session:
+
+- Wave 5 actions: `propose_ownership_transfer`, `accept_ownership_transfer`,
+  `cancel_ownership_transfer` — owner-only proposal, recipient-only acceptance, either party may
+  cancel, 7-day expiry, one pending per organization, every event written to `audit_logs`
+  (`ownership_transfer_proposed|accepted|cancelled`). No second audit system.
+- Wave 5 UI: `src/components/settings/OwnershipCard.tsx`, mounted in
+  `/settings/workspace?tab=workspace`. Shows the current owner, a pending handover with
+  accept/cancel, and the owner's propose flow with confirmation.
+- Wave 4: `is_org_admin_or_owner` and `is_org_manager` now delegate to `is_org_administrator`,
+  so Access Group administration and invitations follow one rule (owner, or an Access Group
+  granting institution-wide `team` write — today only "Institution Admin"). Dropped the two
+  `organization_invitations` policies that granted invite rights from the role label alone.
+  Confirmed effect on the five live users: owner unchanged; Cashier, Auditor, Branch Manager and
+  Loan Officer are not administrators and none hold a team-write group.
+
+Remaining:
+
+- Wave 3 tail: 63 database functions and 51 access rules still name `super_admin` in their text.
+  The core resolvers no longer honour it and zero users hold the role, so this is dead wording
+  rather than live authority — sweep in reviewed batches (reporting → settings → money last).
+- Wave 6: remove `super_admin` from the Team screen's role lists, then retire the enum value.
+- Recovery documentation: database-console recovery as the explicit last resort.
+
