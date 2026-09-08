@@ -479,6 +479,122 @@ export async function fetchAndBuildLoanPaymentReceiptSnapshot(
 }
 
 /* ------------------------------------------------------------------ */
+/* Client charge receipt (admission fee)                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `lending.payment_receipt` for a client-level charge (no loan). Read from
+ * `mf_client_charges`; the amount, status and receipt number are server-set.
+ */
+export async function fetchAndBuildClientChargeReceiptSnapshot(
+  supabase: SupabaseClient,
+  chargeId: string,
+): Promise<BuildLendingSnapshotResult> {
+  const db = supabase as unknown as AnyClient;
+
+  const { data: charge, error } = await db
+    .from("mf_client_charges")
+    .select("*")
+    .eq("id", chargeId)
+    .single();
+  if (error || !charge) {
+    throw new Error(
+      `lending snapshot: client charge ${chargeId} not found: ${error?.message ?? "no row"}`,
+    );
+  }
+  const ch = charge as Row;
+
+  const [clientRes, businessRes, branchRes, receiverRes] = await Promise.all([
+    db.from("mf_clients").select("*").eq("id", ch["client_id"] as string).maybeSingle(),
+    db
+      .from("businesses")
+      .select(
+        "id, organization_id, name, legal_name, base_currency, address, city, country, phone, email, logo_url, tax_id, registration_number",
+      )
+      .eq("id", ch["business_id"] as string)
+      .maybeSingle(),
+    ch["branch_id"]
+      ? db.from("branches").select("id, name").eq("id", ch["branch_id"] as string).maybeSingle()
+      : Promise.resolve({ data: null }),
+    ch["created_by"]
+      ? db
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .eq("user_id", ch["created_by"] as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const c = (clientRes?.data ?? null) as Row | null;
+  const business = (businessRes?.data ?? null) as Row | null;
+  const receiver = (receiverRes?.data ?? null) as Row | null;
+  const organizationId = str(business?.["organization_id"]);
+  if (!organizationId) {
+    throw new Error("lending snapshot: business has no organization_id");
+  }
+
+  const currency = str(ch["currency_code"]) ?? str(business?.["base_currency"]) ?? "KES";
+  const number = str(ch["receipt_number"]) ?? chargeId.slice(0, 8);
+  const date = str(ch["paid_on"]) ?? str(ch["charged_on"]) ?? today();
+  const kindLabel = String(ch["kind"] ?? "charge").replace(/_/g, " ");
+
+  const snapshot: SnapshotBlob = {
+    document_type: "loan_payment_receipt",
+    document_type_label: "PAYMENT RECEIPT",
+    document_number: number,
+    issue_date: date,
+    currency,
+    business_id: str(ch["business_id"]),
+    organization_id: organizationId,
+    branch_id: str(ch["branch_id"]),
+    business_name: str(business?.["name"]),
+    business_legal_name: str(business?.["legal_name"]),
+    business_address:
+      [str(business?.["address"]), str(business?.["city"]), str(business?.["country"])]
+        .filter(Boolean)
+        .join(", ") || null,
+    business_phone: str(business?.["phone"]),
+    business_email: str(business?.["email"]),
+    business_registration: str(business?.["registration_number"]),
+    business_tax_id: str(business?.["tax_id"]),
+    branch_name: str((branchRes?.data as Row | null)?.["name"]),
+    officer_name: null,
+    client_name: str(c?.["full_name"]),
+    client_number: str(c?.["client_number"]),
+    client_national_id: str(c?.["national_id"]),
+    client_phone: str(c?.["phone"]),
+    client_address: str(c?.["physical_address"]),
+    loan_number: null,
+    product_name: kindLabel,
+    receipt_number: number,
+    paid_on: date,
+    amount: num(ch["amount"]),
+    method: str(ch["method"]),
+    payment_reference: str(ch["reference"]),
+    receipt_status: str(ch["status"]),
+    reversal_reason: str(ch["reversal_reason"]),
+    received_by_name: receiver ? (str(receiver["full_name"]) ?? str(receiver["email"])) : null,
+    notes: str(ch["notes"]),
+    allocations: [{ installment_no: null, component: kindLabel, amount: num(ch["amount"]) }],
+    principal_outstanding: 0,
+    interest_outstanding: 0,
+    total_outstanding: 0,
+    next_due_date: null,
+  };
+
+  return {
+    snapshot,
+    documentNumber: number,
+    documentDate: date,
+    organizationId,
+    businessId: str(ch["business_id"]),
+    branchId: str(ch["branch_id"]),
+    currency,
+    sourceDocId: chargeId,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Client statement                                                    */
 /* ------------------------------------------------------------------ */
 

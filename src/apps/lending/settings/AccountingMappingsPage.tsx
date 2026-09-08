@@ -12,6 +12,7 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { useAccounts } from "@/hooks/useAccounts";
 import { MF_MAPPING_SPECS, useMfAccountMappings } from "@/hooks/useMfAccountMappings";
 import { AllocationPolicyCard } from "./AllocationPolicyCard";
+import { AdmissionFeeCard } from "./AdmissionFeeCard";
 import { MappingChangeLogCard } from "./MappingChangeLogCard";
 
 export function AccountingMappingsPage() {
@@ -21,6 +22,7 @@ export function AccountingMappingsPage() {
   return (
     <div className="space-y-6 p-6">
       <AllocationPolicyCard />
+      <AdmissionFeeCard />
       <Card>
         <CardHeader>
           <CardTitle>Accounting mappings</CardTitle>
