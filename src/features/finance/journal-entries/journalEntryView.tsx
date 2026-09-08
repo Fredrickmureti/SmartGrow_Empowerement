@@ -25,7 +25,7 @@ export function journalEntryStatusBadge(entry: JournalEntry): ReactNode {
     return <StatusBadge tone="success">Posted</StatusBadge>;
   }
   if (s === "reversed") return <StatusBadge tone="warning">Reversed</StatusBadge>;
-  if (s === "voided") return <StatusBadge tone="danger">Voided</StatusBadge>;
+  if (s === "void") return <StatusBadge tone="danger">Voided</StatusBadge>;
   return <StatusBadge>{s}</StatusBadge>;
 }
 
