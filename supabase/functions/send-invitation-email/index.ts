@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { resolveAppBaseUrl } from "../_shared/email/deepLink.ts";
 
+const INVITATION_HOST = "https://www.growastepventures.co.ke";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
@@ -161,6 +163,19 @@ const handler = async (req: Request): Promise<Response> => {
     // marketing website. `app_base_url` is the single canonical source shared
     // with notification deep links (_shared/email/deepLink.ts).
     const appBaseUrl = (await resolveAppBaseUrl(supabase, supabaseUrl)).replace(/\/+$/, "");
+    if (appBaseUrl !== INVITATION_HOST) {
+      console.error("[send-invitation-email] invalid canonical invitation host", {
+        configuredHost: appBaseUrl,
+        requiredHost: INVITATION_HOST,
+      });
+      return new Response(JSON.stringify({
+        error: "invitation_url_misconfigured",
+        details: `Invitation links must use ${INVITATION_HOST}`,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const acceptUrl = `${appBaseUrl}/accept-invitation?token=${encodeURIComponent(invitation.token)}`;
 
     // Server-side seat enforcement. `check_user_limit` no longer exists; the
