@@ -139,9 +139,8 @@ posting rules or Reports.
 
 ===IMPLEMENTATION PROGRESS==========
 
-Fixed this session
+Wave 5's core proof is in and it passes: four real test staff accounts (loan officer, branch manager, cashier, auditor) were created, signed in for real, and asked the backend directly what they may do — each got back exactly their group's rights and nothing more. A loan officer cannot approve, a cashier can only take repayments, an auditor can do nothing but look. The branch manager now has the full branch approving authority you chose: approving loans as well as applications, and recording and reversing repayments.
 
-Journal entry lines were the last finance table still granting access on company membership alone. They now require the matching accounting permission from the person's access group, exactly like the parent entries. Wave 4 is complete.
-One real gap the proof exposed — needs your decision Branch Manager can approve loan applications but not loans, and cannot record or reverse repayments. Per the agreed group design a branch manager is the approving authority at the branch, so the loans-approve grant looks like a seeding omission rather than a deliberate restriction. I did not change it, because loosening an approval right is exactly the kind of change that should be deliberate.
+Also verified, rather than assumed, that the earlier waves really landed: the old role-based shortcut is gone, branch access has one single rule, one access group per person is enforced, the seven groups exist, and the accounting lines are permission-gated.
 
-Remaining (unchanged order) Wave 5 invitation/sign-in proof with real users per group, Wave 6 governance narrowing, Wave 7 dashboard branch scoping, Wave 8 legacy group cleanup.
+What still remains, unchanged in order: finish Wave 5 by signing in through the app itself to confirm each person's menu, apps and dashboard match (the can_access_branch check returned "no answer" for these users because none has a branch assigned yet — that needs a branch assignment before it means anything); then governance narrowing, dashboard branch scoping, and removing the old ERP groups last. I ran out of budget before I could record this in the plan file, so the next session should note that the branch-manager decision is applied and Wave 5's backend half is proven.
