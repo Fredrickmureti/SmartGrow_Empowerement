@@ -235,7 +235,7 @@ and all consumers key on them; renaming the route is a separate controlled move.
 - Known residue above (one synthetic row) — act only if it matters on real data.
 - Wave 5 non-work decisions stand unchanged.
 - Unresolved for the user: whether manual bank-transaction entry should exist
-  alongside statement import for branches receiving paper statements.
+  alongside statement import for branches receiving paper statements.  (ADOPT GLOBALLY USED APPROACHES FOR TRADITIONAL MICROFIANNCE SYSTEM OR IN GENERAL GO WITH YOUR BEST RECOMENDATION AND GIVE REASON WHY)
 
 **Do not repeat:** the Section 1–4 investigation, or re-verification of Waves 1–4
 — all confirmed in the live database on 2026-09-08.
