@@ -201,17 +201,42 @@ to a real imported deposit.
 `bank_transactions` row is `lifecycle_status = 'excluded'`, then clear the link.
 It is one test row today — do not expand scope for it.
 
+## Wave 3 — DONE (verified in the live database, 2026-09-08)
+
+No SQL change was needed: `_bank_match_validate` already loops over
+`jsonb_array_elements(_allocations)` and balances their sum against
+`abs(bank line) ± fee`, so **one bank credit may settle several banked
+collection batches** (each at its full amount, same account, unclaimed,
+same branch/company). A bank charge against a banked batch or a disbursement is
+deliberately REFUSED (`BANK_MATCH_FEE_ON_DIRECT_PAYMENT`): those journals posted
+the gross amount to this bank account, so the charge must be its own statement
+line rather than being netted invisibly.
+
+Ratchet added: `supabase/tests/bank_collection_banking_match_invariants_test.sql`
+asserts Wave 1 (no statement-line fabrication in `mf_bank_collection_batch`),
+Wave 2 (all five seam members handle `collection_banking` / `disbursement`,
+candidates read `mf_collection_bankings` / `mf_loan_disbursements` and skip
+already-linked bankings) and Wave 3 (allocation iteration, `BANK_MATCH_UNBALANCED`,
+full-amount + single-claim + same-account + direction + fee refusals, mixed-kind
+and cross-branch/company refusals, link-only un-match).
+
+## Wave 4 — DONE
+
+`BankFeeds.tsx` now says what it does: title "Statement Lines", subtitle
+"N imported bank statement lines need review". Nav label "Statement lines"
+(`src/apps/finance/nav.ts`), registry name "Statement Lines"
+(`src/lib/apps/registry.ts`). Route `/finance/bank-feeds` and the file name are
+unchanged on purpose — the architecture guard
+(`src/test/architecture/bank-feeds-business-level-gating.test.ts`, 9/9 green)
+and all consumers key on them; renaming the route is a separate controlled move.
+
 ## Still open
 
-- Wave 3 (split/aggregate: one credit settling several banked batches; deposit net
-  of a bank charge) — the columns (`allocations`, `fee_amount`, `fee_account_id`,
-  `residual_amount`) exist and confirm honours them; only the new kinds need
-  wiring plus SQL scenarios.
-- Wave 4 remainder: `BankFeeds.tsx` still promises a feed it does not implement —
-  rename it to what it does (categorise imported lines).
+- Known residue above (one synthetic row) — act only if it matters on real data.
 - Wave 5 non-work decisions stand unchanged.
 - Unresolved for the user: whether manual bank-transaction entry should exist
   alongside statement import for branches receiving paper statements.
 
-**Do not repeat:** the Section 1–4 investigation, or re-verification of Waves 1
-and 2 — both were confirmed in the live database on 2026-09-08.
+**Do not repeat:** the Section 1–4 investigation, or re-verification of Waves 1–4
+— all confirmed in the live database on 2026-09-08.
+
