@@ -46,6 +46,8 @@ import { Separator } from "@/components/ui/separator";
 import { KycCaptureField, type KycPending } from "./KycCaptureField";
 
 const UNASSIGNED = "__unassigned__";
+const UNSPECIFIED = "__unspecified__";
+
 
 interface ClientFormDialogProps {
   open: boolean;
@@ -372,12 +374,22 @@ export function ClientFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="gender">Gender</Label>
-            <Input
-              id="gender"
-              value={form.gender}
-              onChange={(e) => set("gender", e.target.value)}
-            />
+            <Select
+              value={form.gender === "" ? UNSPECIFIED : form.gender}
+              onValueChange={(v) => set("gender", v === UNSPECIFIED ? "" : v)}
+            >
+              <SelectTrigger id="gender">
+                <SelectValue placeholder="Not specified" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={UNSPECIFIED}>Not specified</SelectItem>
+                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="male">Male</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="phone">Phone</Label>
             <Input
