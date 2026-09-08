@@ -12052,6 +12052,172 @@ export type Database = {
           },
         ]
       }
+      mf_client_charges: {
+        Row: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charged_on: string
+          client_id: string
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          id: string
+          journal_entry_id: string | null
+          kind: string
+          method: string | null
+          notes: string | null
+          paid_on: string | null
+          receipt_number: string | null
+          reference: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charged_on?: string
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          currency_code: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string | null
+          notes?: string | null
+          paid_on?: string | null
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          business_id?: string
+          charged_on?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string | null
+          notes?: string | null
+          paid_on?: string | null
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_client_charges_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_client_fee_policy: {
+        Row: {
+          admission_fee_active: boolean
+          admission_fee_amount: number | null
+          admission_fee_currency: string | null
+          business_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          admission_fee_active?: boolean
+          admission_fee_amount?: number | null
+          admission_fee_currency?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          admission_fee_active?: boolean
+          admission_fee_amount?: number | null
+          admission_fee_currency?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mf_clients: {
         Row: {
           branch_id: string
@@ -25722,8 +25888,22 @@ export type Database = {
         Returns: string
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
+      mf_pay_client_charge: {
+        Args: {
+          p_charge_id: string
+          p_method?: string
+          p_notes?: string
+          p_paid_on?: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
+      mf_raise_client_admission_fee: {
+        Args: { p_charged_on?: string; p_client_id: string; p_notes?: string }
+        Returns: string
+      }
       mf_record_repayment: {
         Args: {
           p_amount: number
@@ -25751,6 +25931,14 @@ export type Database = {
       }
       mf_resolve_account: {
         Args: { p_branch_id: string; p_business_id: string; p_key: string }
+        Returns: string
+      }
+      mf_reverse_client_charge: {
+        Args: {
+          p_charge_id: string
+          p_effective_on?: string
+          p_reason?: string
+        }
         Returns: string
       }
       mf_reverse_disbursement: {
