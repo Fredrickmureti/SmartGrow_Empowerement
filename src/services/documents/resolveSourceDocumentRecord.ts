@@ -30,6 +30,7 @@ import {
   fetchAndBuildLoanStatementSnapshot,
   fetchAndBuildLoanPaymentReceiptSnapshot,
   fetchAndBuildClientStatementSnapshot,
+  fetchAndBuildClientChargeReceiptSnapshot,
 } from "@/services/documents/snapshots/lending";
 
 /** Tenancy fallbacks used only when the snapshot cannot resolve them. */
@@ -147,6 +148,13 @@ const REGISTRY: Record<string, RegistryEntry> = {
     sourceDocType: "client_statement",
     partyKind: null,
     build: wrap(fetchAndBuildClientStatementSnapshot),
+  },
+  client_charge_receipt: {
+    kindCode: "lending.payment_receipt",
+    sourceModule: "lending",
+    sourceDocType: "client_charge_receipt",
+    partyKind: null,
+    build: wrap(fetchAndBuildClientChargeReceiptSnapshot),
   },
 };
 
