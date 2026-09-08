@@ -25708,10 +25708,6 @@ export type Database = {
         Returns: number
       }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
-      mf_loans_repayment_guard_settled: {
-        Args: { p_loan_id: string }
-        Returns: undefined
-      }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
       mf_next_number: {
         Args: {
