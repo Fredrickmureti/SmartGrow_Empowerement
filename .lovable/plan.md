@@ -188,16 +188,10 @@ delete-free (deactivation only) and carrying a commented rollback statement.
 =================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND================
 
 
-Here's where things stand.
+Progress so far on the finance clean-up:
 
-Verified against the live database, not the previous log's claims:
+Retail accounts retired — Inventory, Sales Revenue, Cost of Goods Sold, POS and card clearing, Goods Received Not Invoiced, discounts and stock adjustment accounts are now inactive and out of the accounts list. Nothing was deleted, and a new safeguard refuses to retire any account that has entries or is used by lending.
+Required-accounts warning corrected — it now asks for cash, bank, mobile money, payables and retained earnings instead of shop accounts.
+Lending mapping change log added — every change to a lending money-flow's ledger account records the old account, new account, branch, who changed it and when, and those records can never be edited or deleted.
+Still to do: show that change log on the Lending → Accounting mappings screen, then the end-to-end money-chain checks (disburse, repay, reverse, write-off) and updating the project plan.
 
-The Lending journal exists and is in use; the unused Sales and Purchases journals are retired (inactive, nothing deleted) — genuinely done.
-The write-off correction had not been applied. I applied it: a write-off now removes only unpaid principal from the books, notes any unpaid interest on the entry for portfolio reporting, and produces no accounting entry at all when only interest remains. No loan has been written off yet, so nothing was mis-stated.
-Still outstanding, in order:
-
-Chart of accounts clean-up — I confirmed exactly which retail accounts are safe to retire: Inventory, POS Clearing, Credit Card Clearing, Goods Received Not Invoiced, Customer Deposits, Sales Revenue, Service Revenue, Sales Returns, Inventory Overage/Shrinkage/Revaluation/Adjustments, Purchase Returns, Discounts Given/Received. All have zero history and are not used by the lending engine. Furniture & Fixtures must stay (it is a real fixed-asset account). The migration to mark them inactive was the next step.
-Hiding the matching retail entries on the Finance Settings page (the account list they belong to is loaded from the database, so this pairs with step 1).
-An audit trail for changes to loan account mappings.
-End-to-end testing of the money chain on real data.
-I've left the plan file as-is; the next exact action is the chart-of-accounts migration described above.
