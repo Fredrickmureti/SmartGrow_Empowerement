@@ -335,6 +335,14 @@ export default function BankReconciliation() {
                 <Button
                   variant="outline"
                   disabled={!canReconcile}
+                  title={!canReconcile ? "You don't have permission to add bank statement lines in this scope." : undefined}
+                  onClick={() => setAddLineOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add statement line
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={!canReconcile}
                   title={!canReconcile ? "You don't have permission to reconcile bank transactions in this scope." : undefined}
                   onClick={() => {
                     const q = selectedAccount !== "all" ? `?account=${selectedAccount}` : "";
