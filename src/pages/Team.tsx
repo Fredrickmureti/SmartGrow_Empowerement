@@ -657,6 +657,18 @@ export default function Team() {
     );
   }
 
+  // Mirror of the database invitation rules (upsert_organization_invitation).
+  // The server is authoritative; this only stops the user submitting an
+  // invitation the database will reject.
+  const isOwner = currentUserRole === "owner" || (!!user?.id && user.id === protectedOwnerId);
+  const inviteNeedsGroup = inviteRole === "internal" && inviteGroupIds.length === 0;
+  const inviteNeedsBranch =
+    inviteRole === "internal" &&
+    inviteBranchScope !== "all" &&
+    inviteBranchIds.length === 0;
+  const inviteAdminBlocked = inviteRole === "admin" && !isOwner;
+  const inviteInvalid = inviteNeedsGroup || inviteNeedsBranch || inviteAdminBlocked;
+
   return (
     <PlatformAppLayout>
       <div className="space-y-6 sm:space-y-8">
