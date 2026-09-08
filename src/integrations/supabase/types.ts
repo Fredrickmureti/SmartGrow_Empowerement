@@ -22761,6 +22761,10 @@ export type Database = {
         Args: { p_appointment_id: string; p_reason?: string }
         Returns: undefined
       }
+      cancel_ownership_transfer: {
+        Args: { p_transfer_id: string }
+        Returns: undefined
+      }
       cancel_scheduled_organization_deletion: {
         Args: { p_org_id: string }
         Returns: Json
