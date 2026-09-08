@@ -32,7 +32,7 @@ export type Permission =
   // Maker-checker / SOX-style separation (group-only — no base role grants these)
   | "postJournalEntry"     // Post draft JE → posted (separate from create/edit)
   | "exportFinancials"     // Export GL / financial reports
-  // Microfinance lending domain (see LENDING_ROLE_PERMISSIONS for the role matrix)
+  // Microfinance lending domain (grants come only from the user's access group)
   | LendingPermission;
 
 /**
