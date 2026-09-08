@@ -1,207 +1,161 @@
-# Organization Ownership, Administration & Super Admin — Investigation Verdict and Plan
+# Bank Reconciliation — Investigation Verdict and Reconstruction Plan
 
-## 1. What the investigation actually found (all verified against the live database and code)
+Single-company, multi-branch microfinance. Investigation completed against the live
+database (ref xwxqunklduknceoryrha) and the repository. Every claim below is traced.
 
-**There is no Super Admin in this institution.** `super_admin` is a value in the `app_role`
-list and is treated as full access in code, but **zero users hold it** (`user_roles` contains
-exactly one `owner` and four `staff` rows, all active).
+## 1. What exists today (verified)
 
-**The real administrator today is the Owner.** Two records agree and currently point at the
-same person:
-- `organizations.owner_user_id` = `7dbc67b4-…`
-- `user_roles` row with `role = 'owner'` for that same user
+Tables: `bank_accounts` (36 cols, has `branch_id`, `is_shared`, `account_id` GL link,
+`lifecycle_status`, `opening_balance_je_id`, `currency`, `bank_reported_balance`),
+`bank_transactions` (30 cols: `external_transaction_id`, `balance_after`,
+`is_reconciled`, `journal_entry_id`, `branch_id`), `bank_reconciliation_sessions`,
+`_items`, `_matches` (34 cols: `allocations` jsonb, `fee_*`, `exchange_rate`,
+`evidence`, propose/confirm/reject/reverse actors), `_rules`, `_writeoffs`,
+`bank_feed_connections`.
 
-A database rule already guarantees **one active owner per organization**
-(`user_roles_one_active_owner_per_org`), and one active role row per user per organization.
+Server engine (all SECURITY DEFINER RPCs, no browser arithmetic):
+`bank_statement_import_batch`, `bank_match_candidates` (16.9k chars),
+`bank_match_propose/confirm/reject/reverse`, `bank_match_history`,
+`bank_reconciliation_session_start/complete/reopen/cancel/writeoff`,
+`bank_reconciliation_item_set`, `_bank_reconciliation_gl_tieout`,
+`unreconcile_bank_transaction` + `bank_unmatch_preflight`,
+`finance_bank_reconciliation_statement` (21.8k chars),
+`enforce_bank_txn_scope_matches_account`, closed-period guards.
 
-**Why it feels "hardcoded".** The owner was established by seeded SQL plus a helper function
-`bootstrap_super_admin(p_email)` that promotes any user found by email to `super_admin`. That
-function is `SECURITY DEFINER` **with no caller check**, but it has **no grants**, so the app
-cannot call it — it is a database-console escape hatch, not a live security hole. The proper
-product path already exists: `create_organization_with_owner(...)` creates the organization,
-sets `owner_user_id`, inserts the owner role row, creates the HQ branch and seeds the seven
-system Access Groups (Institution Admin, Branch Manager, Loan Officer, Credit Analyst,
-Cashier/Teller, Accountant, Auditor).
+Frontend: `src/pages/BankReconciliation.tsx` (918 lines, tabs Transactions / Import
+History / Reconciliation History / Match Suggestions), `src/pages/Banking.tsx`,
+`src/pages/BankFeeds.tsx`, `src/lib/bankStatementParsers/*` (CSV/Excel, OFX, QIF),
+`src/hooks/useBankMatchCandidates.ts`, `useReconciliationSessions/Items`,
+`src/services/finance/bankReconciliationStatement.ts`, `bankUnmatchPreflight.ts`,
+plus ~12 architecture guard tests already pinning the "one engine" rule.
 
-**The genuine architectural problem is not the seed. It is two competing definitions of
-authority.**
-1. *Role labels*: 66 database functions and 51 access rules test
-   `role IN ('super_admin','owner','admin')` and grant full power. `permissions.ts` mirrors
-   this with `FULL_ACCESS` for those three, explicitly making Access Groups "a no-op".
-   `user_branch_scope` returns **all branches** for those labels before Access Groups are
-   consulted.
-2. *Access Groups*: `permission_groups` → `permission_group_rules` → `member_permission_groups`,
-   evaluated per module, per operation, per branch by `mf_can` /
-   `user_has_module_permission_in_branch`.
+Live data: 1 bank account (branch-scoped), 1 bank transaction (unreconciled),
+1 collection banking, 0 sessions, 0 matches, 0 rules, 0 feed connections.
 
-The role label always short-circuits the Access Group system. That is the accidental coupling
-the brief warned about, in reverse: administration bypasses the authorization system instead of
-being expressed through it.
+## 2. Verdicts
 
-**Missing lifecycle.** There is **no ownership-transfer function of any kind**, no `admin` role
-holder, no succession path, and no protection against `organizations.owner_user_id` drifting
-away from the `owner` role row. If the current owner leaves or is deactivated, the institution
-has no supported way back in except direct database access.
+**Generic and reusable — preserve, do not rebuild.** Statement import with duplicate
+detection, session lifecycle with GL tie-out and closed-period refusal, the
+propose/confirm/reject/reverse match state machine with server-authored evidence and
+un-match pre-flight, the reconciliation statement engine, branch scope enforcement.
+This is a sound, falsifiable reconciliation subsystem. Rule 28 applies: reuse it.
 
-## 2. Verdict
+**Domain-model defect (the real problem).** `mf_bank_collection_batch`
+(migration 20260903193355) posts the banking journal entry *and then inserts a row
+into `bank_transactions`* with `external_transaction_id = 'mf-collection-banking-<uuid>'`,
+`journal_entry_id` set and `is_reconciled = false`. In this engine
+`bank_transactions` is the **statement side** — what the bank says. The microfinance
+banking flow is using it as the **book side**. Consequences:
+- the line the screenshot shows ("Banking of collection batch") is not a bank
+  statement line at all; it is the institution's own posting masquerading as one;
+- when the real statement is imported, the same deposit arrives again under the
+  bank's own reference, and duplicate detection cannot see the relationship;
+- the reconciliation statement and match-rate KPIs count a book entry as an
+  unreconciled bank item, so the proof can never balance.
 
-Industry practice across mature multi-tenant business systems (Google Workspace, Xero, Stripe,
-GitHub, Odoo) converges on the same shape, and it matches how a branch microfinance institution
-actually operates — the institution is *owned* by a principal, but *administered* day to day by
-Head Office staff:
+**Matching engine coupling.** `bank_match_candidates`, `_bank_match_validate` and
+`bank_match_confirm` search `public.payments`, `public.invoices`, `public.bills`.
+They contain no reference to `mf_repayments`, `mf_repayment_batches`,
+`mf_collection_bankings` or `mf_loan_disbursements`, and `bank_match_candidates`
+never looks at `bank_transactions.journal_entry_id`. So a banked collection deposit
+returns tier `unresolved` — the engine is not wrong, it is simply blind to the two
+document kinds this product actually banks. This is a coupling/coverage gap, not a
+rewrite trigger.
 
-- **Owner** — exactly one per organization, organization-level, non-deletable, the ultimate
-  recovery anchor and the only party who can transfer ownership. Authoritative field:
-  `organizations.owner_user_id`. Not an Access Group.
-- **Administrator** — a delegated capability held by one or more employees, expressed **through
-  the existing Access Groups system** (the "Institution Admin" group plus a security-admin
-  capability), never through a separate parallel mechanism.
-- **Access Groups** — remain the single permission surface for everything else. Not replaced.
-- **Super Admin** — retired from tenant logic. It represents a vendor/platform persona this
-  single-institution product does not have.
-- **Branch authority** — a Branch Manager administers *their* branches. Organization-wide
-  authority must be granted explicitly; it must never be inferred from a role label.
-- An **Accountant is not a Security Administrator.** Posting money and granting permissions are
-  different responsibilities and stay in different Access Groups.
+**Terminology.** "invoices, bills, and expenses" in `BankReconciliation.tsx:313`
+and `:728` is honest about what the engine queries — it is a symptom of the coverage
+gap above, not a stray label. Fix the engine first, then the words.
 
-Nothing about the underlying architecture is unsound. Access Groups, branch scope, invitations,
-membership and audit infrastructure are good and stay. What must change is: the bootstrap path,
-the label short-circuit, and the absent succession lifecycle.
+**Bank feeds.** `bank_feed_connections` + `bank_feed_connection_resolve` +
+provider/token columns on `bank_accounts` exist with zero rows; `BankFeeds.tsx` is in
+fact a categorisation screen (`handleCategorize`, AI suggestions), not a feed client.
+No provider integration exists. Do not build one — statement import plus manual entry
+is what a branch microfinance operation needs.
 
-## 3. Waves
+**Multi-branch.** Sound: `bank_accounts.branch_id` + `is_shared` already model both
+branch and Head Office / shared accounts, and
+`enforce_bank_txn_scope_matches_account` stops a transaction drifting to another
+branch. No change required.
 
-### Wave 1 — Make ownership consistent and unbreakable (no behaviour change)
-- **Objective**: one authoritative owner record; eliminate drift.
-- **Current state**: `owner_user_id` and the `owner` role row agree today but nothing enforces it.
-- **Database**: trigger keeping `organizations.owner_user_id` and the active `owner` role row in
-  step; block deletion/deactivation of the owner's role row; backfill any organization missing
-  `owner_user_id` from its owner role row.
-- **Migrations**: one small migration per object, per project convention.
-- **Tests**: attempt to remove the owner role row; attempt to blank `owner_user_id`; both rejected.
-- **Acceptance**: the institution can never end up with zero owners.
-- **Risk**: low. **Rollback**: drop the trigger.
+**Multi-currency.** `bank_transactions` has no currency column; the account's
+currency is implied and `bank_reconciliation_matches.exchange_rate` carries the
+booking rate. Acceptable for a single-currency institution; recorded as a known
+limitation, not this wave's work.
 
-### Wave 2 — Retire the seeded/hardcoded bootstrap
-- **Objective**: remove the identity-by-SQL path without breaking the existing installation.
-- **Actions**: drop `bootstrap_super_admin`; confirm `create_organization_with_owner` is the only
-  way an organization gains its first privileged user; leave the current owner exactly as is.
-- **Verified dependency**: the function has no grants and no application caller, so removal is
-  safe.
-- **Acceptance**: no code or database path can confer authority by email or seeded id.
+**Authorization / audit.** `assert_can_reconcile_bank` plus RLS already gate the
+domain; matches record proposer, confirmer, rejecter and reverser. Integrate with the
+Access Groups work rather than adding anything new.
 
-### Wave 3 — Collapse the two definitions of authority
-- **Objective**: administration is evaluated by one surface.
-- **Backend**: introduce a single helper (e.g. `is_org_administrator(user, org)`) meaning
-  *owner, or holder of an administrative Access Group*; migrate the 66 functions and 51 access
-  rules off the raw `('super_admin','owner','admin')` triad in reviewed batches, ordered
-  lowest-risk first (reporting → settings → money-touching last).
-- **Frontend**: `permissions.ts` stops granting blanket full access to role labels; the owner and
-  administrative groups resolve to permissions through the same Access Group resolver.
-- **Branch scope**: `user_branch_scope` returns all branches only for the owner and
-  organization-wide administrative groups, never for a bare label.
-- **Tests**: a Branch Manager cannot read or write another branch; an Accountant cannot alter
-  Access Groups; a normal employee cannot reach Settings through a direct route or a direct
-  backend call.
-- **Risk**: highest wave — it touches live authorization. Executed in small, individually
-  verified batches, each reversible.
+## 3. Verified data flow (and the break)
 
-### Wave 4 — Administration of Access Groups and invitations
-- **Objective**: state clearly who may grant power.
-- Owner and holders of a security-administration capability may create/modify/assign/revoke
-  Access Groups, invite and deactivate employees, and change branch assignments. Nobody may
-  grant a capability they do not themselves hold, and nobody may edit the owner.
-- **Frontend**: Team and Settings screens reflect this; the owner row stays protected (already
-  partially implemented in the Team screen).
-- **Tests**: privilege-escalation attempts through the invitation flow and direct backend calls.
+```text
+Client -> Loan -> Repayment (mf_repayments, posted)
+      -> Batch (mf_repayment_batches, closed)
+      -> mf_bank_collection_batch
+             |-- journal entry (Bank Dr / Cash+MobileMoney Cr)   correct
+             |-- mf_collection_bankings row (append-only)        correct
+             \-- bank_transactions row  <-- WRONG SIDE of the reconciliation
+Real bank statement -> bank_statement_import_batch -> bank_transactions
+      -> bank_match_candidates  (searches payments/invoices/bills only)
+      -> no candidate for the deposit -> never reconcilable
+```
 
-### Wave 5 — Succession, transfer and recovery
-- **Objective**: the institution survives the owner leaving.
-- **Ownership transfer**: initiated by the current owner only; recipient must already be an
-  active internal employee of the organization; recipient must accept; password re-entry on
-  initiation; effective on acceptance; the outgoing owner is demoted to an administrative Access
-  Group rather than removed; abandoned transfers expire.
-- **Recovery**: if the owner is deactivated or inaccessible, a documented, audited recovery path
-  through an existing security administrator; database-console recovery remains the last resort
-  and is explicitly documented rather than pretended away.
-- **Audit**: ownership transfer, administrative grants/revocations, Access Group changes and
-  deactivations are recorded through the **existing** audit infrastructure — no second audit
-  system.
-- **Tests**: full transfer end-to-end; abandoned transfer; transfer to a non-member rejected;
-  every event visible in the audit trail.
+## 4. Terminology map
 
-### Wave 6 — Cleanup
-- Remove `super_admin` from user-facing role lists and from tenant logic once Wave 3 is complete;
-  keep the enum value itself until no function or policy references it, then retire it.
-- Update the test matrix and documentation.
+| Current term | Actual meaning | Verdict | Target | Reason |
+| --- | --- | --- | --- | --- |
+| Bank Reconciliation | statement-to-ledger proof | Valid | keep | standard accounting |
+| Transactions | statement lines | Valid but ambiguous | "Bank statement lines" | must read as bank-side |
+| Import History | statement import batches | Valid | keep | |
+| Reconciliation History | completed sessions | Valid | keep | |
+| Match Suggestions / Auto-Match | candidate engine output | Valid | keep | evidence-based, not a score |
+| Rules | pattern -> counterpart account categorisation | Valid, generic | keep, branch-scoped | bank charges, interest |
+| Unreconciled / Reconciled | statement line state | Valid | keep | |
+| "invoices, bills, and expenses" | literally what the engine queries | Legacy coupling | "banked collections, disbursements, expenses and transfers" — after Wave 2 | wording follows the engine |
+| "Banking of collection batch" line | book-side posting in a bank-side table | Legacy/defect | becomes a match candidate, not a statement line | Wave 1 |
 
-## 4. Explicitly out of scope
-Payroll, HR, inventory, sales, and unrelated finance or microfinance modules. The Access Groups
-architecture is preserved, not rebuilt.
+## 5. Waves
 
-## 5. Handoff state
-Investigation is complete and evidence-backed; no implementation has started. Inspected:
-`organizations`, `user_roles`, `permission_groups`, `permission_group_rules`,
-`member_permission_groups`, `bootstrap_super_admin`, both `create_organization_with_owner`
-overloads, `has_org_role`, `mf_can`, `user_branch_scope`, `has_dashboard_permission`, all
-indexes on `user_roles`, plus `src/lib/permissions.ts`, `src/pages/Team.tsx`,
-`src/pages/AcceptInvitation.tsx`, `src/pages/OnboardingSetup.tsx`. Do not repeat the counts:
-66 functions and 51 access rules reference the role triad; zero users hold `super_admin`; no
-ownership-transfer function exists.
+### Wave 1 — Stop the collection banking from fabricating statement lines
+- **Objective**: `mf_bank_collection_batch` records a deposit awaiting the bank, not a bank statement line.
+- **Current state**: migration 20260903193355 inserts into `bank_transactions`; 1 such row exists in the live database.
+- **DB**: new migration replacing `mf_bank_collection_batch` (single-purpose, per project rule) — drop the `bank_transactions` insert, keep the journal entry and the `mf_collection_bankings` row; a second small migration retires the one existing synthetic line (mark `lifecycle_status`, do not delete history).
+- **Backend**: none beyond the RPC. **Frontend**: none.
+- **Accounting**: unchanged — the journal entry was always correct.
+- **Tests**: SQL guard asserting `mf_bank_collection_batch` never inserts into `bank_transactions`; guard that every `bank_transactions` row has an import batch, feed or manual-entry origin.
+- **Acceptance**: banking a batch posts one journal entry and one banking record; the reconciliation screen shows no self-created line.
+- **Risks**: the existing row is referenced by `mf_collection_bankings.bank_transaction_id` — retire, don't delete. **Rollback**: re-apply prior function body.
 
+### Wave 2 — Teach the candidate engine the microfinance document kinds
+- **Objective**: a real bank deposit matches the collection banking that produced it; a disbursement debit matches its disbursement.
+- **Current state**: `bank_match_candidates` / `_bank_match_validate` / `bank_match_confirm` know only payments, invoices, bills; no `mf_*` source; `journal_entry_id` unused.
+- **DB**: add candidate kinds `collection_banking` (from `mf_collection_bankings`: amount, `banked_on` +/- tolerance, `reference` = batch number, same branch and bank account) and `disbursement` (from `mf_loan_disbursements`), plus the matching validate/confirm branches that stamp `bank_transactions.reconciled_type/entity_id` and link the existing journal entry instead of posting a new one. One migration per function.
+- **Accounting**: confirming links an already-posted entry — no new posting, so idempotent; un-match keeps `link_only` semantics in `bank_unmatch_preflight`.
+- **Authorization**: unchanged (`assert_can_reconcile_bank`).
+- **Tests**: SQL scenarios — banked batch vs imported deposit (deterministic tier), two same-amount batches (ambiguous), cross-branch deposit (no candidate), re-confirm (idempotent).
+- **Acceptance**: importing the branch statement yields a "Certain" candidate naming the batch, and confirming reconciles without a second journal entry.
+- **Dependencies**: Wave 1.
 
-=================IMPLEMENTATION PROGRESS==============
+### Wave 3 — Split and aggregate cases that this domain really has
+- **Objective**: one bank credit settling several banked batches, and a deposit net of a bank charge.
+- **Current state**: `bank_reconciliation_matches.allocations` jsonb, `fee_amount`, `fee_account_id` and `residual_amount` already exist and are honoured by confirm; only the new kinds need wiring into them.
+- **Tests**: multi-batch deposit; deposit short by a bank charge posting the fee line; partial with residual refused when unexplained.
+- **Dependencies**: Wave 2. Small wave — mostly coverage.
 
-Verified against the live database (re-checked, not taken on trust):
+### Wave 4 — Terminology and screen alignment
+- **Objective**: the page states the model Waves 1-3 established.
+- **Frontend**: `src/pages/BankReconciliation.tsx` (lines 307-320, 452-470, 724-740) — subtitle names banked collections, disbursements, expenses and transfers; "Transactions" tab reads as bank statement lines; candidate copy in `src/hooks/useBankMatchCandidates.ts` `TIER_COPY` reviewed; `BankFeeds.tsx` renamed to what it does (categorise imported lines), no feed promise.
+- **DB**: none — no table or column renames (project rule).
+- **Tests**: extend existing architecture guards; no new engine.
+- **Dependencies**: Wave 2 (words follow behaviour).
 
-- Wave 1 DONE. Triggers `protect_organization_owner_role` (on `user_roles`) and
-  `sync_organization_owner` (on `organizations`) exist and are active. The owner cannot be
-  deleted, deactivated, re-roled or blanked; a new owner must already be an active member.
-- Wave 2 DONE. `bootstrap_super_admin` no longer exists in the database.
-- Wave 3 DONE for the core resolvers. `is_org_administrator(user, org)` exists;
-  `user_branch_scope`, `user_has_module_permission` and `has_dashboard_permission` now grant
-  blanket reach only to the recorded owner, never to a role label.
-- Wave 5 (part) DONE. `organization_ownership_transfers` table + RLS.
+### Wave 5 — Documented non-work (explicit decisions)
+- No bank-feed provider integration; `bank_feed_connections` stays dormant scaffolding, documented as such.
+- No currency column on `bank_transactions` while the institution is single-currency.
+- No second reconciliation, import, matching or rules engine.
+- Orphaned ERP reconciliation artefacts touching this domain (invoice/bill candidate branches) stay in place — they are harmless and shared with the retained payments module; removal belongs to the legacy cleanup wave.
 
-Added this session:
-
-- Wave 5 actions: `propose_ownership_transfer`, `accept_ownership_transfer`,
-  `cancel_ownership_transfer` — owner-only proposal, recipient-only acceptance, either party may
-  cancel, 7-day expiry, one pending per organization, every event written to `audit_logs`
-  (`ownership_transfer_proposed|accepted|cancelled`). No second audit system.
-- Wave 5 UI: `src/components/settings/OwnershipCard.tsx`, mounted in
-  `/settings/workspace?tab=workspace`. Shows the current owner, a pending handover with
-  accept/cancel, and the owner's propose flow with confirmation.
-- Wave 4: `is_org_admin_or_owner` and `is_org_manager` now delegate to `is_org_administrator`,
-  so Access Group administration and invitations follow one rule (owner, or an Access Group
-  granting institution-wide `team` write — today only "Institution Admin"). Dropped the two
-  `organization_invitations` policies that granted invite rights from the role label alone.
-  Confirmed effect on the five live users: owner unchanged; Cashier, Auditor, Branch Manager and
-  Loan Officer are not administrators and none hold a team-write group.
-
-Session of 2026-09-08 — verification + Wave 6 frontend:
-
-- Re-verified against the live database, not taken on trust: `bootstrap_super_admin` is gone;
-  `is_org_administrator`, `is_org_admin_or_owner`, `is_org_manager`, `user_branch_scope`,
-  `has_dashboard_permission`, `propose_/accept_/cancel_ownership_transfer` all exist; triggers
-  `sync_organization_owner` and `protect_organization_owner_role` are present;
-  `organization_ownership_transfers` exists; zero users hold `super_admin`.
-  `OwnershipCard` is genuinely mounted in `src/pages/settings/WorkspaceSettings.tsx`.
-  Everything the previous session claimed is real.
-- Wave 6 (frontend) DONE. `super_admin` and `admin` no longer map to `FULL_ACCESS` in
-  `src/lib/permissions.ts` — the owner is the only blanket authority, matching the database.
-  `canManageRole`/`getAssignableRoles` no longer treat `super_admin` as a manager and refuse to
-  assign `owner` (ownership moves only through the audited transfer flow). Removed the dead
-  `super_admin` disjuncts from `AuditLogs`, `FinanceIntegrity`, `BranchAssignmentDialog`,
-  `BusinessAccessDialog`, `Team`, `useDashboardComposition`. Typecheck clean.
-- Recovery documented: `docs/architecture/ORGANIZATION_OWNERSHIP.md` (model, bootstrap, transfer,
-  four-step succession ladder ending in audited console-only recovery).
-
-Remaining:
-
-- Wave 3 tail: 61 database functions and 51 access rules still name `super_admin` in their text.
-  The core resolvers no longer honour it, zero users hold the role and the frontend now grants it
-  nothing, so this is dead wording rather than live authority — sweep in reviewed batches
-  (reporting → settings → money last), then retire the enum value.
-- Keep the `super_admin` badge/label entries in the UI maps until the enum is retired; they are
-  keyed by `AppRole` and removing them earlier breaks the type.
-
+## 6. Handoff state
+Investigation is complete; nothing has been changed yet. Unresolved decision for the
+user: whether manual bank-transaction entry should exist alongside statement import
+for branches whose bank sends paper statements.
