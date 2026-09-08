@@ -113,6 +113,9 @@ export function SecuritySettings() {
         </Card>
       )}
 
+      {/* Personal password — available to every signed-in team member */}
+      <ChangePasswordCard />
+
       {/* Security Tabs */}
       <Tabs defaultValue="pin" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
