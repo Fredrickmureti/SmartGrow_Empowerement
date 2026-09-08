@@ -28001,7 +28001,7 @@ export type Database = {
         | "cancelled"
         | "confirmed"
         | "voided"
-      journal_status: "draft" | "posted" | "void"
+      journal_status: "draft" | "posted" | "void" | "reversed"
       landed_cost_allocation_basis:
         | "value"
         | "quantity"
@@ -29180,7 +29180,7 @@ export const Constants = {
         "confirmed",
         "voided",
       ],
-      journal_status: ["draft", "posted", "void"],
+      journal_status: ["draft", "posted", "void", "reversed"],
       landed_cost_allocation_basis: [
         "value",
         "quantity",
