@@ -139,18 +139,9 @@ posting rules or Reports.
 
 ===IMPLEMENTATION PROGRESS==========
 
-Wave 4 progress so far, and what's left.
+Fixed this session
 
-Done this session
+Journal entry lines were the last finance table still granting access on company membership alone. They now require the matching accounting permission from the person's access group, exactly like the parent entries. Wave 4 is complete.
+One real gap the proof exposed — needs your decision Branch Manager can approve loan applications but not loans, and cannot record or reverse repayments. Per the agreed group design a branch manager is the approving authority at the branch, so the loans-approve grant looks like a seeding omission rather than a deliberate restriction. I did not change it, because loosening an approval right is exactly the kind of change that should be deliberate.
 
-Confirmed the previous session's Wave 1–3 claims against the live database: permissions come only from a person's access group, branch visibility follows one shared rule, each standard group has its own branch reach, and one group per person is enforced. The seven standard groups (Institution Admin, Branch Manager, Credit Analyst, Loan Officer, Cashier/Teller, Accountant, Auditor) are seeded with sensible rules.
-Found and fixed the main Wave 4 defect: old "any member of the organisation" rules sat alongside the strict access-group rules on chart of accounts, bank accounts, financial periods, journal entry lines and bank reconciliation. Because those blanket rules were permissive they always won, so access groups had no effect on those tables. They are now removed.
-Loan detail records (schedule, charges, disbursements, event history, repayment allocations, banked collections) now require the matching loan or repayment permission, on top of the existing officer-portfolio scoping.
-Lending reference data (loan products and versions, credit assessments, accounting mappings, allocation policy, posting history) now requires the matching permission instead of plain company access.
-Wrote a CI guard at supabase/tests/access_group_rls_coverage_test.sql that fails the build if any lending or finance table ever gets a permission-blind access rule again.
-Remaining (next session)
-
-Record this Wave 4 status in .lovable/plan.md — I did not get to it, so the plan still shows Wave 4 as "next".
-Run the new SQL guard and the existing branch-scope test to prove the change end to end; no test run happened yet.
-Journal entry lines still lean on a "view consolidated finances" escape arm rather than a module permission — worth narrowing, but it belongs in its own small change.
-Then Wave 5 onward per the plan: prove the invitation flow, narrow governance, scope dashboards, and finally the legacy cleanup. The 859 database advisor warnings are pre-existing and unchanged by my work; they belong to the later security posture pass.
+Remaining (unchanged order) Wave 5 invitation/sign-in proof with real users per group, Wave 6 governance narrowing, Wave 7 dashboard branch scoping, Wave 8 legacy group cleanup.
