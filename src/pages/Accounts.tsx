@@ -69,6 +69,7 @@ export default function Accounts() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const accountFieldDefinitions = ACCOUNT_IMPORT_FIELDS;
 
