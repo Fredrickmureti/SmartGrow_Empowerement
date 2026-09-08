@@ -98,18 +98,18 @@ Use database-level permission/RLS assertions plus focused frontend tests. Run th
 ==========================================
 progress status
 ============================
-I secured the access rules in the database, but the screen changes are still outstanding.
 
-Done (live in the database):
 
-Officers restricted to their own portfolio can now only create, edit or remove clients and groups assigned to themselves — previously they could create unassigned records or hand work to someone else.
-Group membership can only be changed by someone allowed to work on that group.
-Client ID photos are only viewable by staff permitted to see that specific client, instead of anyone in the institution.
-The same national ID can no longer be registered twice in one institution.
-A client can't be placed in more than two active groups at once.
-Still to do:
 
-Client registration screen: keep the newly created client if photo upload fails (today a retry creates a second client), default the loan officer to the signed-in officer, limit branches to those they're assigned, and let groups be chosen during registration.
-Team invitation screen: require an access group and branch, and restrict who may invite an administrator.
-A signed-in "change password" panel and personal security settings reachable by every staff member.
-Tests, typecheck, browser verification, and the final write-up in the plan.
+Done and live
+
+The database now refuses to create an invitation that would leave someone with no real access: a staff invitation must name at least one access group, a branch-limited invitation must name at least one branch, and only the recorded institution owner can invite another administrator. This holds no matter how the invitation is created.
+Verified directly in the database (not taken on trust) that client and group records are already restricted per officer, that ID photos are only reachable by permitted staff, that a national ID cannot repeat within the institution, and that a client cannot be put into more than two active groups even under simultaneous edits.
+The client registration screen was rewritten so that: retrying after a failed photo upload updates the same client instead of creating a duplicate; branch choices are limited to the branches the person is allowed to work in; an officer restricted to their own portfolio is set as the owning officer automatically; and up to two groups can be chosen while registering.
+Still outstanding
+
+The invite screen itself doesn't yet block sending before the new database rules reject it — the person sees an error instead of being stopped early.
+No "change password" panel yet on the personal security screen.
+The registration screen change has not been type-checked or clicked through in the browser, and the allow/deny testing across owner, administrator, loan officer and a restricted user hasn't been run.
+plan.md hasn't been updated with the access-control write-up.
+Item 3 in particular means the registration change should be exercised before you rely on it.
