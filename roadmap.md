@@ -13,3 +13,4 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [ ] M9 — Microfinance report gaps.
 - [ ] Resource Center: remove the inert demo-video section (`useDemoVideos` is now a stub; `platform_demo_videos` is dropped).
 - [ ] M10 — Microfinance document gaps.
+- [x] Invitation branding and links use Smart Grow Empowerment at `https://www.growastepventures.co.ke/` only.

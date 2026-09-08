@@ -2,6 +2,8 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 
+const INVITATION_BASE_URL = "https://www.growastepventures.co.ke";
+
 export interface InvitationEmailResult {
   id?: string | null;
   acceptUrl?: string | null;
@@ -78,9 +80,7 @@ async function readFunctionError(error: unknown): Promise<{ message: string; acc
 
 export function buildInvitationAcceptUrl(token: string | null | undefined) {
   if (!token) return null;
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  if (!baseUrl) return `/accept-invitation?token=${encodeURIComponent(token)}`;
-  const url = new URL("/accept-invitation", baseUrl);
+  const url = new URL("/accept-invitation", INVITATION_BASE_URL);
   url.searchParams.set("token", token);
   return url.toString();
 }
