@@ -141,6 +141,10 @@ export default function BankReconciliation() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 100;
 
+  // Paper/PDF statements: one line typed by hand, through the same server
+  // ingestion engine as a file import (see AddStatementLineDialog).
+  const [addLineOpen, setAddLineOpen] = useState(false);
+
   const { accounts: bankAccounts } = useBankAccounts();
   // Money on this page always belongs to a bank account; format it in that
   // account's currency, never in a formatter default (ADR 0136).
