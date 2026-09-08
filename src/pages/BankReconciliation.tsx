@@ -724,9 +724,10 @@ export default function BankReconciliation() {
                     <CardTitle className="text-base">What the books say</CardTitle>
                     <p className="text-sm text-muted-foreground">
                       For each unmatched bank line, the accounting records are searched for something that
-                      already explains it — a receipt awaiting deposit, a supplier payment not yet cleared,
-                      an open invoice or bill, or a transfer between your own accounts. Each suggestion
-                      shows the evidence behind it; nothing is posted until you accept it.
+                      already explains it — a collection banked but not yet seen on the statement, a loan
+                      disbursement paid out, a payment made or received, or a transfer between your own
+                      accounts. Each suggestion shows the evidence behind it; nothing is posted until you
+                      accept it.
                       {selectedAccount === "all" && " Select a specific bank account to see suggestions."}
                     </p>
                   </CardHeader>
