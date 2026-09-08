@@ -31,7 +31,8 @@ const REGISTERED: Record<string, string> = {
   "reversal.expense": "expenses",
 };
 
-/** Tables carrying a BEFORE UPDATE self-action guard trigger. */
+/** Tables carrying a self-action guard trigger (BEFORE UPDATE, or BEFORE
+ *  INSERT where the governed act is the creation of the row — payouts). */
 const GUARDED_TABLES = [
   "approval_history",
   "approval_rules",
@@ -41,6 +42,7 @@ const GUARDED_TABLES = [
   "payments",
   "mf_loan_applications",
   "mf_loans",
+  "mf_loan_disbursements",
   "mf_repayments",
 ];
 
