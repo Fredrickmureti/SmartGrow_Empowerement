@@ -276,16 +276,22 @@ export function ReconcileTransactionSheet({
     };
 
     if (chosen) {
+      // The engine now offers microfinance kinds (banked collection, loan
+      // disbursement) alongside the older document kinds. The seam validates
+      // the kind server-side, so the wire shape is passed through as-is.
       await submit({
         reconciled_type:
           chosen.kind === "account"
             ? "manual"
-            : (chosen.kind as "invoice" | "bill" | "payment" | "transfer"),
-        allocations: chosen.allocations,
+            : (chosen.kind as unknown as "invoice" | "bill" | "payment" | "transfer"),
+        allocations: chosen.allocations as unknown as Parameters<
+          ReconcileTransactionSheetProps["onReconcile"]
+        >[1]["allocations"],
         category: chosen.label,
       });
       return;
     }
+
 
     // Clearing money already recorded: the receipt is deposited in full, and
     // nothing new is settled (ADR-0147 §1).

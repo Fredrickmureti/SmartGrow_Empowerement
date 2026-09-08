@@ -163,14 +163,55 @@ for branches whose bank sends paper statements.
 
 =================IMPLEMENTATION PROGRESS==============
 
-I extended the existing matching engine (no second engine) so loan payouts can be confirmed against the bank, and verified it landed in the database:
+## Verified complete (re-checked against the live database, 2026-09-08)
 
-Loan disbursements paid out by bank now appear as suggestions on money-out bank lines, matched on amount, branch, bank account, date window and reference.
-Confirming one only links the bank line to the disbursement — it never posts a second accounting entry, because the disbursement already posted its own.
-Undoing the match breaks the link only, leaves the original accounting untouched, and makes the disbursement available to match again.
-Each disbursement now records which bank line confirmed it.
-Remaining (not done, credits ran out):
+- **Wave 1 — done.** `mf_bank_collection_batch` no longer inserts into
+  `bank_transactions`; its body carries the ADR comment stating that
+  `bank_transactions` is the statement side only. The journal entry and the
+  `mf_collection_bankings` row are unchanged.
+- **Wave 2 — done.** `bank_match_candidates` (20.1k) now emits kinds
+  `payment`, `collection_banking`, `bill_payment`, `disbursement`, `transfer`,
+  `invoice`, `bill`, `account`. Collection-banking candidates require same
+  business, same bank account, matching branch, amount within 0.005, banked_on
+  in −14/+7 days of the statement date, `bank_transaction_id IS NULL`, and no
+  live match already claiming them. `_bank_match_validate`, `bank_match_confirm`,
+  `bank_unmatch_preflight` and `unreconcile_bank_transaction` all handle the new
+  kinds; confirming links only — no second posting.
+- **Wave 4 (wording) — done.** `BankReconciliation.tsx:313` now reads "Match bank
+  statement lines with banked collections, loan disbursements, expenses and
+  transfers"; the Match Suggestions help text (≈:726) names banked collections and
+  loan disbursements instead of invoices/bills/supplier payments.
+  `useBankMatchCandidates.ts` carries the full kind union plus
+  `CANDIDATE_KIND_LABEL` (single place that turns a machine kind into words).
+  `ReconcileTransactionSheet` passes the widened kinds through to the seam.
 
-Front-end: add the new match kinds ("collection banking", "loan disbursement") to src/hooks/useBankMatchCandidates.ts so the screen labels them properly instead of falling back to the old set.
-Wording on the Bank Reconciliation screen: line 313 still says "Match bank transactions with invoices, bills, and expenses", and the help text around line 726 still talks about invoices/bills/supplier payments.
-Retire the one leftover synthetic "Banking of collection batch BATCH-001" line (id ebc9baec-…, already marked excluded) and decide whether its link on the collection banking record should be cleared.
+## Known residue (one row, deliberately left)
+
+The legacy synthetic line `ebc9baec-085e-4ba9-a8b5-c094fe4b50f6` ("Banking of
+collection batch BATCH-001") is already `lifecycle_status = 'excluded'`, so it no
+longer appears as an unreconciled bank item. Its `mf_collection_bankings` row
+(`1f71927a-…`) still points at it, and `mf_collection_bankings_append_only()`
+refuses to clear a confirmed `bank_transaction_id` ("This banking is already
+confirmed against a bank statement line"). Because `bank_match_candidates`
+requires `bank_transaction_id IS NULL`, that single banking can never be matched
+to a real imported deposit.
+
+**Next agent action (only if this matters on real data):** one migration relaxing
+`mf_collection_bankings_append_only()` so a link may be cleared when the target
+`bank_transactions` row is `lifecycle_status = 'excluded'`, then clear the link.
+It is one test row today — do not expand scope for it.
+
+## Still open
+
+- Wave 3 (split/aggregate: one credit settling several banked batches; deposit net
+  of a bank charge) — the columns (`allocations`, `fee_amount`, `fee_account_id`,
+  `residual_amount`) exist and confirm honours them; only the new kinds need
+  wiring plus SQL scenarios.
+- Wave 4 remainder: `BankFeeds.tsx` still promises a feed it does not implement —
+  rename it to what it does (categorise imported lines).
+- Wave 5 non-work decisions stand unchanged.
+- Unresolved for the user: whether manual bank-transaction entry should exist
+  alongside statement import for branches receiving paper statements.
+
+**Do not repeat:** the Section 1–4 investigation, or re-verification of Waves 1
+and 2 — both were confirmed in the live database on 2026-09-08.
