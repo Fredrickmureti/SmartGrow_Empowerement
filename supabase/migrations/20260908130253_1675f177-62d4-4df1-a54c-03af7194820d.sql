@@ -1,0 +1,3 @@
+UPDATE public.platform_settings SET setting_value = 'Smart Grow Empowerment', updated_at = now() WHERE setting_key = 'platform_name';
+UPDATE public.platform_settings SET setting_value = 'https://www.growastepventures.co.ke', updated_at = now() WHERE setting_key = 'website_url';
+UPDATE public.platform_settings SET setting_value = 'https://project--c03af08b-cceb-4b1f-bcdb-838bcf5bf3db.lovable.app', updated_at = now() WHERE setting_key = 'app_base_url';
