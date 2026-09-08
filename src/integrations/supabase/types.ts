@@ -22643,7 +22643,6 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
-      bootstrap_super_admin: { Args: { p_email: string }; Returns: Json }
       budget_fiscal_months: {
         Args: { _business_id: string; _fiscal_year: number }
         Returns: {
