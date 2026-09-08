@@ -139,8 +139,14 @@ posting rules or Reports.
 
 ===IMPLEMENTATION PROGRESS==========
 
-Wave 5's core proof is in and it passes: four real test staff accounts (loan officer, branch manager, cashier, auditor) were created, signed in for real, and asked the backend directly what they may do — each got back exactly their group's rights and nothing more. A loan officer cannot approve, a cashier can only take repayments, an auditor can do nothing but look. The branch manager now has the full branch approving authority you chose: approving loans as well as applications, and recording and reversing repayments.
+Here's where things stand.
 
-Also verified, rather than assumed, that the earlier waves really landed: the old role-based shortcut is gone, branch access has one single rule, one access group per person is enforced, the seven groups exist, and the accounting lines are permission-gated.
+Verified (not assumed) that earlier waves really landed: the seven access groups exist with their rules and branch reach (Institution Admin/Accountant/Auditor = all branches; Branch Manager/Credit Analyst = assigned; Loan Officer/Cashier = own portfolio), one group per person is enforced, and no lending or finance data rule is left permission-blind.
 
-What still remains, unchanged in order: finish Wave 5 by signing in through the app itself to confirm each person's menu, apps and dashboard match (the can_access_branch check returned "no answer" for these users because none has a branch assigned yet — that needs a branch assignment before it means anything); then governance narrowing, dashboard branch scoping, and removing the old ERP groups last. I ran out of budget before I could record this in the plan file, so the next session should note that the branch-manager decision is applied and Wave 5's backend half is proven.
+Fixed a real blocker: adding a new branch failed outright because of a leftover rule from the old system that tried to create a warehouse. Removed it — branches can be created again.
+
+Branch access is now proven end to end. I added a second test branch (Kitengela), assigned the test loan officer, cashier and branch manager to it, and asked the system directly what each may do at each branch. Results were exactly right: the branch manager approves loans and records repayments in their own branch and has no access at Headquarters; the cashier can only take repayments, in their branch only; the loan officer can see clients in their branch but cannot approve; the auditor can look everywhere and change nothing.
+
+A genuine gap I found and was mid-fix: the app's own screens were still handing people rights based on their job label on top of their access group, so the menu and buttons could offer more than the system would actually permit. I rewrote that so the access group is the only authority (owner/admin keep full access; portal users none). This edit is complete in src/lib/permissions.ts but has not been built or tested — that is the first thing to do next.
+
+Remaining, in order: confirm the new rights calculation builds cleanly and that each test person's menu and dashboard match once signed in through the app (a session can't be minted here — sign in as a test user in the preview); then governance narrowing, dashboard branch scoping, and removing old ERP leftovers last.
