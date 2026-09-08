@@ -21996,6 +21996,10 @@ export type Database = {
         }
         Returns: Json
       }
+      accept_ownership_transfer: {
+        Args: { p_transfer_id: string }
+        Returns: undefined
+      }
       accounting_post_event: {
         Args: { p_event_id: string; p_idempotency_key?: string }
         Returns: Json
