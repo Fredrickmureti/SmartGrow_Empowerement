@@ -195,9 +195,11 @@ export default function Accounts() {
 
   const filteredAccounts = accounts.filter(
     (a) =>
-      a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.code.toLowerCase().includes(searchQuery.toLowerCase())
+      (showArchived || a.is_active) &&
+      (a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.code.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+  const archivedCount = accounts.filter((a) => !a.is_active).length;
 
   // Use formatCurrency from hook - removed local function
 
