@@ -81,6 +81,7 @@ import {
   History,
   Scale,
   Lightbulb,
+  Plus,
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
 import { useBankMoney } from "@/hooks/useBankAccountCurrency";
@@ -331,6 +332,14 @@ export default function BankReconciliation() {
           <div className="action-buttons w-full sm:w-auto">
             {!showWorkspace && (
               <>
+                <Button
+                  variant="outline"
+                  disabled={!canReconcile}
+                  title={!canReconcile ? "You don't have permission to add bank statement lines in this scope." : undefined}
+                  onClick={() => setAddLineOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add statement line
+                </Button>
                 <Button
                   variant="outline"
                   disabled={!canReconcile}
@@ -918,6 +927,15 @@ export default function BankReconciliation() {
         onOpenChange={setPreviewOpen}
         sourceType={previewSource.type}
         sourceId={previewSource.id}
+      />
+
+      {/* Paper/PDF statements: one typed line through the same server import engine */}
+      <AddStatementLineDialog
+        open={addLineOpen}
+        onOpenChange={setAddLineOpen}
+        accounts={bankAccounts as never}
+        defaultAccountId={selectedAccount !== "all" ? selectedAccount : undefined}
+        onAdded={() => { void fetchTransactions(); }}
       />
     </>
   );

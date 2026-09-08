@@ -231,14 +231,14 @@ unchanged on purpose — the architecture guard
 and all consumers key on them; renaming the route is a separate controlled move.
 
 ## Still open
-I fixed the reconciliation residue and started the manual statement-line entry, but ran out of room to finish it.
+Nothing outstanding in this wave.
 
 Done and verified:
 
-Collection bankings can now be released from a retired (excluded) statement line — every other field stays append-only, and re-pointing to a different line is still refused.
-The leftover test banking is now unlinked (0 of 1 still linked), so the real deposit can be matched when the bank statement arrives.
-Started, not finished: a small "Add a statement line" form for branches whose bank only sends paper or PDF statements. It routes through the same server import engine as a file upload, so a typed line gets identical duplicate detection, rules and period checks. The form itself is written and imported into the Bank Reconciliation page, but the button that opens it hasn't been added to the page header yet — so it isn't reachable in the app.
+- Collection bankings can be released from a retired (excluded) statement line; every other field stays append-only and re-pointing to a different line is still refused.
+- The leftover test banking is unlinked, so the real deposit can be matched when the statement arrives.
+- Manual "Add a statement line" entry is now reachable: a button in the Bank Reconciliation page header opens the dialog, which routes through `bank_statement_import_batch` (source `manual`) for identical duplicate detection, rules and closed-period checks. The list refreshes on success.
+- Journal status mismatch corrected. The database enum is `draft | posted | void`; the app was comparing against `voided`, so voided entries fell through to a raw fallback badge, the Voided filter matched nothing and the Voided count was always 0. Fixed in `useJournalEntries.ts`, `pages/JournalEntries.tsx` and `journal-entries/journalEntryView.tsx`. SQL seams already used `void` correctly — no migration needed.
+- Typecheck clean (`tsgo -p tsconfig.app.json`).
 
-Still open from earlier: the accounting engine compares journal status against voided while the real value is void; that must be corrected before end-to-end repayment testing passes.
-
-
+Next coherent step: end-to-end repayment → banked collection → statement line → match walkthrough against live data.

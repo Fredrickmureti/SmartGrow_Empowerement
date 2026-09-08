@@ -22,7 +22,7 @@ export interface JournalEntry {
   reversed_entry_id: string | null;
   reversal_of_id: string | null;
   reversed_by_id: string | null;
-  status: 'draft' | 'posted' | 'voided' | 'reversed';
+  status: 'draft' | 'posted' | 'void' | 'reversed';
   posted_at: string | null;
   posted_by: string | null;
   voided_at: string | null;

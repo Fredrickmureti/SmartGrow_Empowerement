@@ -270,7 +270,7 @@ export default function JournalEntries() {
         }
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Posted</Badge>;
       case "reversed": return <Badge className="bg-amber-100 text-amber-800"><RotateCcw className="h-3 w-3 mr-1" />Reversed</Badge>;
-      case "voided": return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Voided</Badge>;
+      case "void": return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Voided</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
@@ -280,7 +280,7 @@ export default function JournalEntries() {
     draft: journalEntries.filter(e => e.status === "draft").length,
     posted: journalEntries.filter(e => e.status === "posted").length,
     reversed: journalEntries.filter(e => e.status === "reversed").length,
-    voided: journalEntries.filter(e => e.status === "voided").length,
+    voided: journalEntries.filter(e => e.status === "void").length,
   };
 
   return (
@@ -379,7 +379,7 @@ export default function JournalEntries() {
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="posted">Posted</SelectItem>
               <SelectItem value="reversed">Reversed</SelectItem>
-              <SelectItem value="voided">Voided</SelectItem>
+              <SelectItem value="void">Voided</SelectItem>
             </SelectContent>
           </Select>
         </div>
