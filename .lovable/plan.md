@@ -187,9 +187,47 @@ delete-free (deactivation only) and carrying a commented rollback statement.
 
 =================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND================
 
+Updated 2026-09-08 10:3x UTC.
 
-Done in this pass: the change log now appears on the Lending → Accounting mappings screen, showing each money-flow that was rebound, the old and new account, the branch, who changed it and when.
+### Verified done (re-checked against the live database, not claims)
+- F-1 Chart of accounts triage: 24 accounts deactivated; zero active ERP-style
+  accounts (inventory, COGS, GRNI, sales revenue, purchase returns, POS/credit
+  card clearing) remain. No account with journal history was deleted.
+- F-2 Journal books: SAL and PUR inactive, LND (Lending) active, and
+  `default_journal_book_for_source` routes `mf_loan_event` /
+  `mf_collection_banking` to the lending book. Historical MISC entries left as
+  posted (immutable).
+- F-3 Write-off correctness: `mf_post_event` no longer references
+  `interest_receivable` (1375) anywhere — the unaccrued-interest credit is gone.
+- F-4 Mapping-change audit: `mf_account_mapping_audit` exists with a trigger;
+  the change log is surfaced on Lending → Accounting mappings.
+- Reversal branch defect (was the open item): FIXED. `void_journal_entry_atomic`
+  now copies `branch_id` and `journal_book_id` from the original entry, and the
+  three historical reversals (JE-00023/25/26) were backfilled with the branch of
+  the entry they reverse under the lineage-repair flag. Amounts untouched.
 
-Checks I ran on live data: every journal entry balances, no loan event is left unposted, every repayment is fully allocated, and loan branch attribution is intact.
+### Live invariant check (whole ledger)
+unbalanced entries 0 | unposted loan events 0 | posted entries without a branch 0
+| repayments not fully allocated 0 | posted entries without a journal book 0.
 
-One real defect found and not yet fixed: reversal entries are recorded with no branch, so a branch's report shows a repayment but not its reversal — three existing entries are affected. I prepared the corrected reversal routine, but the update was rejected because the existing routine must be dropped first; that retry, plus a decision on correcting the three historical reversals, is the next exact action. After that, the remaining end-to-end money-chain walk (disburse → repay → reverse → write-off → banking) and the plan update are still outstanding.
+### End-to-end walk executed 2026-09-08 (LN-000006, test admin)
+Payment 1,000 cash → allocation interest 300 / principal 700 → JE-00027 in LND,
+branch stamped, balanced. Reversal → repayment status `reversed`, JE-00028 in
+LND, branch stamped, balanced; loan outstanding returned exactly to 21,200.
+Both directions idempotent by construction (`mf_event_postings` unique key).
+
+### Remaining work
+1. Wave F-5 — Finance Settings surface alignment: exclude the ERP-only
+   `default_account_settings` keys from the settings catalogue and promote the
+   lending mapping block as the primary section. Rows retained, nothing deleted.
+2. Money-chain steps not yet exercised live: write-off, collection banking and
+   bank reconciliation, plus a branch report cross-check. Write-off should be
+   tested on a purpose-created throwaway loan, never on LN-000001..6.
+3. Wave F-7 (accrual + impairment) stays gated and unstarted by design.
+
+### What NOT to repeat
+- Do not re-audit the lending posting engine; it is sound and already verified.
+- Do not re-verify F-1..F-4; confirmed live on 2026-09-08.
+- Do not attempt to repair `void_invoice_atomic`; it references the dropped
+  `invoices` table and is a dead orphan awaiting the orphan-function purge.
+- Do not edit posted journal headers except through the lineage-repair flag.
