@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public._mf_group_members_limit() FROM PUBLIC, anon, authenticated;
