@@ -319,23 +319,19 @@ const INTERNAL_GROUP_ROLES: AppRole[] = [
 ];
 
 /**
- * Resolves effective permissions by combining the base role with Access Group rules.
+ * Resolves effective permissions from the user's Access Group rules.
  *
  * - admin / owner / super_admin: full access, groups are a no-op.
- * - internal-class roles WITH groups: the union of group rules, plus the
- *   role's lending baseline.
- * - internal-class roles WITHOUT groups: the role's lending baseline only.
  * - portal: no permissions (staff-only institution).
+ * - everyone else: exactly what their access group grants — nothing else.
+ *   This mirrors `user_has_module_permission` in the database, which is the
+ *   authority; the UI must never offer more than the backend allows.
  */
 export function resolveEffectivePermissions(
   baseRole: AppRole | undefined | null,
   groupRules: PermissionGroupRule[]
 ): Record<Permission, boolean> {
-  const base: Record<Permission, boolean> = {} as Record<Permission, boolean>;
-  const baseRaw = baseRole ? (ROLE_PERMISSIONS[baseRole] as Record<string, boolean | undefined>) : null;
-  for (const k of ALL_PERMISSIONS) base[k] = baseRaw ? Boolean(baseRaw[k]) : false;
-  // Lending grants live in their own matrix.
-  if (baseRole) for (const k of LENDING_ROLE_PERMISSIONS[baseRole] ?? []) base[k] = true;
+
 
   if (baseRole === "admin" || baseRole === "owner" || baseRole === "super_admin") {
     const out: Record<Permission, boolean> = {} as Record<Permission, boolean>;
