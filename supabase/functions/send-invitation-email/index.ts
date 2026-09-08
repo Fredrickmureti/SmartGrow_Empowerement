@@ -140,20 +140,27 @@ const handler = async (req: Request): Promise<Response> => {
     const { data: settings } = await supabase
       .from("platform_settings")
       .select("setting_key, setting_value")
-      .in("setting_key", ["platform_name", "website_url"]);
+      .in("setting_key", ["platform_name"]);
 
     const settingsMap = (settings || []).reduce((acc: Record<string, string>, s) => {
       if (s.setting_value) acc[s.setting_key] = s.setting_value;
       return acc;
     }, {});
 
-    const platformName = settingsMap.platform_name || "AccrualFlow";
-    const websiteUrl = settingsMap.website_url || "https://accrualflow.systems";
-
     const org = invitation.organization as any;
     const orgName = org?.name || "an organization";
+    // Never fall back to a foreign brand: if no platform name is configured,
+    // the organisation name is the only safe identity to show.
+    const platformName = (settingsMap.platform_name || "").trim() || orgName;
+    const showPlatform = platformName.toLowerCase() !== orgName.toLowerCase();
     const roleName = invitation.role.charAt(0).toUpperCase() + invitation.role.slice(1);
-    const acceptUrl = `${websiteUrl}/accept-invitation?token=${invitation.token}`;
+    const article = /^[aeiou]/i.test(roleName) ? "an" : "a";
+
+    // The accept link must point at the deployed APPLICATION, not the
+    // marketing website. `app_base_url` is the single canonical source shared
+    // with notification deep links (_shared/email/deepLink.ts).
+    const appBaseUrl = (await resolveAppBaseUrl(supabase, supabaseUrl)).replace(/\/+$/, "");
+    const acceptUrl = `${appBaseUrl}/accept-invitation?token=${encodeURIComponent(invitation.token)}`;
 
     // Server-side seat enforcement. `check_user_limit` no longer exists; the
     // live surface is `get_effective_user_limit(_org_id)` which returns NULL
