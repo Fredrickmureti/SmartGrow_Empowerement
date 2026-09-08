@@ -860,7 +860,27 @@ export default function Team() {
                       </div>
                     )}
 
-                    <Button type="submit" className="w-full" disabled={isInviting}>
+                    {inviteNeedsGroup && (
+                      <p className="text-xs text-destructive">
+                        Select at least one Access Group. Without one this person would sign in
+                        with no access at all.
+                      </p>
+                    )}
+                    {inviteNeedsBranch && (
+                      <p className="text-xs text-destructive">
+                        Select at least one branch for this branch-limited invitation.
+                      </p>
+                    )}
+                    {inviteAdminBlocked && (
+                      <p className="text-xs text-destructive">
+                        Only the institution owner can invite an administrator.
+                      </p>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={isInviting || inviteInvalid}
+                    >
                       {isInviting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       Send Invitation
                     </Button>
