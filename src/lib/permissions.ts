@@ -396,7 +396,7 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 
 // Role descriptions for UI
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
-  super_admin: "Full platform access with super admin privileges",
+  super_admin: "Retired persona — confers no access in this institution",
   owner: "Full access to the institution with ability to manage all team members",
   admin: "Full access with ability to manage non-admin team members",
   internal: "Access determined by assigned Access Groups",
