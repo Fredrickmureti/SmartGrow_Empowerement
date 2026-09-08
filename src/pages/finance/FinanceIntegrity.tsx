@@ -50,7 +50,7 @@ const ISSUE_LABELS: Record<string, { title: string; description: string }> = {
 export default function FinanceIntegrity() {
   const { currentOrg, userRole } = useOrganization();
   const isAdmin =
-    userRole?.role === "admin" || userRole?.role === "owner" || userRole?.role === "super_admin";
+    userRole?.role === "admin" || userRole?.role === "owner";
   const queryClient = useQueryClient();
   const { toast } = useToast();
 

@@ -98,7 +98,7 @@ export default function AuditLogs() {
   const { getUserName, members } = useOrgMembers();
 
   const userRole = currentOrg?.role;
-  const isAdmin = userRole === "owner" || userRole === "admin" || userRole === "super_admin";
+  const isAdmin = userRole === "owner" || userRole === "admin";
 
   const debouncedSearch = useDebouncedCallback((value: string) => {
     setFilters((prev) => ({ ...prev, search: value || undefined }));

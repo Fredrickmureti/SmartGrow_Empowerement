@@ -162,7 +162,7 @@ export function useDashboardComposition(): DashboardComposition {
     // string. `perms.role` is the AppRole stored on user_roles.
     const roleStr = (perms as any).role as string | undefined;
     let role: DashboardRole = "generic";
-    if (scope.isExecutiveAuthorized || roleStr === "owner" || roleStr === "super_admin") {
+    if (scope.isExecutiveAuthorized || roleStr === "owner") {
       role = "executive";
     } else if (roleStr === "accountant" || (perms.canManageFinancials && perms.canViewReports)) {
       role = "accountant";

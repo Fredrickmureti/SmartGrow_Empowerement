@@ -178,11 +178,30 @@ Added this session:
   Confirmed effect on the five live users: owner unchanged; Cashier, Auditor, Branch Manager and
   Loan Officer are not administrators and none hold a team-write group.
 
+Session of 2026-09-08 — verification + Wave 6 frontend:
+
+- Re-verified against the live database, not taken on trust: `bootstrap_super_admin` is gone;
+  `is_org_administrator`, `is_org_admin_or_owner`, `is_org_manager`, `user_branch_scope`,
+  `has_dashboard_permission`, `propose_/accept_/cancel_ownership_transfer` all exist; triggers
+  `sync_organization_owner` and `protect_organization_owner_role` are present;
+  `organization_ownership_transfers` exists; zero users hold `super_admin`.
+  `OwnershipCard` is genuinely mounted in `src/pages/settings/WorkspaceSettings.tsx`.
+  Everything the previous session claimed is real.
+- Wave 6 (frontend) DONE. `super_admin` and `admin` no longer map to `FULL_ACCESS` in
+  `src/lib/permissions.ts` — the owner is the only blanket authority, matching the database.
+  `canManageRole`/`getAssignableRoles` no longer treat `super_admin` as a manager and refuse to
+  assign `owner` (ownership moves only through the audited transfer flow). Removed the dead
+  `super_admin` disjuncts from `AuditLogs`, `FinanceIntegrity`, `BranchAssignmentDialog`,
+  `BusinessAccessDialog`, `Team`, `useDashboardComposition`. Typecheck clean.
+- Recovery documented: `docs/architecture/ORGANIZATION_OWNERSHIP.md` (model, bootstrap, transfer,
+  four-step succession ladder ending in audited console-only recovery).
+
 Remaining:
 
-- Wave 3 tail: 63 database functions and 51 access rules still name `super_admin` in their text.
-  The core resolvers no longer honour it and zero users hold the role, so this is dead wording
-  rather than live authority — sweep in reviewed batches (reporting → settings → money last).
-- Wave 6: remove `super_admin` from the Team screen's role lists, then retire the enum value.
-- Recovery documentation: database-console recovery as the explicit last resort.
+- Wave 3 tail: 61 database functions and 51 access rules still name `super_admin` in their text.
+  The core resolvers no longer honour it, zero users hold the role and the frontend now grants it
+  nothing, so this is dead wording rather than live authority — sweep in reviewed batches
+  (reporting → settings → money last), then retire the enum value.
+- Keep the `super_admin` badge/label entries in the UI maps until the enum is retired; they are
+  keyed by `AppRole` and removing them earlier breaks the type.
 

@@ -879,7 +879,7 @@ export default function Team() {
                 {members.filter(m => m.user_type !== "portal").map((member) => {
                   const isCurrentUser = member.user_id === user?.id;
                   const canManageThis = canManageMember(member);
-                  const isAdminOrOwner = member.role === "admin" || member.role === "owner" || member.role === "super_admin";
+                  const isAdminOrOwner = member.role === "admin" || member.role === "owner";
                   const memberBranchAssignments = assignmentsByUser[member.user_id] || [];
 
                   return (
