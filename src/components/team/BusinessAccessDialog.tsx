@@ -118,9 +118,7 @@ export function BusinessAccessDialog({
     selections.find((s) => s.businessId === businessId);
 
   const isAdminOrOwner =
-    member?.role === "admin" ||
-    member?.role === "owner" ||
-    member?.role === "super_admin";
+    member?.role === "admin" || member?.role === "owner";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
