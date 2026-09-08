@@ -48,6 +48,7 @@ import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useBankMatchCandidatesFor, TIER_COPY } from "@/hooks/useBankMatchCandidates";
 import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
+import { AddStatementLineDialog } from "@/features/finance/banking/import/AddStatementLineDialog";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 
 import { TransferReconcileSheet } from "@/features/finance/reconciliation/TransferReconcileSheet";
