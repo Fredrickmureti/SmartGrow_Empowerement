@@ -12742,6 +12742,7 @@ export type Database = {
       mf_loan_disbursements: {
         Row: {
           amount: number
+          bank_transaction_id: string | null
           business_id: string
           created_at: string
           disbursed_by: string | null
@@ -12763,6 +12764,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          bank_transaction_id?: string | null
           business_id: string
           created_at?: string
           disbursed_by?: string | null
@@ -12784,6 +12786,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          bank_transaction_id?: string | null
           business_id?: string
           created_at?: string
           disbursed_by?: string | null
@@ -12804,6 +12807,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mf_loan_disbursements_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mf_loan_disbursements_loan_id_fkey"
             columns: ["loan_id"]
@@ -25595,6 +25605,10 @@ export type Database = {
         }
         Returns: string
       }
+      mf_bank_disbursement_candidates: {
+        Args: { _bank_transaction_id: string }
+        Returns: Json
+      }
       mf_can: {
         Args: {
           _branch_id: string
@@ -25642,6 +25656,10 @@ export type Database = {
           p_reference?: string
           p_source_account_id?: string
         }
+        Returns: string
+      }
+      mf_disbursement_journal_entry: {
+        Args: { _disbursement_id: string }
         Returns: string
       }
       mf_generate_schedule: { Args: { p_loan_id: string }; Returns: number }
