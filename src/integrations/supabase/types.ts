@@ -25888,6 +25888,16 @@ export type Database = {
         Returns: string
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
+      mf_pay_client_charge: {
+        Args: {
+          p_charge_id: string
+          p_method?: string
+          p_notes?: string
+          p_paid_on?: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
       mf_raise_client_admission_fee: {
