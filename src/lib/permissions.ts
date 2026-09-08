@@ -120,10 +120,11 @@ export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
   // ignore it, so it must not confer anything in the UI either.
   super_admin: { ...INTERNAL_BASE_PERMISSIONS },
   owner: { ...FULL_ACCESS },
-  // Administration is delegated through Access Groups, never through the
-  // label. `user_has_module_permission` grants blanket reach to the recorded
-  // owner only; the UI must not offer more than the backend allows.
-  admin: { ...INTERNAL_BASE_PERMISSIONS },
+  // Administrators are blanket authorities alongside the owner, matching
+  // `user_has_module_permission` in the database. Segregation of duties is
+  // enforced separately by `governance_assert_not_self`, so this is not a way
+  // around approvals.
+  admin: { ...FULL_ACCESS },
   accountant: { ...INTERNAL_BASE_PERMISSIONS },
   staff: { ...INTERNAL_BASE_PERMISSIONS },
   viewer: { ...INTERNAL_BASE_PERMISSIONS },
@@ -284,7 +285,8 @@ export interface PermissionGroupRule {
 /**
  * Resolves effective permissions from the user's Access Group rules.
  *
- * - owner: full access (the only blanket authority, matching the database).
+ * - owner / admin: full access (the two blanket authorities, matching the
+ *   database resolver `user_has_module_permission`).
  * - portal: no permissions (staff-only institution).
  * - everyone else: exactly what their access group grants — nothing else.
  *   This mirrors `user_has_module_permission` in the database, which is the
@@ -296,11 +298,11 @@ export function resolveEffectivePermissions(
 ): Record<Permission, boolean> {
 
 
-  // Wave 3: ownership — not a job-title label — is the only blanket authority.
-  // The database agrees: `user_has_module_permission` grants everything to the
-  // organization owner and evaluates everyone else through access groups.
-  // Administrators are ordinary employees holding an administrative group.
-  if (baseRole === "owner") {
+  // Owner and admin are blanket authorities. The database agrees:
+  // `user_has_module_permission` returns true for the recorded owner and for
+  // an active `owner`/`admin` role row, and evaluates everyone else through
+  // access groups. Segregation of duties still applies via governance mode.
+  if (baseRole === "owner" || baseRole === "admin") {
     const out: Record<Permission, boolean> = {} as Record<Permission, boolean>;
     for (const k of ALL_PERMISSIONS) out[k] = true;
     return out;
