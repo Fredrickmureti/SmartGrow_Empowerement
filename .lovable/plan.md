@@ -62,16 +62,36 @@ the group model, and everything already marked out of scope in `roadmap.md`.
   schedule and never appears in `mf_compute_loan_fees`.
 
 
-==============IMPLEMENATTION PROGRESS/STATUS/WHERE THINGS STAND==========
+==============IMPLEMENTATION PROGRESS/STATUS/WHERE THINGS STAND==========
 
+Wave 1 is complete and verified live (2026-09-08).
 
-Wired in this session (type-check passes):
+Built and confirmed present:
+- `mf_client_fee_policy` (amount, currency, on/off — institution level, no hardcoded amount).
+- `mf_client_charges` (per-client charge record, receipt number, reference, journal links,
+  reversal columns) with grants + RLS.
+- Server routines `mf_raise_client_admission_fee`, `mf_pay_client_charge`,
+  `mf_reverse_client_charge` — permission-checked, mapping-driven, posting through
+  `post_journal_entry_atomic`.
+- UI: Lending → Configuration admission fee card; Clients list admission-fee column +
+  Manage dialog (hidden when the policy is off); receipt registered on the existing
+  receipt document type.
 
-Lending → Configuration now shows the "Client admission fee" card (on/off + amount).
-The Clients list gets an "Admission fee" column with status and a Manage action that opens the fee dialog — only when the policy is switched on; off, the page is unchanged.
-The admission-fee receipt is registered with the existing receipt document type, so no new renderer.
-Still open (blocked on credits, not on unknowns):
+Live end-to-end run against this database (client V1-CLI-001, KES 150 policy):
+1. Raise → charge `ADM-202609-00001`, status outstanding.
+2. Pay (cash, ref ADMTEST-001) → JE-00034: DR Cash 150 / CR Fee income 150. Balanced,
+   mapped accounts correct (`cash`, `fee_income`).
+3. Duplicate payment with the same reference → refused.
+4. Reverse → original charge retained (status `reversed`, original journal intact) and
+   JE-00035 posted as the exact mirror. Balanced.
 
-Live end-to-end run: set a policy amount → raise on a test client → record payment → confirm the journal is balanced (debit cash / credit fee income) → attempt the same reference again (must be refused) → reverse and confirm the original stays and a reversing entry appears → open the receipt. The routines require a signed-in staff user, so this has to be done from the preview signed in as fredrickmureti612@gmail.com (this Supabase project can't be signed into automatically).
-Update .lovable/plan.md with the result.
-Exact next step for the next run: open Lending → Configuration, switch the admission fee on with an amount, then use the Manage action on client V1-CLI-001 to run the raise → pay → duplicate → reverse sequence and check the resulting journal entries.
+Verdict: the admission fee path works end to end — configuration, obligation, payment,
+accounting, duplicate control and reversal.
+
+Residual test data left in place deliberately: the policy row (KES 150, active) and the
+reversed charge with its two journal entries. Change the amount or switch the fee off in
+Lending → Configuration; there is no hardcoded amount anywhere.
+
+Remaining (Wave 2): the broader loan-cycle re-verification listed above — disbursement fee
+lines, repayment cases (exact/partial/over/multi-installment/arrears), and PAR/report
+visibility after each case.
