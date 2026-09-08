@@ -130,14 +130,26 @@ export function KycCaptureField({
       </div>
 
       {!hasImage && (
-        <div className="grid grid-cols-2 gap-1.5">
-          <Button type="button" size="sm" variant="outline" onClick={() => setCameraOpen(true)}>
-            <Camera className="mr-1.5 h-3.5 w-3.5" />
-            Camera
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-auto w-full flex-col gap-1 py-2"
+            onClick={() => setCameraOpen(true)}
+          >
+            <Camera className="h-4 w-4" />
+            <span className="text-xs">Camera</span>
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
-            <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
-            Upload
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-auto w-full flex-col gap-1 py-2"
+            onClick={() => fileRef.current?.click()}
+          >
+            <ImagePlus className="h-4 w-4" />
+            <span className="text-xs">Upload</span>
           </Button>
         </div>
       )}
