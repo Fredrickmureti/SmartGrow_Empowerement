@@ -378,7 +378,7 @@ export function getAssignableRoles(managerRole: AppRole | undefined | null): App
 
 // Role labels for UI
 export const ROLE_LABELS: Record<AppRole, string> = {
-  super_admin: "Super Admin",
+  super_admin: "Super Admin (retired)",
   owner: "Owner",
   admin: "Admin",
   internal: "Internal User",
