@@ -5,6 +5,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PINSettings } from '@/components/settings/PINSettings';
+import { ChangePasswordCard } from '@/components/settings/ChangePasswordCard';
 import { DeviceManager } from '@/components/settings/DeviceManager';
 import { LoginActivityCard } from '@/components/settings/LoginActivityCard';
 import { useDeviceTracking } from '@/hooks/security/useDeviceTracking';
