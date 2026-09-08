@@ -48,6 +48,7 @@ import { useBankAccounts } from "@/hooks/useBankAccounts";
 import { useReconciliationSessions } from "@/hooks/useReconciliationSessions";
 import { useBankMatchCandidatesFor, TIER_COPY } from "@/hooks/useBankMatchCandidates";
 import { ReconcileTransactionSheet } from "@/features/finance/reconciliation/ReconcileTransactionSheet";
+import { AddStatementLineDialog } from "@/features/finance/banking/import/AddStatementLineDialog";
 // TransactionRulesDialog removed — Rules now live at /finance/banking/rules.
 
 import { TransferReconcileSheet } from "@/features/finance/reconciliation/TransferReconcileSheet";
@@ -139,6 +140,10 @@ export default function BankReconciliation() {
   // Pagination
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 100;
+
+  // Paper/PDF statements: one line typed by hand, through the same server
+  // ingestion engine as a file import (see AddStatementLineDialog).
+  const [addLineOpen, setAddLineOpen] = useState(false);
 
   const { accounts: bankAccounts } = useBankAccounts();
   // Money on this page always belongs to a bank account; format it in that
