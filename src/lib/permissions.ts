@@ -115,9 +115,15 @@ const INTERNAL_BASE_PERMISSIONS: RolePermissionMap = allPermissions(false);
 const FULL_ACCESS: RolePermissionMap = allPermissions(true);
 
 export const ROLE_PERMISSIONS: Record<AppRole, RolePermissionMap> = {
-  super_admin: { ...FULL_ACCESS },
+  // Wave 6: `super_admin` is a retired vendor/platform persona in this
+  // single-institution product. No user holds it and the database resolvers
+  // ignore it, so it must not confer anything in the UI either.
+  super_admin: { ...INTERNAL_BASE_PERMISSIONS },
   owner: { ...FULL_ACCESS },
-  admin: { ...FULL_ACCESS },
+  // Administration is delegated through Access Groups, never through the
+  // label. `user_has_module_permission` grants blanket reach to the recorded
+  // owner only; the UI must not offer more than the backend allows.
+  admin: { ...INTERNAL_BASE_PERMISSIONS },
   accountant: { ...INTERNAL_BASE_PERMISSIONS },
   staff: { ...INTERNAL_BASE_PERMISSIONS },
   viewer: { ...INTERNAL_BASE_PERMISSIONS },
