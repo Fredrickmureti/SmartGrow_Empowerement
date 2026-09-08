@@ -163,14 +163,8 @@ for branches whose bank sends paper statements.
 
 =================IMPLEMENTATION PROGRESS==============
 
-Done this session
+I verified the previous agent's claims against the live system, then closed a real defect I found:
 
-Bank matching now offers banked collection batches as suggestions when the real deposit is imported: it looks for a batch banked into that same account, unconfirmed, of the same amount and around the same date, and scores it higher when the batch number appears on the bank line.
-Confirming such a suggestion is link-only: it attaches the bank line to the entry the banking already posted and records the confirming line on the banking record — no second accounting entry, and the same batch can't be confirmed twice.
-Remaining (unchanged plan, needs credits)
-
-Loan disbursements on the money-out side — those records need somewhere to store the confirming bank line before the same treatment can be applied.
-Split cases: several batches banked as one deposit, and a deposit reduced by a bank charge.
-Reword the reconciliation screen, which still says "invoices, bills, and expenses" instead of lending language.
-Un-matching should clear the confirming bank line from the banking record so a reversed match can be re-matched cleanly.
-The plan file's status section still needs updating to reflect all of the above (Waves 1–2 done, Wave 2 candidate/confirm work now complete).
+Confirmed done: banking a collection no longer creates a fake bank statement line, and a real deposit is offered its collection batch as a suggestion, linking to the existing accounting entry instead of posting a second one.
+Fixed now: undoing such a match would have cancelled the correct accounting entry the banking itself created, and left the batch permanently tied to that bank line. Undoing now simply unlinks the batch so it can be matched again, and the warning shown beforehand says exactly that.
+Remaining: reword the two remaining ERP-style descriptions on the reconciliation screen ("invoices, bills and expenses"), add matching for loan disbursements paid out of the bank, retire the one leftover synthetic bank line, and update the project status file.
