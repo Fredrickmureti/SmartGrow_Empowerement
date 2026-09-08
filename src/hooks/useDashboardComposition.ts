@@ -113,25 +113,35 @@ export function useDashboardComposition(): DashboardComposition {
 
   const installedFinance = isInstalled("finance");
 
-  const mkQuery = (table: string, enabled: boolean) => ({
-    queryKey: ["composition-count", table, orgId, businessId],
+  // Branch scope: in branch_only mode the probe must not count rows from
+  // other branches — a branch user's setup-gap hints must reflect their own
+  // branch, never institution-wide data.
+  const probeBranchId = scope.kind === "branch_only" ? scope.branchId : null;
+
+  // `accounts` (chart of accounts) is company-wide and carries no branch_id,
+  // so only the branch-bearing probe is filtered.
+  const mkQuery = (table: string, enabled: boolean, branchScoped = false) => ({
+    queryKey: ["composition-count", table, orgId, businessId, branchScoped ? probeBranchId : null],
     enabled: enabled && scopeReady,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       if (!orgId || !businessId) return 0;
-      const { count, error } = await supabase
+      let q = supabase
         .from(table as any)
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-        .limit(1);
+        .eq("business_id", businessId);
+      if (branchScoped && probeBranchId) q = q.eq("branch_id", probeBranchId);
+      const { count, error } = await q.limit(1);
       if (error) return 0;
       return count ?? 0;
     },
   });
 
-  const { data: clientsCount } = useQuery(mkQuery("mf_clients", true));
+  const { data: clientsCount } = useQuery(mkQuery("mf_clients", true, true));
   const { data: coaCount } = useQuery(mkQuery("accounts", installedFinance));
+
+
 
   return useMemo<DashboardComposition>(() => {
     const hasFinance = isInstalled("finance") && (perms.canViewFinancials || perms.canManageFinancials);

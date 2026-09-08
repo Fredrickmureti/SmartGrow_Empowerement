@@ -221,3 +221,33 @@ Next agent action, in order:
 Do not repeat: W1–W4, W6 and the W7 authority fix are done and verified against the live
 database. Do not re-audit the permission engine, branch resolver, group seeding, RLS coverage,
 the duty catalogue (verdict: keep) or dashboard permission derivation.
+
+**Session 2026-09-08 (d) — residual W7 closed, W8 audited.**
+
+Done this session:
+- Residual W7: `useDashboardComposition` setup-gap probes now branch-filter. `mf_clients`
+  counts only the selected branch when scope is `branch_only`; `accounts` is left unfiltered
+  because the chart of accounts has no `branch_id` (verified in `information_schema.columns`).
+  Query key carries the branch id so switching branch refetches.
+- Verified the previous sessions' claims rather than trusting them: 7 system groups live,
+  none deprecated (`permission_groups`: Institution Admin 13 rules/all, Branch Manager 12/
+  assigned, Credit Analyst 5/assigned, Loan Officer 7/own_portfolio, Cashier 5/own_portfolio,
+  Accountant 8/all, Auditor 11/all); `LENDING_ROLE_PERMISSIONS` / `INTERNAL_GROUP_ROLES` are
+  gone from code (only two stale comments remained — now reworded);
+  `sod-trigger-coverage.test.ts` 3/3 green; `tsgo --noEmit -p tsconfig.app.json` clean.
+- **W8 verdict: nothing left to delete.** There are no deprecated ERP permission groups or
+  orphan rules in the database. `useInstalledApps` is already a registry-backed stub with
+  no database access and no install/uninstall mutations, and `APP_REGISTRY` holds only
+  finance / lending / reports / contacts / platform apps. The `organization_installed_apps`
+  table remains in the database but is unread by the app; per §29 it is left in place
+  (historical FKs + `core-app-invariants.test.ts` guard) rather than dropped.
+
+Open, needs the product owner (do NOT decide unilaterally):
+1. Credit Analyst holds `applications.can_approve` in the seed, while §D says recommend-only.
+2. Loan Officer has `collections` read-only, while §D says they record field collections.
+
+Still blocked: **W5** (invite → accept → per-group sign-in proof) — external/BYO Supabase,
+no agent session can be minted; needs a human sign-in per group in the preview.
+
+Next agent action: apply the two seed decisions above once answered (single small migration
+on `permission_group_rules`), then W5 with a human.

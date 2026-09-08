@@ -60,7 +60,7 @@ export interface SessionOrganization {
   role:
     | "super_admin" | "owner" | "admin" | "internal"
     | "accountant" | "staff" | "cashier" | "viewer" | "portal"
-    // Microfinance operational roles (see LENDING_ROLE_PERMISSIONS)
+    // Microfinance operational roles (grants come only from the user's access group)
     | "branch_manager" | "loan_officer" | "credit_officer"
     | "collections_officer" | "auditor";
 
