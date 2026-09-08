@@ -186,17 +186,17 @@ delete-free (deactivation only) and carrying a commented rollback statement.
 
 
 =================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND================
-I've paused here. Progress so far on the approved Finance plan:
 
-Done — Wave F-1 (chart of accounts triage)
 
-Added a database safety rule so an account can no longer be archived while it has posted transactions or is used as a default/lending account; the error now names the reason.
-Archived eight never-used leftover retail/payroll accounts (Payroll Statutory Payable, Pension Contributions Payable, Net Salary Payable, Sales Revenue 4100, Product Sales, Service Revenue 4120, Cost of Sales, Payroll: Other Costs). Nothing was deleted and all can be restored.
-The Chart of Accounts screen now hides archived accounts by default with a "Show archived (n)" button, so nothing becomes invisible.
-Started — Wave F-2 (journal books)
+Completed — journals (Wave F-2)
 
-The database now accepts a "lending" journal kind. Still to do: create the Lending (LND) journal, route loan and collection postings to it, retire the unused Sales and Purchases journals (with a safe fallback to the general journal), and add LND to the seeding for new companies.
-Remaining: rest of F-2, F-3 (the write-off correctness fix — the one real accounting defect), F-4 (mapping-change audit trail), F-5 (Finance Settings surface alignment), F-6 (end-to-end verification on real data). F-7 stays gated.
+Created the Lending Journal (LND) for the institution.
+Loan events and collection banking now record into it automatically; everything else is unchanged, with a safe fallback to the general journal.
+Retired the unused Sales and Purchases journals (marked inactive, only because they hold no entries — nothing deleted, reversible).
+New companies will be set up with the Lending journal from the start.
+In progress — write-off correctness (Wave F-3) This is the one real accounting defect: a write-off was removing unpaid interest from the balance sheet even though interest is only recognised as income when a client pays, so that interest was never an asset. The corrected version posts principal only, notes any unpaid interest on the entry description for portfolio reporting, and produces no entry at all for an interest-only write-off. My migration was rejected on a typo (a stray leftover line, v_fees_block, in the disbursement section) — the fix is to delete that one line and re-apply the same function; no other change is needed. No loan has been written off in the data yet, so nothing is currently mis-stated.
 
-Say the word when credits are back and I'll continue from the Lending journal.
+Remaining after that: F-4 mapping-change audit trail, F-5 Finance Settings surface alignment (hide the retail-only mappings, promote the lending mappings), F-6 end-to-end verification on real data. F-7 (accrual + impairment) stays deliberately gated.
+
+I'll pick up at re-applying the corrected write-off function when credits are back.
 
