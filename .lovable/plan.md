@@ -1,93 +1,102 @@
-# Invitation branding + Accept-Invitation URL — findings and fix plan
+# Fix: invited admins have an empty dashboard and no app access
 
-Status: investigation complete (read-only). No code or data changed yet.
+## What is actually happening (verified in your database)
 
-Note on the first request ("connect my Supabase project"): the project is already
-connected to the external Supabase project `xwxqunklduknceoryrha` (service-role key
-stored). Nothing to do there.
+Both accounts are in the same institution (`db06d986…fdc28`):
 
-## Verdict (current state, proven from the live system)
-
-| Area | Verdict | Root cause |
+| Account | Role row | Access groups |
 | --- | --- | --- |
-| Branding | ARCHITECTURALLY WRONG (config + fallback) | `platform_settings.platform_name = "BookFlow"` (seeded 2026-08-29); hardcoded fallback `"AccrualFlow"` in the email function. `support_email = support@bookflow.app` too. |
-| Invitation URL | BROKEN | The email builds the link from `platform_settings.website_url`, which is `https://bookflow.app`. Every invite currently points to `https://bookflow.app/accept-invitation?token=...` — an unrelated domain. Fallback is `https://accrualflow.systems`. Separately, the app has **no production URL yet**: it is not published and has no custom domain. |
-| Complete lifecycle | WORKING WITH DEFECTS | Token generation, validation, server-side routing (signup/login/auto_accept), atomic accept RPC, org/role/employee linkage and expiry all exist and look sound. The only breaks are the link destination and the branding text. |
+| fredrickmureti612@gmail.com | `owner`, active | none |
+| devmuret@gmail.com | `admin`, active | **none** |
+| mwenderose306@gmail.com | `internal`, active | **none** |
 
-## Evidence
+Access is decided in one place — the database routine that answers "may this
+person use this module". It currently grants everything **only** to the account
+recorded as the institution's owner, and grants everyone else *exactly* what
+their access groups allow. The front end mirrors that rule deliberately
+(`src/lib/permissions.ts:299-323` — owner is blanket, every other label,
+including `admin`, resolves to nothing without a group).
 
-- `supabase/functions/send-invitation-email/index.ts`
-  - line 143: reads `platform_name` and `website_url` from `platform_settings`
-  - line 150: `platformName = ... || "AccrualFlow"`
-  - line 151: `websiteUrl = ... || "https://accrualflow.systems"`
-  - line 156: `acceptUrl = ${websiteUrl}/accept-invitation?token=...`
-- Live `platform_settings` rows: `platform_name = BookFlow`, `website_url = https://bookflow.app`,
-  `support_email = support@bookflow.app`, `app_base_url = NULL`, `resend_from_name = Growastep Ventures`.
-- `supabase/functions/_shared/email/deepLink.ts` `resolveAppBaseUrl()` is the existing
-  canonical "application URL" mechanism (setting `app_base_url`, falls back to a Lovable URL).
-  Notification emails already use it; the invitation function bypasses it and misuses the
-  marketing `website_url` instead. That is the architectural error.
-- Project URLs: preview only; published URL = none; custom domain = none.
-- One live pending invitation exists (Smart Grow Empowerment, role internal, expires 2026-09-12)
-  that was sent with the bookflow.app link.
-- `/accept-invitation` is served by the legacy SPA route in `src/App.tsx:169` via the TanStack
-  catch-all `src/routes/$.tsx`. Route works on any domain the app is deployed to.
-- Token: `gen_random_uuid()` inside `upsert_organization_invitation` (unpredictable, 7-day expiry).
-  `validate-invitation` decides signup / login / auto_accept / already_member server-side; accept
-  goes through `accept_organization_invitation_atomic` (single transaction; role, employee link,
-  permission groups, mark accepted). No client-supplied org or role.
-- `supabase/functions/invite-platform-admin/index.ts:131` builds its own `siteUrl` from a
-  different source — platform-admin invites only, recorded as residue (not in scope).
+So there is no inconsistency between the two accounts by accident: the seeded
+account is the recorded owner, and every invited person has **zero** access
+groups, therefore zero permissions, therefore an empty dashboard and no apps.
 
-## Decision on the correct destination
+Why nobody gets a group:
 
-`https://www.growastepventures.co.ke/` is the organisation's public website, not the
-application. Invitation links must go to the deployed application. Since the app is unpublished,
-the canonical application URL will be the stable published URL
-`https://project--c03af08b-cceb-4b1f-bcdb-838bcf5bf3db.lovable.app` (a custom subdomain such as
-`app.growastepventures.co.ke` can replace it later by changing one setting). Publishing is a
-one-click action only you can perform; it is the single blocker for Tests B–D on a real domain.
+1. The invite screen lets you send an invitation with no group selected —
+   every recent invitation row has `permission_group_ids = {}`
+   (devmuret, williammutisya641, kimeumercyline71, mwenderose306).
+2. The acceptance routine has a safety net that assigns a default group named
+   **"Internal Users"** — that group does not exist in this institution. The
+   seven groups that do exist are Institution Admin, Branch Manager, Loan
+   Officer, Credit Analyst, Cashier / Teller, Accountant, Auditor. The safety
+   net silently finds nothing and the member ends up with no group.
+3. `member_permission_groups` is empty for the whole institution — confirming
+   nobody, ever, got a group through this flow.
 
-## Changes
+Secondary inconsistency: the app still *describes* Admin as "Full access"
+(`src/lib/permissions.ts:401`) and the architecture doc still claims
+owner/admin/super_admin always pass, while the code grants Admin nothing.
+That mismatch is what makes this feel like a broken system rather than a
+configuration model.
 
-### 1. Data fix (migration on `platform_settings`)
-- `platform_name` → `Smart Grow Empowerment`
-- `website_url` → `https://www.growastepventures.co.ke` (marketing site only; no longer used for links)
-- `support_email` → keep as-is unless you supply the real support address (flagged below)
-- `app_base_url` → `https://project--c03af08b-cceb-4b1f-bcdb-838bcf5bf3db.lovable.app`
+## The fix
 
-### 2. `send-invitation-email` function
-- Build the accept link with the shared `resolveAppBaseUrl()` (the `app_base_url` setting), not
-  `website_url`. Strip trailing slash; URL-encode the token.
-- Remove the `AccrualFlow` / `accrualflow.systems` fallbacks. If `platform_name` is empty, fall
-  back to the organisation name; never a foreign brand.
-- Copy: when platform name equals the organisation name, render "join **Smart Grow Empowerment**
-  as a Internal" (no "on X"); otherwise keep "join Org on Platform". Fix the "a Internal" article.
-- Redeploy the function.
+Treat **Admin as a real administrator** (matching every label and doc in the
+product and your expectation), keep access groups as the mechanism for
+everyone else, and make it impossible to create a member with no access at all.
 
-### 3. Architecture guard (test)
-- Add a small test asserting `send-invitation-email` contains no `AccrualFlow`, `accrualflow`,
-  `bookflow` literal and does not read `website_url` for the accept link.
+### 1. Admin becomes a blanket authority alongside Owner
+- Update the permission routine so an active `owner` **or** `admin` role in the
+  institution passes every module/operation check; everyone else continues to
+  resolve through access groups only.
+- Mirror it in the front end so the interface never shows more or less than the
+  backend allows.
+- Keep the audit/segregation layer untouched — self-approval limits still apply
+  through the existing governance mode, so Admin is not a way around approvals.
 
-### 4. Existing pending invitation
-- Re-send the invitation to the pending invitee from the Team page after the fix (no manual DB
-  edit; the same token stays valid until 2026-09-12).
+### 2. No member can exist with zero access
+- Fix the acceptance routine's default group: look up the institution's
+  administrative group for admin invites and a genuine default staff group for
+  everyone else, by a name that actually exists, and create that default group
+  if the institution has none.
+- Add the safety net at invite time too: sending an invitation with no group
+  selected for a non-admin role is blocked in the invite dialog, with the
+  reason shown.
 
-## Verification (after you publish)
-- A: invoke `send-invitation-email` for a controlled test invite → HTML contains
-  "Smart Grow Empowerment", role, expiry; no BookFlow/AccrualFlow; `accept_url` on the published domain.
-- B: open the returned URL → lands on `/accept-invitation`, token validated, no 404.
-- C: new invitee (no account) → signup branch → accept → lands in the organisation.
-- D: existing user → login/auto_accept branch → accept → correct org and role.
-- E/F: run the existing Deno tests for `accept-invitation` (expired → `expired`, used → `already_accepted`).
-- Security re-check: confirm auth Site URL / redirect allow-list in Supabase Auth includes the
-  published domain so signup confirmation links (`emailRedirectTo = window.location.origin/auth/callback`) also work.
+### 3. Repair the people already invited
+- Assign the **Institution Admin** group to the existing `admin` members
+  (devmuret@gmail.com, williammutisya641@gmail.com).
+- Assign the default staff group to mwenderose306@gmail.com (`internal`).
+- Leave the owner as-is.
 
-## Out of scope (recorded, not touched)
-- `invite-platform-admin` separate site-URL source.
-- BookFlow/AccrualFlow strings in docs, printing, currency contexts, older migrations and marketing text files.
-- `support_email = support@bookflow.app` — needs your real address; not invented.
+### 4. Prove it
+- Re-run the permission routine for each of the three accounts across the
+  lending, accounting, treasury, reports and settings modules and show the
+  before/after answers.
+- Sign in through the browser as the invited admin and confirm the dashboard
+  and app launcher are populated (this needs the invited account's password, or
+  I verify at the data layer only and you click through yourself).
 
-## Blockers needing you
-1. Publish the app (Publish button) so a production URL exists.
-2. Optional: confirm the real support email and whether you want a custom subdomain for the app.
+### 5. Align the documentation
+- Correct `docs/architecture/SUBSCRIPTION_ENTITLEMENT_RBAC.md` so the described
+  rule matches the shipped rule, and record the model in project memory so a
+  later session does not silently strip role authority again.
+
+## Technical notes
+
+- `public.user_has_module_permission(_user_id,_org_id,_module,_operation)` —
+  add the role branch (`owner`,`admin`) next to the existing
+  `organizations.owner_user_id` branch; the 5-arg business overload delegates
+  to it so it inherits the fix. `user_has_module_permission_in_branch` keeps
+  branch scoping on top, unchanged.
+- `public.accept_organization_invitation_atomic` — replace the hardcoded
+  `'Internal Users'` / `'Internal User'` lookup with a role-aware resolution
+  plus creation of a default group when absent.
+- `src/lib/permissions.ts` — `resolveEffectivePermissions` and
+  `ROLE_PERMISSIONS.admin` grant full access; `ROLE_DESCRIPTIONS` copy stays
+  accurate.
+- `src/pages/Team.tsx:346` — block submit when a non-admin invite has no group.
+- Backfill via migration `INSERT ... ON CONFLICT DO NOTHING` into
+  `member_permission_groups` for the existing members.
+- No change to Payments/Settlement, Accounting, Reports or Loans logic.
