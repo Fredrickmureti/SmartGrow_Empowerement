@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "Admins and owners can create invitations" ON public.organization_invitations;
+DROP POLICY IF EXISTS "Admins and owners can delete invitations" ON public.organization_invitations;
