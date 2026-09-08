@@ -31,7 +31,8 @@ const REGISTERED: Record<string, string> = {
   "reversal.expense": "expenses",
 };
 
-/** Tables carrying a BEFORE UPDATE self-action guard trigger. */
+/** Tables carrying a self-action guard trigger (BEFORE UPDATE, or BEFORE
+ *  INSERT where the governed act is the creation of the row — payouts). */
 const GUARDED_TABLES = [
   "approval_history",
   "approval_rules",
@@ -41,6 +42,7 @@ const GUARDED_TABLES = [
   "payments",
   "mf_loan_applications",
   "mf_loans",
+  "mf_loan_disbursements",
   "mf_repayments",
 ];
 
@@ -62,5 +64,11 @@ describe("Self-action enforcement coverage", () => {
       if (unenforceable.includes(table)) continue;
       expect(GUARDED_TABLES).toContain(table);
     }
+  });
+
+  it("guards the payout itself, not only the loan status change", () => {
+    // The approver of an application must not be the person who records the
+    // disbursement (governance_sod_conflicts: loan.approve × loan.disburse).
+    expect(GUARDED_TABLES).toContain("mf_loan_disbursements");
   });
 });

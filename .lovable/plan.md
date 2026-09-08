@@ -169,15 +169,55 @@ external_unmanaged`), so no test session can be minted. It needs a human to sign
 test user in the preview. Branch-scope authority itself was already proven at the RPC level in
 the previous session (Headquarters vs Kitengela, per group).
 
-Next agent action, in order:
-1. W6 governance narrowing (keep `governance_assert_not_self`, `self_action_policy`,
-   `self_action_overrides`, the three `mf_*` guards; add a disbursement-approval guard; retire
-   the duty/conflict catalogue, SoD settings page and ERP-table guards) — one small migration
-   per object.
-2. W7 dashboard scope: lending reports/loan reads are already RLS-scoped, so the residual work
-   is the org-only count probes in `src/hooks/usePendingBusinessSetup.ts` and any KPI aggregate
-   that bypasses RLS views.
-3. W8 legacy cleanup last (dead `organization_installed_apps` surface, deprecated ERP groups).
+**Session 2026-09-08 (c) — W1–W3 re-verified, W6 and the W7 authority half CLOSED.**
 
-Do not repeat: W1–W4 are done and re-verified against the live database this session; do not
-re-audit the permission engine, the branch resolver, group seeding or the RLS coverage.
+Re-verified live (do not re-audit): `user_has_module_permission` has no role matrix — grants
+come only from `member_permission_groups ⋈ permission_group_rules`, owner/admin/super_admin
+full, portal/null deny. `can_access_branch` defers to `user_branch_scope` +
+`user_assigned_branch_ids`. `user_branch_scope` reads
+`COALESCE(permission_groups.default_branch_scope, member_permission_groups.branch_scope)`.
+
+**W6 — governance narrowing. DONE, with one reasoned departure from §E.**
+Evidence: the duty catalogue is NOT ERP residue any more. `governance_duties` /
+`governance_duty_permission_map` map onto microfinance modules only (applications, loans,
+repayments, accounting, treasury, team) and `governance_sod_conflicts` encodes real ASA
+controls (approve × disburse, disburse × receipt, approve × write_off, post × receipt).
+Verdict: **retain** the catalogue, `governance_sod_violations` and the
+`/settings/governance/sod` report — deleting them would remove the institution's only
+maker-checker conflict report. Retained guards: `bank_accounts`, `expenses`,
+`journal_entries`, `payments`, `approval_*`, the three `mf_*` — all subject tables are still
+live domain, so no guard was retired.
+Gap found and closed: `loan.disburse` was only guarded on the `mf_loans` status change and
+only against the loan's *creator*, so the application's **approver** could pay out the loan
+they approved. Added `sod_mf_loan_disbursements_guard` (BEFORE INSERT on
+`mf_loan_disbursements`) asserting actor ≠ `mf_loan_applications.decision_by` via
+`governance_assert_not_self('loan.disburse')`; EXECUTE revoked from anon/authenticated.
+Snapshot test `src/test/architecture/sod-trigger-coverage.test.ts` updated (3 tests green).
+
+**W7 — dashboard scope: authority half DONE.** `has_dashboard_permission` was a *second*
+branch-reach authority: it granted `view_hq` / `view_consolidated` on the role label
+`accountant`, bypassing access groups. Rewritten to derive both from
+`user_branch_scope(user, org) = 'all'`; `view_executive` stays admin/owner;
+`view_branch` = any active member. So institution-wide portfolio/financial figures now reach
+only Institution Admin, Accountant, Auditor (and owner/admin). Widget gating in
+`useDashboardComposition` and scope resolution in `useDashboardScope` were already
+permission-driven and need no change.
+
+Remaining W7 (small): the two setup-gap probes in `useDashboardComposition` (`mf_clients`,
+`accounts`) count by organization + business with no branch filter. Counts only, no row data;
+branch-filter them for tidiness.
+
+Still blocked, not failing: **W5** (invite → accept → per-group sign-in proof). This is an
+external/BYO Supabase (`LOVABLE_BROWSER_AUTH_STATUS=external_unmanaged`), so no agent test
+session can be minted. Needs a human to sign in as one test user per group in the preview.
+
+Next agent action, in order:
+1. Branch-filter the two dashboard count probes (residual W7).
+2. W8 legacy cleanup last: deprecated ERP permission groups + their rules, and the dead
+   `organization_installed_apps` surface (the installed-apps hook hardcodes everything
+   installed).
+3. W5 only once a human can supply sign-ins.
+
+Do not repeat: W1–W4, W6 and the W7 authority fix are done and verified against the live
+database. Do not re-audit the permission engine, branch resolver, group seeding, RLS coverage,
+the duty catalogue (verdict: keep) or dashboard permission derivation.
