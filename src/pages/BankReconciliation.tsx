@@ -310,7 +310,7 @@ export default function BankReconciliation() {
             <p className="text-sm sm:text-base text-muted-foreground">
               {showWorkspace
                 ? "Check off cleared transactions to match your statement"
-                : "Match bank transactions with invoices, bills, and expenses"}
+                : "Match bank statement lines with banked collections, loan disbursements, expenses and transfers"}
               {scope?.hasMultipleBranches ? ` · ${scope.scopeLabel}` : ""}
             </p>
           </div>
