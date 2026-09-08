@@ -64,7 +64,7 @@ export const FINANCE_APP: AppDefinition = {
     { id: "fiscal-periods", name: "Fiscal Periods", path: "/fiscal-periods", icon: CalendarCheck, permission: "viewFinancials" },
     { id: "fixed-assets", name: "Fixed Assets", path: "/fixed-assets", icon: Building, permission: "viewFinancials" },
     { id: "banking", name: "Banking", path: "/banking", icon: Landmark, permission: "viewFinancials" },
-    { id: "bank-feeds", name: "Bank Feeds", path: "/bank-feeds", icon: ListFilter, permission: "viewFinancials" },
+    { id: "bank-feeds", name: "Statement Lines", path: "/bank-feeds", icon: ListFilter, permission: "viewFinancials" },
     { id: "reconciliation", name: "Reconciliation", path: "/reconciliation", icon: GitCompare, permission: "viewFinancials" },
     { id: "reports", name: "Financial Reports", path: "/reports", icon: BarChart3, permission: "viewReports" },
     { id: "settings", name: "Settings", path: "/settings", icon: FileText, permission: "viewFinancials" },

@@ -202,11 +202,11 @@ export default function BankFeeds() {
           <div className="page-header mb-3 sm:mb-4">
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="page-title text-xl sm:text-2xl md:text-3xl">Bank Feeds</h1>
+                <h1 className="page-title text-xl sm:text-2xl md:text-3xl">Statement Lines</h1>
                 <FinanceScopeBadge />
               </div>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                {unreconciledTransactions.length} transactions need review
+                {unreconciledTransactions.length} imported bank statement lines need review
                 {scope.hasMultipleBranches && (
                   <span className="ml-1 text-muted-foreground/80"> · {scope.scopeLabel}</span>
                 )}
@@ -215,7 +215,7 @@ export default function BankFeeds() {
             <div className="action-buttons flex-wrap">
               <RefreshButton
                 queryKeyPrefixes={[['bank-transactions'] as const]}
-                tooltip="Refresh bank feeds"
+                tooltip="Refresh statement lines"
               />
               <Button asChild variant="outline" size="sm" className="text-xs sm:text-sm h-8 sm:h-9">
                 <Link to="/finance/banking/rules">

@@ -39,7 +39,7 @@ export const FINANCE_NAV: WorkspaceNav = {
         { to: "/finance/journal-entries", label: "Journal entries", icon: BookOpen },
         { to: "/finance/banking", label: "Cash & bank accounts", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },
-        { to: "/finance/bank-feeds", label: "Bank feeds", icon: Rss },
+        { to: "/finance/bank-feeds", label: "Statement lines", icon: Rss },
         { to: "/finance/operations/accounting-events", label: "Accounting events", icon: Inbox },
       ],
     },
