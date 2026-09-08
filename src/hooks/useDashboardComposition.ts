@@ -118,8 +118,10 @@ export function useDashboardComposition(): DashboardComposition {
   // branch, never institution-wide data.
   const probeBranchId = scope.kind === "branch_only" ? scope.branchId : null;
 
-  const mkQuery = (table: string, enabled: boolean) => ({
-    queryKey: ["composition-count", table, orgId, businessId, probeBranchId],
+  // `accounts` (chart of accounts) is company-wide and carries no branch_id,
+  // so only the branch-bearing probe is filtered.
+  const mkQuery = (table: string, enabled: boolean, branchScoped = false) => ({
+    queryKey: ["composition-count", table, orgId, businessId, branchScoped ? probeBranchId : null],
     enabled: enabled && scopeReady,
     staleTime: 5 * 60_000,
     queryFn: async () => {
@@ -129,15 +131,16 @@ export function useDashboardComposition(): DashboardComposition {
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId)
         .eq("business_id", businessId);
-      if (probeBranchId) q = q.eq("branch_id", probeBranchId);
+      if (branchScoped && probeBranchId) q = q.eq("branch_id", probeBranchId);
       const { count, error } = await q.limit(1);
       if (error) return 0;
       return count ?? 0;
     },
   });
 
-  const { data: clientsCount } = useQuery(mkQuery("mf_clients", true));
+  const { data: clientsCount } = useQuery(mkQuery("mf_clients", true, true));
   const { data: coaCount } = useQuery(mkQuery("accounts", installedFinance));
+
 
 
   return useMemo<DashboardComposition>(() => {
