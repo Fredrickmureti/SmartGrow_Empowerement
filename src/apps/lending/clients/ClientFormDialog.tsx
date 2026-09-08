@@ -104,9 +104,38 @@ export function ClientFormDialog({
 }: ClientFormDialogProps) {
   const { branches } = useBranches();
   const { members } = useOrgMembers();
+  const { user } = useAuth();
+  const branchScope = useBranchScope();
+  const { groups } = useMfGroups({ status: "all" });
   const [form, setForm] = useState<FormState>(EMPTY);
   const [images, setImages] = useState<Partial<Record<MfKycKind, KycPending>>>({});
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // Identity of a client already created in a previous, partially failed save.
+  // Retrying after a photo upload error must patch this client, never insert a
+  // second one.
+  const createdRef = useRef<{ id: string; business_id: string } | null>(null);
+
+  // Branches this user may actually operate in. RLS enforces the same rule;
+  // this only stops the user submitting work the server would reject.
+  const allowedBranches = useMemo(
+    () => branches.filter((b) => branchScope.canAccessBranch(b.id)),
+    [branches, branchScope],
+  );
+
+  // An own-portfolio officer may only own their own clients, so the officer is
+  // fixed to themselves and not editable.
+  const officerLocked = branchScope.isOwnPortfolioOnly && !!user?.id;
+
+  const officerGroups = useMemo(() => {
+    const officer = form.loan_officer_id === UNASSIGNED ? null : form.loan_officer_id;
+    const inBranch = groups.filter(
+      (g) => g.status !== "closed" && (!form.branch_id || g.branch_id === form.branch_id),
+    );
+    if (!officer) return inBranch;
+    const mine = inBranch.filter((g) => g.loan_officer_id === officer);
+    return mine.length > 0 ? mine : inBranch;
+  }, [groups, form.branch_id, form.loan_officer_id]);
 
   const setImage = (kind: MfKycKind) => (next: KycPending) =>
     setImages((prev) => ({ ...prev, [kind]: next }));
@@ -114,6 +143,8 @@ export function ClientFormDialog({
   useEffect(() => {
     if (!open) return;
     setImages({});
+    setGroupIds([]);
+    createdRef.current = null;
     if (client) {
       setForm({
         client_number: client.client_number,
@@ -138,17 +169,32 @@ export function ClientFormDialog({
     } else {
       setForm({
         ...EMPTY,
-        branch_id: branches[0]?.id ?? "",
+        branch_id:
+          branchScope.defaultBranchId ?? allowedBranches[0]?.id ?? "",
+        loan_officer_id:
+          branchScope.isOwnPortfolioOnly && user?.id ? user.id : UNASSIGNED,
       });
     }
-  }, [open, client, branches]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, client]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  const toggleGroup = (id: string) =>
+    setGroupIds((prev) => {
+      if (prev.includes(id)) return prev.filter((g) => g !== id);
+      if (prev.length >= 2) {
+        toast.error("A client can belong to at most two groups.");
+        return prev;
+      }
+      return [...prev, id];
+    });
+
   const canSave =
     form.full_name.trim() !== "" &&
-    form.branch_id !== "";
+    form.branch_id !== "" &&
+    branchScope.canAccessBranch(form.branch_id);
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -170,15 +216,26 @@ export function ClientFormDialog({
         next_of_kin_relationship: orNull(form.next_of_kin_relationship),
         next_of_kin_phone: orNull(form.next_of_kin_phone),
         loan_officer_id:
-          form.loan_officer_id === UNASSIGNED ? null : form.loan_officer_id,
+          officerLocked
+            ? user!.id
+            : form.loan_officer_id === UNASSIGNED
+              ? null
+              : form.loan_officer_id,
         status: form.status,
         notes: orNull(form.notes),
       };
       // Existing client: upload images first, then one update with everything.
-      // New client: insert first (we need the id), then patch image paths.
+      // New client: insert once (we need the id), then patch image paths. If a
+      // photo upload fails we keep the created identity so a retry updates that
+      // same client instead of registering a duplicate.
       const saved = client
         ? { id: client.id, business_id: client.business_id }
-        : await onCreate(payload);
+        : (createdRef.current ??= await onCreate(payload));
+
+      if (!client && createdRef.current) {
+        // Retry path: keep the stored record in step with the edited form.
+        await onUpdate(saved.id, payload);
+      }
 
       const pathPatch: Partial<MfClientInput> = {};
       for (const [kind, pending] of Object.entries(images) as [MfKycKind, KycPending][]) {
@@ -203,6 +260,23 @@ export function ClientFormDialog({
       } else if (Object.keys(pathPatch).length > 0) {
         await onUpdate(saved.id, pathPatch);
       }
+
+      // Group membership. The database caps a client at two active groups and
+      // authorizes each insert against the owning group, so this only records
+      // what the user chose.
+      if (!client && groupIds.length > 0) {
+        for (const groupId of groupIds) {
+          const { error } = await supabase.from("mf_group_members").insert({
+            business_id: saved.business_id,
+            group_id: groupId,
+            client_id: saved.id,
+            role_in_group: "member",
+          });
+          if (error) throw error;
+        }
+      }
+
+      createdRef.current = null;
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not save the client's photos");
@@ -210,6 +284,7 @@ export function ClientFormDialog({
       setSaving(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
