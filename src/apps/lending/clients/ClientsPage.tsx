@@ -43,7 +43,13 @@ import {
   type MfClientStatus,
 } from "@/hooks/useMfClients";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { ClientChargesDialog } from "./ClientChargesDialog";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
+import {
+  useMfClientChargeSummary,
+  useMfClientFeePolicy,
+  type MfClientChargeStatus,
+} from "@/hooks/useMfClientCharges";
 
 const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "danger"> = {
   prospect: "neutral",
@@ -51,6 +57,12 @@ const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "d
   dormant: "warning",
   exited: "neutral",
   blacklisted: "danger",
+};
+
+const FEE_TONE: Record<MfClientChargeStatus, "neutral" | "success" | "warning" | "danger"> = {
+  outstanding: "warning",
+  paid: "success",
+  reversed: "neutral",
 };
 
 export function ClientsPage() {
@@ -63,11 +75,16 @@ export function ClientsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfClient | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [feeClient, setFeeClient] = useState<MfClient | null>(null);
 
   const { clients, isLoading, error, createClient, updateClient } = useMfClients({
     branchId: branchId === "all" ? null : branchId,
     status,
   });
+  const { policy } = useMfClientFeePolicy();
+  const feeActive = policy?.admission_fee_active === true;
+  const clientIds = useMemo(() => clients.map((c) => c.id), [clients]);
+  const { data: feeSummary } = useMfClientChargeSummary(clientIds);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -165,6 +182,7 @@ export function ClientsPage() {
                   <TableHead>Loan officer</TableHead>
                   <TableHead className="text-right">Cycles</TableHead>
                   <TableHead>Status</TableHead>
+                  {feeActive && <TableHead>Admission fee</TableHead>}
                   <TableHead className="text-right">Documents</TableHead>
                 </TableRow>
               </TableHeader>
@@ -186,6 +204,27 @@ export function ClientsPage() {
                     <TableCell>
                       <StatusBadge tone={STATUS_TONE[c.status]}>{c.status}</StatusBadge>
                     </TableCell>
+                    {feeActive && (
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-2 text-left"
+                          onClick={() => setFeeClient(c)}
+                        >
+                          {(() => {
+                            const s = feeSummary?.get(c.id);
+                            return s ? (
+                              <StatusBadge tone={FEE_TONE[s]}>{s}</StatusBadge>
+                            ) : (
+                              <StatusBadge tone="neutral">not raised</StatusBadge>
+                            );
+                          })()}
+                          <span className="text-xs text-primary underline-offset-2 hover:underline">
+                            Manage
+                          </span>
+                        </button>
+                      </TableCell>
+                    )}
                     <TableCell
                       className="text-right"
                       onClick={(event) => event.stopPropagation()}
@@ -218,6 +257,14 @@ export function ClientsPage() {
         onUpdate={async (id, patch) => {
           await updateClient.mutateAsync({ id, ...patch });
         }}
+      />
+      <ClientChargesDialog
+        open={feeClient !== null}
+        onOpenChange={(open) => {
+          if (!open) setFeeClient(null);
+        }}
+        client={feeClient}
+        canManage={canManage}
       />
     </>
   );
