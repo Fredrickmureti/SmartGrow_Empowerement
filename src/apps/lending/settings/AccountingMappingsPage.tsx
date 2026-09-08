@@ -12,6 +12,7 @@ import { AccountCombobox } from "@/components/finance/AccountCombobox";
 import { useAccounts } from "@/hooks/useAccounts";
 import { MF_MAPPING_SPECS, useMfAccountMappings } from "@/hooks/useMfAccountMappings";
 import { AllocationPolicyCard } from "./AllocationPolicyCard";
+import { MappingChangeLogCard } from "./MappingChangeLogCard";
 
 export function AccountingMappingsPage() {
   const { accounts, isLoading: accountsLoading } = useAccounts();
@@ -63,6 +64,7 @@ export function AccountingMappingsPage() {
           )}
         </CardContent>
       </Card>
+      <MappingChangeLogCard />
     </div>
   );
 }
