@@ -11843,6 +11843,45 @@ export type Database = {
           },
         ]
       }
+      mf_account_mapping_audit: {
+        Row: {
+          action: string
+          branch_id: string | null
+          business_id: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          mapping_key: string
+          new_account_id: string | null
+          notes: string | null
+          old_account_id: string | null
+        }
+        Insert: {
+          action: string
+          branch_id?: string | null
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          mapping_key: string
+          new_account_id?: string | null
+          notes?: string | null
+          old_account_id?: string | null
+        }
+        Update: {
+          action?: string
+          branch_id?: string | null
+          business_id?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          mapping_key?: string
+          new_account_id?: string | null
+          notes?: string | null
+          old_account_id?: string | null
+        }
+        Relationships: []
+      }
       mf_account_mappings: {
         Row: {
           account_id: string
