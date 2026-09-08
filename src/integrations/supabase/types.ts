@@ -12052,6 +12052,36 @@ export type Database = {
           },
         ]
       }
+      mf_client_fee_policy: {
+        Row: {
+          admission_fee_active: boolean
+          admission_fee_amount: number | null
+          admission_fee_currency: string | null
+          business_id: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          admission_fee_active?: boolean
+          admission_fee_amount?: number | null
+          admission_fee_currency?: string | null
+          business_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          admission_fee_active?: boolean
+          admission_fee_amount?: number | null
+          admission_fee_currency?: string | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mf_clients: {
         Row: {
           branch_id: string
