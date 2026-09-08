@@ -188,15 +188,16 @@ delete-free (deactivation only) and carrying a commented rollback statement.
 =================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND================
 
 
-Completed — journals (Wave F-2)
+Here's where things stand.
 
-Created the Lending Journal (LND) for the institution.
-Loan events and collection banking now record into it automatically; everything else is unchanged, with a safe fallback to the general journal.
-Retired the unused Sales and Purchases journals (marked inactive, only because they hold no entries — nothing deleted, reversible).
-New companies will be set up with the Lending journal from the start.
-In progress — write-off correctness (Wave F-3) This is the one real accounting defect: a write-off was removing unpaid interest from the balance sheet even though interest is only recognised as income when a client pays, so that interest was never an asset. The corrected version posts principal only, notes any unpaid interest on the entry description for portfolio reporting, and produces no entry at all for an interest-only write-off. My migration was rejected on a typo (a stray leftover line, v_fees_block, in the disbursement section) — the fix is to delete that one line and re-apply the same function; no other change is needed. No loan has been written off in the data yet, so nothing is currently mis-stated.
+Verified against the live database, not the previous log's claims:
 
-Remaining after that: F-4 mapping-change audit trail, F-5 Finance Settings surface alignment (hide the retail-only mappings, promote the lending mappings), F-6 end-to-end verification on real data. F-7 (accrual + impairment) stays deliberately gated.
+The Lending journal exists and is in use; the unused Sales and Purchases journals are retired (inactive, nothing deleted) — genuinely done.
+The write-off correction had not been applied. I applied it: a write-off now removes only unpaid principal from the books, notes any unpaid interest on the entry for portfolio reporting, and produces no accounting entry at all when only interest remains. No loan has been written off yet, so nothing was mis-stated.
+Still outstanding, in order:
 
-I'll pick up at re-applying the corrected write-off function when credits are back.
-
+Chart of accounts clean-up — I confirmed exactly which retail accounts are safe to retire: Inventory, POS Clearing, Credit Card Clearing, Goods Received Not Invoiced, Customer Deposits, Sales Revenue, Service Revenue, Sales Returns, Inventory Overage/Shrinkage/Revaluation/Adjustments, Purchase Returns, Discounts Given/Received. All have zero history and are not used by the lending engine. Furniture & Fixtures must stay (it is a real fixed-asset account). The migration to mark them inactive was the next step.
+Hiding the matching retail entries on the Finance Settings page (the account list they belong to is loaded from the database, so this pairs with step 1).
+An audit trail for changes to loan account mappings.
+End-to-end testing of the money chain on real data.
+I've left the plan file as-is; the next exact action is the chart-of-accounts migration described above.
