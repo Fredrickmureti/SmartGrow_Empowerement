@@ -242,3 +242,27 @@ Done and verified:
 - Typecheck clean (`tsgo -p tsconfig.app.json`).
 
 Next coherent step: end-to-end repayment → banked collection → statement line → match walkthrough against live data.
+
+## Closing verification — 2026-09-08 (independent re-check)
+
+Re-queried the live database rather than trusting the ledger:
+
+- Wave 1 holds: `mf_bank_collection_batch` contains no insert into `bank_transactions`.
+- Wave 2 holds: `bank_match_candidates`, `_bank_match_validate`, `bank_match_confirm`,
+  `bank_unmatch_preflight` and `unreconcile_bank_transaction` all carry the
+  `collection_banking` branch.
+- Wave 5 relaxation holds: `mf_collection_bankings_append_only()` references the
+  `excluded` escape; `mf_collection_bankings` has 0 rows with a non-null
+  `bank_transaction_id` (the legacy link is cleared).
+- Data state: 1 `bank_transactions` row, the legacy synthetic line, `lifecycle_status = 'excluded'`.
+
+End-to-end walkthrough (executed as the candidate SQL, no live write): a hypothetical
+imported deposit of 6,200 dated 2026-09-04 on account `9c17265e…`, branch `d6a52ce8…`,
+returns exactly one `collection_banking` candidate — banking `1f71927a…`, batch
+`BATCH-001`, day gap 1. The repayment → banked collection → statement line → match
+chain is therefore live and reachable.
+
+Typecheck clean (`tsgo -p tsconfig.app.json`), build log clean.
+
+**Status: the Bank Reconciliation wave is complete.** No open work in this domain.
+Next domain wave is unrelated to banking; do not re-run this investigation.
