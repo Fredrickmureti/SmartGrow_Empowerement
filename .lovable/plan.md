@@ -218,14 +218,19 @@ Both directions idempotent by construction (`mf_event_postings` unique key).
 
 ### Remaining work
 
+Here's where things stand.
 
-Progress so far on this stage of the finance work:
+Verified and fixed this session
 
-The Finance Settings surface is clean — no inventory, cost-of-sales, VAT or other shop-style wording remains in the settings screens or the default-accounts list.
-I created a throwaway test loan (LN-TEST-WO1, KES 10,000) end to end — application, field assessment, approval, cash payout, then a write-off — and the system's own safeguards correctly blocked every invalid shortcut along the way (no approval without an assessment, no application starting as "approved").
-What still needs finishing:
+Both defects the previous session flagged were real, confirmed against the live database.
+Reversals no longer double-count: a reversed entry now stays in the books marked "reversed" alongside its reversing entry, so the two cancel out. The four historical repayment entries were corrected, and stored account balances were recalculated from the books — the balance check now shows zero difference on every account.
+The three test repayments wrongly recorded on loan LN-000001 (after it had already been replaced by its top-up loan LN-000002) were reversed through the system's own reversal process, so their accounting entries were reversed too.
+LN-000001 is now marked closed, as it should have been when the top-up was paid out.
+Loans no longer on the book (closed, written off, cancelled, or replaced by a top-up/restructure) now report zero outstanding and zero arrears, matching what the accounts carry; their original contractual totals are still shown.
+Any attempt to record a repayment on a replaced loan is now refused with a message naming the replacement loan.
+Remaining work (not done — credits ran out)
 
-Reading back the accounting entries for that test write-off to confirm the debits and credits, branch and journal are correct — my last query returned nothing, which most likely means the write-off entry is linked differently than I assumed, so it needs one more look before I can call it verified.
-Removing the throwaway test loan/application once verification is done.
-The remaining live checks: collection banking, bank reconciliation, and the branch report cross-check.
-The accrual/impairment decision (F-7) remains deliberately parked.
+Re-run the loan-by-loan comparison of loan balances against the accounts to confirm it now ties out exactly (this was the last step and is now expected to pass, but is unverified).
+Remaining live checks from the plan: banking of collections, bank reconciliation, and the branch report cross-check.
+The throwaway write-off test loan (LN-000008) is still in place. I deliberately did not delete it, because its accounting entries are permanent by design — deleting the loan would leave orphaned history. It should be labelled as test data instead.
+The accrual/impairment decision remains deliberately parked.
