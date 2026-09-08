@@ -14763,6 +14763,67 @@ export type Database = {
           },
         ]
       }
+      organization_ownership_transfers: {
+        Row: {
+          created_at: string
+          expires_at: string
+          from_user_id: string
+          id: string
+          note: string | null
+          organization_id: string
+          responded_at: string | null
+          status: string
+          to_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          from_user_id: string
+          id?: string
+          note?: string | null
+          organization_id: string
+          responded_at?: string | null
+          status?: string
+          to_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          from_user_id?: string
+          id?: string
+          note?: string | null
+          organization_id?: string
+          responded_at?: string | null
+          status?: string
+          to_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_ownership_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "legal_order_effective_kind_defaults"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "organization_ownership_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "org_health"
+            referencedColumns: ["org_id"]
+          },
+          {
+            foreignKeyName: "organization_ownership_transfers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_payment_methods: {
         Row: {
           bank_account_id: string | null
@@ -22643,7 +22704,6 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
-      bootstrap_super_admin: { Args: { p_email: string }; Returns: Json }
       budget_fiscal_months: {
         Args: { _business_id: string; _fiscal_year: number }
         Returns: {
@@ -25223,6 +25283,10 @@ export type Database = {
       }
       is_org_admin_or_owner: {
         Args: { _organization_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_org_administrator: {
+        Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
       is_org_manager: {

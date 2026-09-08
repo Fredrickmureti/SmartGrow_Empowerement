@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.bootstrap_super_admin(text);

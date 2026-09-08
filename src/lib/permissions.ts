@@ -290,7 +290,11 @@ export function resolveEffectivePermissions(
 ): Record<Permission, boolean> {
 
 
-  if (baseRole === "admin" || baseRole === "owner" || baseRole === "super_admin") {
+  // Wave 3: ownership — not a job-title label — is the only blanket authority.
+  // The database agrees: `user_has_module_permission` grants everything to the
+  // organization owner and evaluates everyone else through access groups.
+  // Administrators are ordinary employees holding an administrative group.
+  if (baseRole === "owner") {
     const out: Record<Permission, boolean> = {} as Record<Permission, boolean>;
     for (const k of ALL_PERMISSIONS) out[k] = true;
     return out;
