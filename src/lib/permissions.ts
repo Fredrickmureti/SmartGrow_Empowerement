@@ -319,23 +319,19 @@ const INTERNAL_GROUP_ROLES: AppRole[] = [
 ];
 
 /**
- * Resolves effective permissions by combining the base role with Access Group rules.
+ * Resolves effective permissions from the user's Access Group rules.
  *
  * - admin / owner / super_admin: full access, groups are a no-op.
- * - internal-class roles WITH groups: the union of group rules, plus the
- *   role's lending baseline.
- * - internal-class roles WITHOUT groups: the role's lending baseline only.
  * - portal: no permissions (staff-only institution).
+ * - everyone else: exactly what their access group grants — nothing else.
+ *   This mirrors `user_has_module_permission` in the database, which is the
+ *   authority; the UI must never offer more than the backend allows.
  */
 export function resolveEffectivePermissions(
   baseRole: AppRole | undefined | null,
   groupRules: PermissionGroupRule[]
 ): Record<Permission, boolean> {
-  const base: Record<Permission, boolean> = {} as Record<Permission, boolean>;
-  const baseRaw = baseRole ? (ROLE_PERMISSIONS[baseRole] as Record<string, boolean | undefined>) : null;
-  for (const k of ALL_PERMISSIONS) base[k] = baseRaw ? Boolean(baseRaw[k]) : false;
-  // Lending grants live in their own matrix.
-  if (baseRole) for (const k of LENDING_ROLE_PERMISSIONS[baseRole] ?? []) base[k] = true;
+
 
   if (baseRole === "admin" || baseRole === "owner" || baseRole === "super_admin") {
     const out: Record<Permission, boolean> = {} as Record<Permission, boolean>;
@@ -349,10 +345,15 @@ export function resolveEffectivePermissions(
     return out;
   }
 
-  if (!groupRules || groupRules.length === 0) return base;
-
+  // Wave 1 (frontend half): the access group is the only authority for every
+  // non-privileged role. The database `user_has_module_permission` dropped its
+  // role matrix; keeping a role matrix here would let the UI offer actions the
+  // backend refuses (and, worse, show applications the group never granted).
+  // No group => no permissions, exactly as the database answers.
   const fromGroups: Record<Permission, boolean> = {} as Record<Permission, boolean>;
   for (const k of ALL_PERMISSIONS) fromGroups[k] = false;
+
+  if (!groupRules || groupRules.length === 0) return fromGroups;
 
   for (const rule of groupRules) {
     const mapping = MODULE_PERMISSION_MAP[rule.module];
@@ -367,14 +368,7 @@ export function resolveEffectivePermissions(
     if (rule.can_export  && mapping.export)  for (const p of mapping.export)  fromGroups[p] = true;
   }
 
-  const isInternalGroupRole = !!baseRole && INTERNAL_GROUP_ROLES.includes(baseRole);
-  const result: Record<Permission, boolean> = {} as Record<Permission, boolean>;
-  for (const key of ALL_PERMISSIONS) {
-    result[key] = isInternalGroupRole
-      ? base[key] === true || fromGroups[key] === true
-      : base[key] === true;
-  }
-  return result;
+  return fromGroups;
 }
 
 export function hasPermission(role: AppRole | undefined | null, permission: Permission): boolean {
