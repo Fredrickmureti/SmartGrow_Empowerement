@@ -65,16 +65,13 @@ the group model, and everything already marked out of scope in `roadmap.md`.
 ==============IMPLEMENATTION PROGRESS/STATUS/WHERE THINGS STAND==========
 
 
-Built this session (files written, not yet wired in or tested):
+Wired in this session (type-check passes):
 
-src/hooks/useMfClientCharges.ts — reads the policy and a client's charges; forwards raise / pay / reverse to the server routines.
-src/apps/lending/settings/AdmissionFeeCard.tsx — the Lending → Configuration card: on/off switch plus amount.
-src/apps/lending/clients/ClientChargesDialog.tsx — on a client: fee status, "Raise admission fee", "Record payment" (cash / bank / mobile money / cheque, reference, notes), "Reverse" with reason, and a receipt link.
-Remaining, in order (small steps):
+Lending → Configuration now shows the "Client admission fee" card (on/off + amount).
+The Clients list gets an "Admission fee" column with status and a Manage action that opens the fee dialog — only when the policy is switched on; off, the page is unchanged.
+The admission-fee receipt is registered with the existing receipt document type, so no new renderer.
+Still open (blocked on credits, not on unknowns):
 
-Add <AdmissionFeeCard /> to src/apps/lending/settings/AccountingMappingsPage.tsx next to AllocationPolicyCard.
-Add an "Admission fee" action per row in src/apps/lending/clients/ClientsPage.tsx that opens ClientChargesDialog (and a small status badge using useMfClientChargeSummary).
-Receipt: add fetchAndBuildClientChargeReceiptSnapshot in src/services/documents/snapshots/lending.ts (built from the charge + client + business, no loan) and register client_charge_receipt in resolveSourceDocumentRecord.ts using the existing lending.payment_receipt kind — no new renderer.
-Check the build log, then run the live end-to-end pass (Wave 2 of the plan): raise → pay → receipt → duplicate refused → reverse, confirming debits = credits in the journal.
+Live end-to-end run: set a policy amount → raise on a test client → record payment → confirm the journal is balanced (debit cash / credit fee income) → attempt the same reference again (must be refused) → reverse and confirm the original stays and a reversing entry appears → open the receipt. The routines require a signed-in staff user, so this has to be done from the preview signed in as fredrickmureti612@gmail.com (this Supabase project can't be signed into automatically).
 Update .lovable/plan.md with the result.
-Nothing existing was changed; the lending flow as it stands is untouched. Topping up credits lets me finish the three wiring steps and the verification run.
+Exact next step for the next run: open Lending → Configuration, switch the admission fee on with an amount, then use the Manage action on client V1-CLI-001 to run the raise → pay → duplicate → reverse sequence and check the resulting journal entries.
