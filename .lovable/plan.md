@@ -231,12 +231,14 @@ unchanged on purpose — the architecture guard
 and all consumers key on them; renaming the route is a separate controlled move.
 
 ## Still open
+I fixed the reconciliation residue and started the manual statement-line entry, but ran out of room to finish it.
 
-- Known residue above (one synthetic row) — act only if it matters on real data.
-- Wave 5 non-work decisions stand unchanged.
-- Unresolved for the user: whether manual bank-transaction entry should exist
-  alongside statement import for branches receiving paper statements.  (ADOPT GLOBALLY USED APPROACHES FOR TRADITIONAL MICROFIANNCE SYSTEM OR IN GENERAL GO WITH YOUR BEST RECOMENDATION AND GIVE REASON WHY)
+Done and verified:
 
-**Do not repeat:** the Section 1–4 investigation, or re-verification of Waves 1–4
-— all confirmed in the live database on 2026-09-08.
+Collection bankings can now be released from a retired (excluded) statement line — every other field stays append-only, and re-pointing to a different line is still refused.
+The leftover test banking is now unlinked (0 of 1 still linked), so the real deposit can be matched when the bank statement arrives.
+Started, not finished: a small "Add a statement line" form for branches whose bank only sends paper or PDF statements. It routes through the same server import engine as a file upload, so a typed line gets identical duplicate detection, rules and period checks. The form itself is written and imported into the Bank Reconciliation page, but the button that opens it hasn't been added to the page header yet — so it isn't reachable in the app.
+
+Still open from earlier: the accounting engine compares journal status against voided while the real value is void; that must be corrected before end-to-end repayment testing passes.
+
 
