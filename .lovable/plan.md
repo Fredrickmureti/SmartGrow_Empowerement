@@ -92,21 +92,22 @@ Accountant cannot grant itself access.
 
 ## E. Waves
 
-**W1 — Make groups authoritative.** Rewrite `user_has_module_permission` so non-privileged
-roles derive grants *only* from `member_permission_groups` ⋈ `permission_group_rules`;
-keep owner/admin/super_admin full and portal deny. Delete the `_base_grants` table.
-*Accept:* a user in Loan Officer cannot approve; the same user labelled `branch_manager`
-still cannot approve.
+**W1 — Make groups authoritative. DONE (2026-09-08).** `user_has_module_permission`
+rewritten: `_base_grants` role matrix deleted; non-privileged roles derive grants only from
+`member_permission_groups` ⋈ `permission_group_rules` (with the `lending`/`financials`
+module aliases retained); owner/admin/super_admin full, portal and null-role deny.
 
-**W2 — One branch answer.** Fold `can_access_branch` onto `user_branch_scope` so group
-`branch_scope` is the single source; enforce the reach column in the seeder per §D.
-*Accept:* a Loan Officer reading another branch's loans gets zero rows from the database,
-not just a hidden menu.
+**W2 — One branch answer. DONE (2026-09-08).** `can_access_branch` now resolves the branch's
+org and defers to `user_branch_scope` + `user_assigned_branch_ids`; no separate rule remains.
 
-**W3 — Reseed groups + one-group rule.** Update `seed_default_permission_groups` to the
-§D matrix; add a unique constraint so a user holds at most one group per organization;
-migrate the (currently zero) existing memberships.
-*Accept:* seeding twice is idempotent; assigning a second group is refused.
+**W3 — Reseed groups + one-group rule. DONE (2026-09-08).** `permission_groups.default_branch_scope`
+added and set per §D (Institution Admin/Accountant/Auditor `all`; Branch Manager/Credit Analyst
+`assigned`; Loan Officer/Cashier `own_portfolio`), with a BEFORE trigger applying it to system
+groups on insert/update so seeding stays idempotent. `user_branch_scope` reads
+`COALESCE(group.default_branch_scope, membership.branch_scope)`, defaulting to `own_portfolio`.
+Unique index `member_permission_groups_one_per_org` enforces one group per user per org.
+Verified: 7 active groups, rules 13/12/7/5/5/8/11, scopes as above.
+
 
 **W4 — Close the RLS gap on lending & finance.** For every `mf_*`, accounting, treasury and
 bank table, replace org-only policies with module+branch predicates; extend the existing CI
