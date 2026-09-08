@@ -1,268 +1,185 @@
-# Bank Reconciliation — Investigation Verdict and Reconstruction Plan
+# Finance Domain Reconstruction — Microfinance (investigation verdict + waves)
 
-Single-company, multi-branch microfinance. Investigation completed against the live
-database (ref xwxqunklduknceoryrha) and the repository. Every claim below is traced.
+## What the investigation actually found
 
-## 1. What exists today (verified)
+Verified against the live database and code, not names or comments.
 
-Tables: `bank_accounts` (36 cols, has `branch_id`, `is_shared`, `account_id` GL link,
-`lifecycle_status`, `opening_balance_je_id`, `currency`, `bank_reported_balance`),
-`bank_transactions` (30 cols: `external_transaction_id`, `balance_after`,
-`is_reconciled`, `journal_entry_id`, `branch_id`), `bank_reconciliation_sessions`,
-`_items`, `_matches` (34 cols: `allocations` jsonb, `fee_*`, `exchange_rate`,
-`evidence`, propose/confirm/reject/reverse actors), `_rules`, `_writeoffs`,
-`bank_feed_connections`.
+**A lending accounting engine already exists and is sound.** `mf_post_event`
+posts every loan event through the single canonical writer
+`post_journal_entry_atomic`, resolves accounts through `mf_resolve_account` /
+`mf_account_mappings` (12 keys, branch-overridable), stamps `branch_id`, is
+idempotent (`mf_event_postings` unique per loan event, early return when a
+posting exists), and reverses through `void_journal_entry_atomic` rather than
+deleting. Events covered: `loan_disbursed`, `repayment_recorded`,
+`repayment_reversed`, `disbursement_reversed`, `loan_written_off`,
+`loan_settled_by_successor`. Repayment allocation is server-owned
+(`mf_record_repayment` + `mf_allocation_policy`, penalty → fee → interest →
+principal, oldest installment first, overpayment parked as `advance` against
+2410 Client Loan Advances). Verdict: **KEEP. Do not rebuild.**
 
-Server engine (all SECURITY DEFINER RPCs, no browser arithmetic):
-`bank_statement_import_batch`, `bank_match_candidates` (16.9k chars),
-`bank_match_propose/confirm/reject/reverse`, `bank_match_history`,
-`bank_reconciliation_session_start/complete/reopen/cancel/writeoff`,
-`bank_reconciliation_item_set`, `_bank_reconciliation_gl_tieout`,
-`unreconcile_bank_transaction` + `bank_unmatch_preflight`,
-`finance_bank_reconciliation_statement` (21.8k chars),
-`enforce_bank_txn_scope_matches_account`, closed-period guards.
+**Actual GL activity is lending-only.** All 26 journal entries have
+`source_type` in (`mf_loan_event`, `mf_collection_banking`) and all land in the
+`MISC` journal book. Only six accounts have ever been touched: 1030 Mobile
+Money Wallet, 1111 Petty Cash, 1112 Bank, 1370 Loan Principal Receivable, 2410
+Client Loan Advances, 4310 Loan Interest Income. Every ERP account (Inventory,
+COGS, Sales Revenue ×3 duplicates, VAT, GRNI, POS/Credit-card clearing, payroll
+payables) has **zero journal lines** — they are seed residue, not history.
 
-Frontend: `src/pages/BankReconciliation.tsx` (918 lines, tabs Transactions / Import
-History / Reconciliation History / Match Suggestions), `src/pages/Banking.tsx`,
-`src/pages/BankFeeds.tsx`, `src/lib/bankStatementParsers/*` (CSV/Excel, OFX, QIF),
-`src/hooks/useBankMatchCandidates.ts`, `useReconciliationSessions/Items`,
-`src/services/finance/bankReconciliationStatement.ts`, `bankUnmatchPreflight.ts`,
-plus ~12 architecture guard tests already pinning the "one engine" rule.
+**Journals**: 5 seeded books; `SAL` (Sales) and `PUR` (Purchases) have zero
+entries and nothing in the lending path can ever route to them.
 
-Live data: 1 bank account (branch-scoped), 1 bank transaction (unreconciled),
-1 collection banking, 0 sessions, 0 matches, 0 rules, 0 feed connections.
+**Finance Settings UI is already curated** — `DefaultAccountsConfig` exposes
+cash, bank, AP, operating expenses, retained earnings, tax, fixed assets,
+depreciation, opening-balance equity, other income, mobile money, M-Pesa. The
+ERP terminology visible on screen comes from the **Chart of Accounts list** and
+the 41 rows in `default_account_settings` (inventory, cogs, grni,
+purchase_returns, inventory_shrinkage…), not from the lending engine.
 
-## 2. Verdicts
+### Defects found
 
-**Generic and reusable — preserve, do not rebuild.** Statement import with duplicate
-detection, session lifecycle with GL tie-out and closed-period refusal, the
-propose/confirm/reject/reverse match state machine with server-authored evidence and
-un-match pre-flight, the reconciliation statement engine, branch scope enforcement.
-This is a sound, falsifiable reconciliation subsystem. Rule 28 applies: reuse it.
+- **D-1 (real, latent).** `loan_written_off` credits `interest_receivable`
+  (1375) for written-off interest, but **nothing ever debits 1375** — no accrual
+  engine exists. A write-off of a loan with unpaid interest posts a credit to an
+  account with no balance, producing a negative asset and overstating write-off
+  expense. This is the one genuine accounting defect in the engine.
+- **D-2.** `loan_loss_provision` (2420) and `suspended_interest` (2430) are
+  mapped but no function ever posts to them: **no impairment at all**.
+- **D-3.** `mf_accrue_penalties` raises penalty charges in `mf_loan_charges`
+  with no GL effect; penalty income is recognised only on payment. Consistent
+  with the cash model below, so **not** a defect — but it must be stated, since
+  the charge table and the GL deliberately disagree.
+- **D-4.** Fee income at disbursement is netted off cash
+  (`fees_deducted`) — correct — but fees billed and collected later flow only
+  through the repayment allocation path. Acceptable; documented.
 
-**Domain-model defect (the real problem).** `mf_bank_collection_batch`
-(migration 20260903193355) posts the banking journal entry *and then inserts a row
-into `bank_transactions`* with `external_transaction_id = 'mf-collection-banking-<uuid>'`,
-`journal_entry_id` set and `is_reconciled = false`. In this engine
-`bank_transactions` is the **statement side** — what the bank says. The microfinance
-banking flow is using it as the **book side**. Consequences:
-- the line the screenshot shows ("Banking of collection batch") is not a bank
-  statement line at all; it is the institution's own posting masquerading as one;
-- when the real statement is imported, the same deposit arrives again under the
-  bank's own reference, and duplicate detection cannot see the relationship;
-- the reconciliation statement and match-rate KPIs count a book entry as an
-  unreconciled bank item, so the proof can never balance.
+## Decisions (evidence → reasoning → decision)
 
-**Matching engine coupling.** `bank_match_candidates`, `_bank_match_validate` and
-`bank_match_confirm` search `public.payments`, `public.invoices`, `public.bills`.
-They contain no reference to `mf_repayments`, `mf_repayment_batches`,
-`mf_collection_bankings` or `mf_loan_disbursements`, and `bank_match_candidates`
-never looks at `bank_transactions.journal_entry_id`. So a banked collection deposit
-returns tier `unresolved` — the engine is not wrong, it is simply blind to the two
-document kinds this product actually banks. This is a coupling/coverage gap, not a
-rewrite trigger.
+**1. Interest recognition: modified cash basis now, accrual-ready structure.**
+*Evidence*: income is recognised at allocation time in `mf_post_event`; 1375 and
+2430 exist but are never posted; no month-end job, no non-accrual status, no
+provision engine. *Domain basis*: MFIs of this size in Kenya commonly report on
+a cash/modified-cash basis, and IFRS-style effective-interest accrual on flat-rate
+group loans requires a suspension policy, an impairment model and a month-end
+close the institution does not yet run. Introducing accrual **without**
+suspension and provisioning would overstate income on delinquent loans — worse
+than cash. *Decision*: keep cash recognition as the reporting model; fix D-1 so
+the write-off path stops referencing an unaccrued receivable; keep 1375/2430
+mapped and reserved; treat accrual as a later, explicitly gated wave that ships
+accrual + suspension + provision + month-end close **together or not at all**.
+*Consequence*: interest income equals interest collected; accrued-but-unpaid
+interest is a portfolio number (schedule-derived), never a GL asset — and
+reports must say so.
 
-**Terminology.** "invoices, bills, and expenses" in `BankReconciliation.tsx:313`
-and `:728` is honest about what the engine queries — it is a symptom of the coverage
-gap above, not a stray label. Fix the engine first, then the words.
+**2. Journals: keep the generic book engine, retire misleading books.**
+`SAL`/`PUR` are unreachable and unused → deactivate (not delete: `is_system`
+rows are referenced by book-assignment logic). Add one `LND` Lending book and
+route `mf_loan_event` postings to it so lending stops sharing `MISC` with manual
+adjustments. No per-event journals (no "Interest Journal") — the posting engine
+already carries `source_type`/`source_subtype`, which is the correct dimension.
 
-**Bank feeds.** `bank_feed_connections` + `bank_feed_connection_resolve` +
-provider/token columns on `bank_accounts` exist with zero rows; `BankFeeds.tsx` is in
-fact a categorisation screen (`handleCategorize`, AI suggestions), not a feed client.
-No provider integration exists. Do not build one — statement import plus manual entry
-is what a branch microfinance operation needs.
+**3. Chart of accounts: deactivate, never delete history.** Accounts with zero
+journal lines **and** no mapping/setting reference and clearly ERP
+(inventory, COGS, GRNI, POS clearing, credit-card clearing, purchase returns,
+inventory adjustment/shrinkage/revaluation/overage, duplicate Sales Revenue
+4010/4100/4110/4120, product sales, payroll statutory/pension/net-salary
+payables, duplicate Furniture & Fixtures 1510) → `is_active = false`.
+Tax accounts (2130 VAT Payable, 1310/1150 input VAT) → **KEEP**: the institution
+is Kenyan and charges VAT-able fees and pays withholding tax on some expenses.
+Accounts referenced by any mapping or setting → KEEP regardless of usage.
 
-**Multi-branch.** Sound: `bank_accounts.branch_id` + `is_shared` already model both
-branch and Head Office / shared accounts, and
-`enforce_bank_txn_scope_matches_account` stops a transaction drifting to another
-branch. No change required.
+**4. Multi-branch: dimension, not a second ledger.** One company, one COA, one
+book set; `branch_id` on every journal entry (already stamped) plus
+branch-level mapping overrides (already supported in `mf_account_mappings` /
+`branch_setting_overrides`). No per-branch COA, no inter-company.
 
-**Multi-currency.** `bank_transactions` has no currency column; the account's
-currency is implied and `bank_reconciliation_matches.exchange_rate` carries the
-booking rate. Acceptable for a single-currency institution; recorded as a known
-limitation, not this wave's work.
+**5. Reconciliation matches bank statement lines to lending money movement**
+(collection bankings, disbursement payouts, transfers) — the invoice matching
+target is a generic optional matching abstraction and stays, unused.
 
-**Authorization / audit.** `assert_can_reconcile_bank` plus RLS already gate the
-domain; matches record proposer, confirmer, rejecter and reverser. Integrate with the
-Access Groups work rather than adding anything new.
+**6. Authorization: reuse the existing engine.** Finance configuration writes
+go through the existing permission modules + `approval_route`/SoD triggers. No
+parallel permission system, no new gate.
 
-## 3. Verified data flow (and the break)
+**7. Historical integrity.** Mapping changes must never rewrite postings.
+Postings already dereference accounts at post time, so history is immutable by
+construction; what is missing is an audit trail on mapping changes
+(`mf_account_mappings` has none) → add one.
 
-```text
-Client -> Loan -> Repayment (mf_repayments, posted)
-      -> Batch (mf_repayment_batches, closed)
-      -> mf_bank_collection_batch
-             |-- journal entry (Bank Dr / Cash+MobileMoney Cr)   correct
-             |-- mf_collection_bankings row (append-only)        correct
-             \-- bank_transactions row  <-- WRONG SIDE of the reconciliation
-Real bank statement -> bank_statement_import_batch -> bank_transactions
-      -> bank_match_candidates  (searches payments/invoices/bills only)
-      -> no candidate for the deposit -> never reconcilable
-```
+## Waves
 
-## 4. Terminology map
+### Wave F-1 — Chart of accounts triage (safe, reversible)
+Objective: the COA reads as a microfinance COA with zero history loss.
+Changes: one migration deactivating the zero-usage ERP accounts listed in
+decision 3; a guard function refusing deactivation of an account that has
+journal lines or is referenced by `mf_account_mappings` /
+`default_account_settings` / `default_accounts`.
+DB: `accounts`, new `accounts_assert_deactivatable` check in the update trigger.
+Frontend: Chart of accounts already filters inactive; add an "Show inactive"
+toggle so nothing becomes invisible.
+Tests: SQL test — no account with journal lines is inactive; no mapped account
+is inactive. Acceptance: COA list shows only lending/finance-relevant accounts;
+trial balance unchanged to the cent.
+Risk: low. Rollback: single UPDATE flipping `is_active` back (commented in the
+migration).
 
-| Current term | Actual meaning | Verdict | Target | Reason |
-| --- | --- | --- | --- | --- |
-| Bank Reconciliation | statement-to-ledger proof | Valid | keep | standard accounting |
-| Transactions | statement lines | Valid but ambiguous | "Bank statement lines" | must read as bank-side |
-| Import History | statement import batches | Valid | keep | |
-| Reconciliation History | completed sessions | Valid | keep | |
-| Match Suggestions / Auto-Match | candidate engine output | Valid | keep | evidence-based, not a score |
-| Rules | pattern -> counterpart account categorisation | Valid, generic | keep, branch-scoped | bank charges, interest |
-| Unreconciled / Reconciled | statement line state | Valid | keep | |
-| "invoices, bills, and expenses" | literally what the engine queries | Legacy coupling | "banked collections, disbursements, expenses and transfers" — after Wave 2 | wording follows the engine |
-| "Banking of collection batch" line | book-side posting in a bank-side table | Legacy/defect | becomes a match candidate, not a statement line | Wave 1 |
+### Wave F-2 — Journal books
+Deactivate `SAL`/`PUR`, insert `LND` Lending journal, extend book assignment so
+`source_type = 'mf_loan_event'` and `mf_collection_banking` resolve to `LND`,
+leaving `MISC` for manual entries. Existing 26 entries are **not** re-pointed
+(history immutable); reports group by book from the entry's stored book.
+Tests: new lending posting lands in `LND`; a manual journal still lands in
+`MISC`. Rollback: re-activate SAL/PUR, revert assignment function.
 
-## 5. Waves
+### Wave F-3 — D-1 write-off correctness (the real accounting fix)
+Root cause: `loan_written_off` credits 1375 for interest that was never accrued.
+Fix: under cash recognition a write-off may only remove **principal** from the
+balance sheet; unpaid interest is de-recognised in the portfolio, not the GL.
+`mf_post_event` write-off branch → debit `write_off_expense` and credit
+`principal_receivable` for principal only; unpaid interest recorded in the event
+payload for portfolio reporting with no GL line. Add a hard assertion that the
+lines balance and that 1375 is never credited without a prior debit.
+Tests: write off a loan with unpaid interest → JE balances, 1375 untouched,
+write-off expense equals principal; repeat call is idempotent.
+Risk: changes an existing posting rule → apply before any real write-off exists
+(currently none in the data).
 
-### Wave 1 — Stop the collection banking from fabricating statement lines
-- **Objective**: `mf_bank_collection_batch` records a deposit awaiting the bank, not a bank statement line.
-- **Current state**: migration 20260903193355 inserts into `bank_transactions`; 1 such row exists in the live database.
-- **DB**: new migration replacing `mf_bank_collection_batch` (single-purpose, per project rule) — drop the `bank_transactions` insert, keep the journal entry and the `mf_collection_bankings` row; a second small migration retires the one existing synthetic line (mark `lifecycle_status`, do not delete history).
-- **Backend**: none beyond the RPC. **Frontend**: none.
-- **Accounting**: unchanged — the journal entry was always correct.
-- **Tests**: SQL guard asserting `mf_bank_collection_batch` never inserts into `bank_transactions`; guard that every `bank_transactions` row has an import batch, feed or manual-entry origin.
-- **Acceptance**: banking a batch posts one journal entry and one banking record; the reconciliation screen shows no self-created line.
-- **Risks**: the existing row is referenced by `mf_collection_bankings.bank_transaction_id` — retire, don't delete. **Rollback**: re-apply prior function body.
+### Wave F-4 — Mapping-change audit + effective integrity
+Add `mf_account_mapping_audit` (append-only: key, old/new account, actor,
+branch, reason) and a trigger on `mf_account_mappings`; surface last-changed-by
+in the Finance Settings mapping UI. Confirms decision 7 without effective dating
+(not needed, since postings snapshot the account at post time).
 
-### Wave 2 — Teach the candidate engine the microfinance document kinds
-- **Objective**: a real bank deposit matches the collection banking that produced it; a disbursement debit matches its disbursement.
-- **Current state**: `bank_match_candidates` / `_bank_match_validate` / `bank_match_confirm` know only payments, invoices, bills; no `mf_*` source; `journal_entry_id` unused.
-- **DB**: add candidate kinds `collection_banking` (from `mf_collection_bankings`: amount, `banked_on` +/- tolerance, `reference` = batch number, same branch and bank account) and `disbursement` (from `mf_loan_disbursements`), plus the matching validate/confirm branches that stamp `bank_transactions.reconciled_type/entity_id` and link the existing journal entry instead of posting a new one. One migration per function.
-- **Accounting**: confirming links an already-posted entry — no new posting, so idempotent; un-match keeps `link_only` semantics in `bank_unmatch_preflight`.
-- **Authorization**: unchanged (`assert_can_reconcile_bank`).
-- **Tests**: SQL scenarios — banked batch vs imported deposit (deterministic tier), two same-amount batches (ambiguous), cross-branch deposit (no candidate), re-confirm (idempotent).
-- **Acceptance**: importing the branch statement yields a "Certain" candidate naming the batch, and confirming reconciles without a second journal entry.
-- **Dependencies**: Wave 1.
+### Wave F-5 — Finance Settings surface alignment
+Hide/remove the ERP-only `default_account_settings` keys that no live consumer
+reads (inventory, cogs, grni, purchase_returns, inventory_*, discount_*,
+clearing_pos, credit_card_clearing, customer_deposits, sales_revenue,
+sales_returns, service_revenue) — rows retained, excluded from the settings
+catalogue; add the lending mapping block (principal receivable, interest/fee/
+penalty income, client advances, write-off expense, provision, suspended
+interest, cash/bank/mobile money) as the primary section, since that is what the
+posting engine actually resolves. Permissions: mapping writes gated by the
+existing finance-configuration permission, not a new one.
 
-### Wave 3 — Split and aggregate cases that this domain really has
-- **Objective**: one bank credit settling several banked batches, and a deposit net of a bank charge.
-- **Current state**: `bank_reconciliation_matches.allocations` jsonb, `fee_amount`, `fee_account_id` and `residual_amount` already exist and are honoured by confirm; only the new kinds need wiring into them.
-- **Tests**: multi-batch deposit; deposit short by a bank charge posting the fee line; partial with residual refused when unexplained.
-- **Dependencies**: Wave 2. Small wave — mostly coverage.
+### Wave F-6 — Engine verification on real data
+Controlled end-to-end tests against the microfinance database as
+`fredrickmureti612@gmail.com`: individual loan → schedule → partial payment →
+full payment → overpayment (advance) → multi-installment payment → arrears →
+penalty accrual → reversal → write-off → collection banking → bank
+reconciliation → branch report. Invariants asserted each step: debits = credits,
+duplicate receipt reference refused, reversal preserves history, loan balance =
+schedule − allocations, branch attribution intact, second identical post is a
+no-op.
 
-### Wave 4 — Terminology and screen alignment
-- **Objective**: the page states the model Waves 1-3 established.
-- **Frontend**: `src/pages/BankReconciliation.tsx` (lines 307-320, 452-470, 724-740) — subtitle names banked collections, disbursements, expenses and transfers; "Transactions" tab reads as bank statement lines; candidate copy in `src/hooks/useBankMatchCandidates.ts` `TIER_COPY` reviewed; `BankFeeds.tsx` renamed to what it does (categorise imported lines), no feed promise.
-- **DB**: none — no table or column renames (project rule).
-- **Tests**: extend existing architecture guards; no new engine.
-- **Dependencies**: Wave 2 (words follow behaviour).
+### Wave F-7 (gated, not yet approved for build) — accrual + impairment
+Only if reporting requirements change: accrual of interest earned, non-accrual
+suspension at an arrears threshold (2430), portfolio provision matrix (2420),
+month-end close job, and the reporting changes. Ships as one unit. Recorded here
+so the mapped-but-unused accounts have a documented destiny.
 
-### Wave 5 — Documented non-work (explicit decisions)
-- No bank-feed provider integration; `bank_feed_connections` stays dormant scaffolding, documented as such.
-- No currency column on `bank_transactions` while the institution is single-currency.
-- No second reconciliation, import, matching or rules engine.
-- Orphaned ERP reconciliation artefacts touching this domain (invoice/bill candidate branches) stay in place — they are harmless and shared with the retained payments module; removal belongs to the legacy cleanup wave.
+## Out of scope
+HR, payroll, inventory, sales, CRM, POS, broad orphan-table cleanup, report
+redesign, authentication, application shell.
 
-## 6. Handoff state
-Investigation is complete; nothing has been changed yet. Unresolved decision for the
-user: whether manual bank-transaction entry should exist alongside statement import
-for branches whose bank sends paper statements.
-
-
-=================IMPLEMENTATION PROGRESS==============
-
-## Verified complete (re-checked against the live database, 2026-09-08)
-
-- **Wave 1 — done.** `mf_bank_collection_batch` no longer inserts into
-  `bank_transactions`; its body carries the ADR comment stating that
-  `bank_transactions` is the statement side only. The journal entry and the
-  `mf_collection_bankings` row are unchanged.
-- **Wave 2 — done.** `bank_match_candidates` (20.1k) now emits kinds
-  `payment`, `collection_banking`, `bill_payment`, `disbursement`, `transfer`,
-  `invoice`, `bill`, `account`. Collection-banking candidates require same
-  business, same bank account, matching branch, amount within 0.005, banked_on
-  in −14/+7 days of the statement date, `bank_transaction_id IS NULL`, and no
-  live match already claiming them. `_bank_match_validate`, `bank_match_confirm`,
-  `bank_unmatch_preflight` and `unreconcile_bank_transaction` all handle the new
-  kinds; confirming links only — no second posting.
-- **Wave 4 (wording) — done.** `BankReconciliation.tsx:313` now reads "Match bank
-  statement lines with banked collections, loan disbursements, expenses and
-  transfers"; the Match Suggestions help text (≈:726) names banked collections and
-  loan disbursements instead of invoices/bills/supplier payments.
-  `useBankMatchCandidates.ts` carries the full kind union plus
-  `CANDIDATE_KIND_LABEL` (single place that turns a machine kind into words).
-  `ReconcileTransactionSheet` passes the widened kinds through to the seam.
-
-## Known residue (one row, deliberately left)
-
-The legacy synthetic line `ebc9baec-085e-4ba9-a8b5-c094fe4b50f6` ("Banking of
-collection batch BATCH-001") is already `lifecycle_status = 'excluded'`, so it no
-longer appears as an unreconciled bank item. Its `mf_collection_bankings` row
-(`1f71927a-…`) still points at it, and `mf_collection_bankings_append_only()`
-refuses to clear a confirmed `bank_transaction_id` ("This banking is already
-confirmed against a bank statement line"). Because `bank_match_candidates`
-requires `bank_transaction_id IS NULL`, that single banking can never be matched
-to a real imported deposit.
-
-**Next agent action (only if this matters on real data):** one migration relaxing
-`mf_collection_bankings_append_only()` so a link may be cleared when the target
-`bank_transactions` row is `lifecycle_status = 'excluded'`, then clear the link.
-It is one test row today — do not expand scope for it.
-
-## Wave 3 — DONE (verified in the live database, 2026-09-08)
-
-No SQL change was needed: `_bank_match_validate` already loops over
-`jsonb_array_elements(_allocations)` and balances their sum against
-`abs(bank line) ± fee`, so **one bank credit may settle several banked
-collection batches** (each at its full amount, same account, unclaimed,
-same branch/company). A bank charge against a banked batch or a disbursement is
-deliberately REFUSED (`BANK_MATCH_FEE_ON_DIRECT_PAYMENT`): those journals posted
-the gross amount to this bank account, so the charge must be its own statement
-line rather than being netted invisibly.
-
-Ratchet added: `supabase/tests/bank_collection_banking_match_invariants_test.sql`
-asserts Wave 1 (no statement-line fabrication in `mf_bank_collection_batch`),
-Wave 2 (all five seam members handle `collection_banking` / `disbursement`,
-candidates read `mf_collection_bankings` / `mf_loan_disbursements` and skip
-already-linked bankings) and Wave 3 (allocation iteration, `BANK_MATCH_UNBALANCED`,
-full-amount + single-claim + same-account + direction + fee refusals, mixed-kind
-and cross-branch/company refusals, link-only un-match).
-
-## Wave 4 — DONE
-
-`BankFeeds.tsx` now says what it does: title "Statement Lines", subtitle
-"N imported bank statement lines need review". Nav label "Statement lines"
-(`src/apps/finance/nav.ts`), registry name "Statement Lines"
-(`src/lib/apps/registry.ts`). Route `/finance/bank-feeds` and the file name are
-unchanged on purpose — the architecture guard
-(`src/test/architecture/bank-feeds-business-level-gating.test.ts`, 9/9 green)
-and all consumers key on them; renaming the route is a separate controlled move.
-
-## Still open
-Nothing outstanding in this wave.
-
-Done and verified:
-
-- Collection bankings can be released from a retired (excluded) statement line; every other field stays append-only and re-pointing to a different line is still refused.
-- The leftover test banking is unlinked, so the real deposit can be matched when the statement arrives.
-- Manual "Add a statement line" entry is now reachable: a button in the Bank Reconciliation page header opens the dialog, which routes through `bank_statement_import_batch` (source `manual`) for identical duplicate detection, rules and closed-period checks. The list refreshes on success.
-- Journal status mismatch corrected. The database enum is `draft | posted | void`; the app was comparing against `voided`, so voided entries fell through to a raw fallback badge, the Voided filter matched nothing and the Voided count was always 0. Fixed in `useJournalEntries.ts`, `pages/JournalEntries.tsx` and `journal-entries/journalEntryView.tsx`. SQL seams already used `void` correctly — no migration needed.
-- Typecheck clean (`tsgo -p tsconfig.app.json`).
-
-Next coherent step: end-to-end repayment → banked collection → statement line → match walkthrough against live data.
-
-## Closing verification — 2026-09-08 (independent re-check)
-
-Re-queried the live database rather than trusting the ledger:
-
-- Wave 1 holds: `mf_bank_collection_batch` contains no insert into `bank_transactions`.
-- Wave 2 holds: `bank_match_candidates`, `_bank_match_validate`, `bank_match_confirm`,
-  `bank_unmatch_preflight` and `unreconcile_bank_transaction` all carry the
-  `collection_banking` branch.
-- Wave 5 relaxation holds: `mf_collection_bankings_append_only()` references the
-  `excluded` escape; `mf_collection_bankings` has 0 rows with a non-null
-  `bank_transaction_id` (the legacy link is cleared).
-- Data state: 1 `bank_transactions` row, the legacy synthetic line, `lifecycle_status = 'excluded'`.
-
-End-to-end walkthrough (executed as the candidate SQL, no live write): a hypothetical
-imported deposit of 6,200 dated 2026-09-04 on account `9c17265e…`, branch `d6a52ce8…`,
-returns exactly one `collection_banking` candidate — banking `1f71927a…`, batch
-`BATCH-001`, day gap 1. The repayment → banked collection → statement line → match
-chain is therefore live and reachable.
-
-Typecheck clean (`tsgo -p tsconfig.app.json`), build log clean.
-
-**Status: the Bank Reconciliation wave is complete.** No open work in this domain.
-Next domain wave is unrelated to banking; do not re-run this investigation.
+## Migration discipline
+One object per migration, in wave order F-1 → F-2 → F-3 → F-4; every migration
+delete-free (deactivation only) and carrying a commented rollback statement.
