@@ -284,7 +284,7 @@ export interface PermissionGroupRule {
 /**
  * Resolves effective permissions from the user's Access Group rules.
  *
- * - admin / owner / super_admin: full access, groups are a no-op.
+ * - owner: full access (the only blanket authority, matching the database).
  * - portal: no permissions (staff-only institution).
  * - everyone else: exactly what their access group grants — nothing else.
  *   This mirrors `user_has_module_permission` in the database, which is the
