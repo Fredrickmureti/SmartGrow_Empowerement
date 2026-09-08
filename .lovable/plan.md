@@ -135,3 +135,7 @@ branch user never sees institution-wide portfolio or financial figures.
 Each wave is one migration or a small set of single-purpose migrations, reversible, with the
 audit log untouched throughout. No wave touches Payroll/HR, Loans business logic, Accounting
 posting rules or Reports.
+
+
+===IMPLEMENTATION PROGRESS==========
+Waves 1–3 are in place: permissions now come only from a person's access group, branch visibility follows one single rule everywhere, each of the seven standard groups carries its own branch reach (all branches / assigned branches / own branch), and a person can hold at most one group. Next up is Wave 4 — tightening the database itself so a branch user's queries return only their own branch's records.
