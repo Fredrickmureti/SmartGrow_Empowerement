@@ -188,10 +188,8 @@ delete-free (deactivation only) and carrying a commented rollback statement.
 =================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND================
 
 
-Progress so far on the finance clean-up:
+Done in this pass: the change log now appears on the Lending → Accounting mappings screen, showing each money-flow that was rebound, the old and new account, the branch, who changed it and when.
 
-Retail accounts retired — Inventory, Sales Revenue, Cost of Goods Sold, POS and card clearing, Goods Received Not Invoiced, discounts and stock adjustment accounts are now inactive and out of the accounts list. Nothing was deleted, and a new safeguard refuses to retire any account that has entries or is used by lending.
-Required-accounts warning corrected — it now asks for cash, bank, mobile money, payables and retained earnings instead of shop accounts.
-Lending mapping change log added — every change to a lending money-flow's ledger account records the old account, new account, branch, who changed it and when, and those records can never be edited or deleted.
-Still to do: show that change log on the Lending → Accounting mappings screen, then the end-to-end money-chain checks (disburse, repay, reverse, write-off) and updating the project plan.
+Checks I ran on live data: every journal entry balances, no loan event is left unposted, every repayment is fully allocated, and loan branch attribution is intact.
 
+One real defect found and not yet fixed: reversal entries are recorded with no branch, so a branch's report shows a repayment but not its reversal — three existing entries are affected. I prepared the corrected reversal routine, but the update was rejected because the existing routine must be dropped first; that retry, plus a decision on correcting the three historical reversals, is the next exact action. After that, the remaining end-to-end money-chain walk (disburse → repay → reverse → write-off → banking) and the plan update are still outstanding.
