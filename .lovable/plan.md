@@ -163,8 +163,14 @@ for branches whose bank sends paper statements.
 
 =================IMPLEMENTATION PROGRESS==============
 
-I verified the previous agent's claims against the live system, then closed a real defect I found:
+I extended the existing matching engine (no second engine) so loan payouts can be confirmed against the bank, and verified it landed in the database:
 
-Confirmed done: banking a collection no longer creates a fake bank statement line, and a real deposit is offered its collection batch as a suggestion, linking to the existing accounting entry instead of posting a second one.
-Fixed now: undoing such a match would have cancelled the correct accounting entry the banking itself created, and left the batch permanently tied to that bank line. Undoing now simply unlinks the batch so it can be matched again, and the warning shown beforehand says exactly that.
-Remaining: reword the two remaining ERP-style descriptions on the reconciliation screen ("invoices, bills and expenses"), add matching for loan disbursements paid out of the bank, retire the one leftover synthetic bank line, and update the project status file.
+Loan disbursements paid out by bank now appear as suggestions on money-out bank lines, matched on amount, branch, bank account, date window and reference.
+Confirming one only links the bank line to the disbursement — it never posts a second accounting entry, because the disbursement already posted its own.
+Undoing the match breaks the link only, leaves the original accounting untouched, and makes the disbursement available to match again.
+Each disbursement now records which bank line confirmed it.
+Remaining (not done, credits ran out):
+
+Front-end: add the new match kinds ("collection banking", "loan disbursement") to src/hooks/useBankMatchCandidates.ts so the screen labels them properly instead of falling back to the old set.
+Wording on the Bank Reconciliation screen: line 313 still says "Match bank transactions with invoices, bills, and expenses", and the help text around line 726 still talks about invoices/bills/supplier payments.
+Retire the one leftover synthetic "Banking of collection batch BATCH-001" line (id ebc9baec-…, already marked excluded) and decide whether its link on the collection banking record should be cleared.
