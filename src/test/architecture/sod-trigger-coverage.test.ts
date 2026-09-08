@@ -65,4 +65,10 @@ describe("Self-action enforcement coverage", () => {
       expect(GUARDED_TABLES).toContain(table);
     }
   });
+
+  it("guards the payout itself, not only the loan status change", () => {
+    // The approver of an application must not be the person who records the
+    // disbursement (governance_sod_conflicts: loan.approve × loan.disburse).
+    expect(GUARDED_TABLES).toContain("mf_loan_disbursements");
+  });
 });
