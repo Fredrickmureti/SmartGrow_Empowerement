@@ -17,6 +17,7 @@
 ### 1. Finish invitation safeguards
 
 - Require at least one Access Group for every non-admin invitation in the invite screen, with a clear inline message and disabled submission until valid.
+- Enforce role hierarchy in both the invite screen and RPC: only the Owner may invite an Admin; an Admin may invite internal staff but cannot create or manage peer administrators.
 - Require at least one branch when the selected scope is **Assigned branches** or **Own portfolio**.
 - Enforce the same invariants in `upsert_organization_invitation` so a direct request cannot bypass the screen.
 - Keep Admin invitations simple: Admin remains full access, is resolved to Institution Admin, and receives all-branch scope.
@@ -49,7 +50,7 @@ Add regression coverage for the actual authorization chain:
 - Assigned-branch group: sees and writes only permitted branches.
 - Access-group reassignment/session refresh: changing a member’s group changes navigation and actions after session refresh, with no stale privilege retained.
 - Every signed-in team member can edit their own profile, set/change PIN, change password, inspect devices, and view login activity.
-- Invitation validation rejects missing groups/branches at both the screen and database boundary.
+- Invitation validation rejects missing groups/branches and unauthorized Admin invitations at both the screen and database boundary.
 
 Use database-level permission/RLS assertions plus focused frontend tests. Run the relevant test files, typecheck, inspect the latest build result, and perform a signed-in browser pass. If an alternate user session can be minted, verify `devmuret@gmail.com` directly; otherwise verify that account at the data layer and report the browser limitation explicitly.
 
