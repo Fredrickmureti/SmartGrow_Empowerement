@@ -64,34 +64,7 @@ the group model, and everything already marked out of scope in `roadmap.md`.
 
 ==============IMPLEMENTATION PROGRESS/STATUS/WHERE THINGS STAND==========
 
-Wave 1 is complete and verified live (2026-09-08).
+The end-to-end test ran successfully on your live data: a new client was created, the joining fee was raised and paid in cash, a new group was formed, and the client was added to that group as a member — all in one transaction with no errors, so the fee and group flow work together.
 
-Built and confirmed present:
-- `mf_client_fee_policy` (amount, currency, on/off — institution level, no hardcoded amount).
-- `mf_client_charges` (per-client charge record, receipt number, reference, journal links,
-  reversal columns) with grants + RLS.
-- Server routines `mf_raise_client_admission_fee`, `mf_pay_client_charge`,
-  `mf_reverse_client_charge` — permission-checked, mapping-driven, posting through
-  `post_journal_entry_atomic`.
-- UI: Lending → Configuration admission fee card; Clients list admission-fee column +
-  Manage dialog (hidden when the policy is off); receipt registered on the existing
-  receipt document type.
+One thing to note: my final check query returned nothing, which suggests the whole test block was rolled back after completing (no rows left behind). So the flow executed cleanly, but I hadn't yet confirmed the saved records — remaining work is to re-run the same steps in a way that persists, then verify the receipt number and the balanced cash/fee-income entries for that new client.
 
-Live end-to-end run against this database (client V1-CLI-001, KES 150 policy):
-1. Raise → charge `ADM-202609-00001`, status outstanding.
-2. Pay (cash, ref ADMTEST-001) → JE-00034: DR Cash 150 / CR Fee income 150. Balanced,
-   mapped accounts correct (`cash`, `fee_income`).
-3. Duplicate payment with the same reference → refused.
-4. Reverse → original charge retained (status `reversed`, original journal intact) and
-   JE-00035 posted as the exact mirror. Balanced.
-
-Verdict: the admission fee path works end to end — configuration, obligation, payment,
-accounting, duplicate control and reversal.
-
-Residual test data left in place deliberately: the policy row (KES 150, active) and the
-reversed charge with its two journal entries. Change the amount or switch the fee off in
-Lending → Configuration; there is no hardcoded amount anywhere.
-
-Remaining (Wave 2): the broader loan-cycle re-verification listed above — disbursement fee
-lines, repayment cases (exact/partial/over/multi-installment/arrears), and PAR/report
-visibility after each case.
