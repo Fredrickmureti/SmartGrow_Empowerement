@@ -327,3 +327,31 @@ export function nextApplicationNumber(existing: Array<{ application_number: stri
   }
   return `APP-${String(max + 1).padStart(4, "0")}`;
 }
+
+/**
+ * Which applications already have a recorded assessment.
+ *
+ * The decision guard refuses an approval or rejection before an assessment
+ * exists, so the pipeline needs this to explain the prerequisite instead of
+ * letting the operator discover it through a refusal.
+ */
+export function useMfAssessedApplicationIds() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-assessed-application-ids", businessId],
+    queryFn: async () => {
+      if (!businessId) return new Set<string>();
+      const { data, error } = await supabase
+        .from("mf_application_assessments")
+        .select("application_id")
+        .eq("business_id", businessId);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.application_id as string));
+    },
+    enabled: !!businessId,
+  });
+
+  return { assessedIds: query.data ?? new Set<string>(), isLoading: query.isLoading };
+}
