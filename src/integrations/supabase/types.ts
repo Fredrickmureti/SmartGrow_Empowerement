@@ -13886,6 +13886,71 @@ export type Database = {
           },
         ]
       }
+      mf_meeting_attendance: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          meeting_id: string
+          note: string | null
+          recorded_at: string
+          recorded_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          meeting_id: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_repayment_allocations: {
         Row: {
           amount: number
