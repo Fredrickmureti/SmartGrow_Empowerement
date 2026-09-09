@@ -29,9 +29,11 @@ import {
 import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { useMfClients } from "@/hooks/useMfClients";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
+import { ClientFormDialog } from "../clients/ClientFormDialog";
 import {
   useMfGroupMeetings,
   useMfMeetingAttendance,
+  useMfMeetingSummary,
   MEETING_STATUS_LABEL,
   type MfAttendanceStatus,
   type MfGroupMeeting,
@@ -61,8 +63,9 @@ export function MeetingWorkspaceDialog({
   onCollect,
 }: Props) {
   const { members, isLoading } = useMfGroupMembers(open ? meeting.group_id : null);
-  const { clients } = useMfClients();
+  const { clients, createClient, updateClient } = useMfClients();
   const { attendance, setAttendance } = useMfMeetingAttendance(open ? meeting.id : null);
+  const { summary } = useMfMeetingSummary(open ? meeting.id : null);
   const { completeMeeting, postponeMeeting } = useMfGroupMeetings({
     from: meeting.scheduled_on,
     to: meeting.scheduled_on,
@@ -70,6 +73,7 @@ export function MeetingWorkspaceDialog({
 
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
+  const [registering, setRegistering] = useState(false);
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -168,7 +172,31 @@ export function MeetingWorkspaceDialog({
           )}
         </div>
 
+        <div className="rounded-md border p-3 text-sm">
+          <p className="font-medium">What happened at this meeting</p>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            <li>
+              {presentCount} present, {activeMembers.length - presentCount} not marked
+              present, of {activeMembers.length} member(s)
+            </li>
+            <li>
+              {summary?.receiptCount ?? 0} payment(s) collected
+              {summary && summary.collectedTotal > 0
+                ? ` — KES ${summary.collectedTotal.toLocaleString()}`
+                : ""}
+            </li>
+            <li>
+              {summary && summary.onboarded.length > 0
+                ? `Joined here: ${summary.onboarded
+                    .map((c) => `${c.full_name} (${c.client_number})`)
+                    .join(", ")}`
+                : "No new client registered at this meeting"}
+            </li>
+          </ul>
+        </div>
+
         <div className="space-y-1.5">
+
           <Label>Meeting notes and pending items</Label>
           <Textarea
             value={notes}

@@ -124,6 +124,7 @@ export function ClientFormDialog({
   client,
   onCreate,
   onUpdate,
+  meetingContext = null,
 }: ClientFormDialogProps) {
   const { branches } = useBranches();
   const { officers } = useBranchOfficers();
@@ -181,6 +182,10 @@ export function ClientFormDialog({
   // Open groups of this officer in this branch. No silent fallback to
   // unrelated groups.
   const availableGroups = useMemo(() => {
+    // Inside a meeting the group is the meeting's group, full stop.
+    if (meetingContext) {
+      return groups.filter((g) => g.id === meetingContext.groupId);
+    }
     if (!form.branch_id) return [];
     return groups.filter(
       (g) =>
@@ -188,7 +193,7 @@ export function ClientFormDialog({
         g.branch_id === form.branch_id &&
         (!selectedOfficer || g.loan_officer_id === selectedOfficer.user_id),
     );
-  }, [groups, form.branch_id, selectedOfficer]);
+  }, [groups, form.branch_id, selectedOfficer, meetingContext]);
 
   const chooseOfficer = (value: string) => {
     setForm((prev) => {
@@ -273,9 +278,28 @@ export function ClientFormDialog({
         loan_officer_id:
           branchScope.isOwnPortfolioOnly && user?.id ? user.id : UNASSIGNED,
       }));
+      if (meetingContext) setGroupId(meetingContext.groupId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client]);
+
+  // Registering from inside a meeting: the group is fixed to the meeting's
+  // group, and its branch and loan officer are taken from that group.
+  useEffect(() => {
+    if (!open || client || !meetingContext) return;
+    const group = groups.find((g) => g.id === meetingContext.groupId);
+    if (!group) return;
+    setGroupId(group.id);
+    setForm((prev) => ({
+      ...prev,
+      branch_id: group.branch_id ?? prev.branch_id,
+      loan_officer_id:
+        prev.loan_officer_id === UNASSIGNED && group.loan_officer_id
+          ? group.loan_officer_id
+          : prev.loan_officer_id,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, client, meetingContext?.groupId, groups]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -340,7 +364,11 @@ export function ClientFormDialog({
       // same client instead of registering a duplicate.
       const saved = client
         ? { id: client.id, business_id: client.business_id }
-        : (createdRef.current ??= await onCreate({ ...payload, group_id: groupId }));
+        : (createdRef.current ??= await onCreate({
+            ...payload,
+            group_id: meetingContext ? meetingContext.groupId : groupId,
+            onboarded_meeting_id: meetingContext?.meetingId ?? null,
+          }));
 
       if (!client && createdRef.current) {
         // Retry path: keep the stored record in step with the edited form.
@@ -636,7 +664,11 @@ export function ClientFormDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Group</Label>
-                <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
+                <Select
+                  value={groupId ?? UNASSIGNED}
+                  onValueChange={chooseGroup}
+                  disabled={!!meetingContext}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="No group" />
                   </SelectTrigger>
@@ -650,11 +682,13 @@ export function ClientFormDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {!form.branch_id
-                    ? "Choose a loan officer or branch to see their groups."
-                    : availableGroups.length === 0
-                      ? "No groups for this loan officer in this branch."
-                      : "Optional. A client can belong to one group at a time."}
+                  {meetingContext
+                    ? "Fixed to the group whose meeting you are recording."
+                    : !form.branch_id
+                      ? "Choose a loan officer or branch to see their groups."
+                      : availableGroups.length === 0
+                        ? "No groups for this loan officer in this branch."
+                        : "Optional. A client can belong to one group at a time."}
                 </p>
               </div>
               <div className="space-y-1.5">

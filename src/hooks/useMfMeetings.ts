@@ -113,6 +113,7 @@ export function useMfGroupMeetings(options?: {
     queryClient.invalidateQueries({ queryKey: ["mf-group-meetings"] });
     queryClient.invalidateQueries({ queryKey: ["mf-meeting-attendance"] });
     queryClient.invalidateQueries({ queryKey: ["mf-repayment-batches"] });
+    queryClient.invalidateQueries({ queryKey: ["mf-meeting-summary"] });
   };
 
   const openMeeting = useMutation({
@@ -240,4 +241,62 @@ export function useMfMeetingAttendance(meetingId: string | null) {
     error: query.error as Error | null,
     setAttendance,
   };
+}
+
+/**
+ * What this meeting produced: clients registered at it and the money collected
+ * through the batch(es) stamped with it. Read-only — every one of these rows is
+ * written by its own authoritative path (client registration, repayment RPC).
+ */
+export interface MfMeetingSummary {
+  onboarded: Array<{ id: string; client_number: string; full_name: string }>;
+  collectedTotal: number;
+  receiptCount: number;
+}
+
+export function useMfMeetingSummary(meetingId: string | null) {
+  const query = useQuery({
+    queryKey: ["mf-meeting-summary", meetingId],
+    enabled: !!meetingId,
+    queryFn: async (): Promise<MfMeetingSummary> => {
+      if (!meetingId) return { onboarded: [], collectedTotal: 0, receiptCount: 0 };
+
+      const { data: clients, error: clientsError } = await supabase
+        .from("mf_clients")
+        .select("id,client_number,full_name")
+        .eq("onboarded_meeting_id", meetingId)
+        .order("created_at", { ascending: true });
+      if (clientsError) throw clientsError;
+
+      const { data: batches, error: batchesError } = await supabase
+        .from("mf_repayment_batches")
+        .select("id")
+        .eq("meeting_id", meetingId);
+      if (batchesError) throw batchesError;
+
+      const batchIds = (batches ?? []).map((b) => b.id as string);
+      let collectedTotal = 0;
+      let receiptCount = 0;
+      if (batchIds.length > 0) {
+        const { data: receipts, error: receiptsError } = await supabase
+          .from("mf_repayments")
+          .select("amount,status")
+          .in("batch_id", batchIds);
+        if (receiptsError) throw receiptsError;
+        for (const r of receipts ?? []) {
+          if ((r as { status: string }).status === "reversed") continue;
+          collectedTotal += Number((r as { amount: number }).amount ?? 0);
+          receiptCount += 1;
+        }
+      }
+
+      return {
+        onboarded: (clients ?? []) as MfMeetingSummary["onboarded"],
+        collectedTotal,
+        receiptCount,
+      };
+    },
+  });
+
+  return { summary: query.data ?? null, isLoading: query.isLoading };
 }
