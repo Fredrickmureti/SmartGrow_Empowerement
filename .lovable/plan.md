@@ -191,21 +191,18 @@ the database, not silently reinterpreted; every schedule reconciles to the state
 contractual obligation with zero unexplained residual.
 
 ======================IMPLEMENTATION PROGRESS=====================
-I've paused here. Summary of where the loan pricing work stands:
 
-Done
+Verified as genuinely done (checked directly in the database, not from notes): the schedule engine prices "flat on principal" once on the loan amount, converts per-annum/per-month rates by repayment frequency, and now refuses an unrecognised rate basis instead of quietly pricing it; loan creation rejects amounts and terms outside the product version's bands; and the safeguards on grace installments, flat-on-principal, duplicate start dates and rate basis are all in place.
 
-The schedule engine now prices interest explicitly: "flat on principal" charges the rate once on the loan amount, per-annum/per-month rates are converted using the repayment frequency, and an unrecognised basis now stops the loan instead of quietly pricing it. Declining-balance with equal installments no longer produces an empty installment amount.
-Creating a loan from an application now refuses amounts or terms outside the product version's allowed bands.
-Database safeguards added: grace installments must be fewer than the minimum number of installments; "flat on principal" can only be used with the flat method; two versions of one product can't start on the same date; a loan can only carry a rate basis the engine understands.
-The product version screen: currency is fixed to Kenyan shillings, rate-basis choices are limited to those valid for the chosen interest method (with a plain explanation of each), and the form now blocks negative grace/penalty values, grace beyond the term, and percentage fees totalling 100% or more.
-Remaining
+Finished this session — the Publish New Version form is now dependency-aware:
 
-Hide the penalty basis until a penalty rate is entered, and explain the two fee-collection models inline on the form.
-Use the new "version in force today" rule on the application screen and product display (the hook now provides it, but the screens still need wiring).
-The 20 deterministic schedule tests, and re-running a full disburse → repay → reverse check against the database.
-Your KES 10,000 → 10,600 question is still open: the original loan and schedule rows were cleared before I could read them, so it must be reproduced against the corrected engine once the tests are in place.  (Do not ask me quations after you are done with remediations of the plan file create loan products that test all settings of the loan creation configurability so that we be sure each and every field and every drop down selectable option actually works each and every input in the loan product creation works)
+Rate basis only offers the choices valid for the chosen interest method, each with a plain explanation of what it charges (this also fixed a bug that would have crashed the form when the rate basis list opened).
+Penalty basis is hidden until you enter a penalty rate above zero, with a note that late charges are never part of the schedule at origination.
+The two fee models are now spelled out inline: deducted from disbursement (client receives 9,500, owes 10,000) versus added to the first installment (receives 10,000, owes 10,500).
+Grace installments explained; the form seeds from the version in force today rather than the newest row.
+The application and decision screens were already using the "version in force today" rule, so that item was complete.
 
+Still open (credits ran out mid-task): the deterministic schedule tests and the sweep of loan products exercising every field and dropdown option end-to-end. I had just collected the business, client and product identifiers needed to run them. The KES 10,000 → 10,600 question also remains open — the original loan and schedule rows were cleared before they could be read, so it must be reproduced against the corrected engine once those tests run.
 
 
 
