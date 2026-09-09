@@ -259,37 +259,54 @@ export function ApplicationFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Branch</Label>
-            <Select value={form.branch_id} onValueChange={(v) => set("branch_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={branchName || (form.client_id ? "—" : "")}
+              placeholder="Select a client first"
+              readOnly
+              disabled
+            />
+            <p className="text-xs text-muted-foreground">
+              {form.client_id
+                ? "Taken from the client's branch."
+                : "Select a client first."}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Loan officer</Label>
             <Select
               value={form.loan_officer_id}
               onValueChange={(v) => set("loan_officer_id", v)}
+              disabled={!form.branch_id}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue
+                  placeholder={form.client_id ? "Unassigned" : "Select a client first"}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Unassigned</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.email || "Unnamed member"}
+                {branchOfficers.map((o) => (
+                  <SelectItem key={o.user_id} value={o.user_id}>
+                    {o.name}
                   </SelectItem>
                 ))}
+                {form.loan_officer_id !== NONE &&
+                !branchOfficers.some((o) => o.user_id === form.loan_officer_id) ? (
+                  <SelectItem value={form.loan_officer_id}>
+                    Currently assigned officer
+                  </SelectItem>
+                ) : null}
               </SelectContent>
             </Select>
+            {form.branch_id && branchOfficers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No staff are assigned to this branch.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Defaults to the client's own officer.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Loan product</Label>
