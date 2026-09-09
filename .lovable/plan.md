@@ -1,136 +1,74 @@
-# Client registration — branch, loan officer and group
+# Loan application form — derive branch, officer and group from the client
 
-Scope: only the relationship block (Branch / Loan officer / Group) of the client
-registration form, plus the backend rules behind it. No other KYC field changes.
+## Status of the previous wave (verified, not taken on trust)
 
-## A. What the system actually says today (verified)
+Checked directly against the live database and the code:
 
-Evidence from the live database and the code, not assumptions.
+- `mf_register_client(p_business_id, p_client, p_group_id)` exists.
+- `mf_group_members` carries both guards: `mf_group_members_limit` (one active
+  group per client) and `mf_group_members_consistency`.
+- `useBranchOfficers` exists and the client registration dialog uses it.
 
-- **Client → branch**: `mf_clients.branch_id` is required, one branch per client,
-  foreign key to `branches`.
-- **Client → officer**: `mf_clients.loan_officer_id` is optional and has **no
-  foreign key** — any UUID is accepted, including a person with no branch.
-- **Client → group**: through `mf_group_members`. A trigger
-  (`_mf_group_members_limit`) currently allows **two** active memberships per
-  client; a partial unique index prevents joining the same group twice while
-  active. Membership has `joined_on` / `exited_on` / `is_active`, so history is
-  supported. Group membership is **optional** — nothing requires it.
-- **Group → branch**: exactly one, required (`mf_groups.branch_id`).
-- **Group → officer**: at most one, optional (`mf_groups.loan_officer_id`, no
-  foreign key).
-- **Officer → branch**: many-to-many via `user_branch_assignments`
-  (user, business, branch, primary flag). Live data: 6 assignments, 2 branches,
-  each person currently on one branch.
-- **Security**: row-level rules on all three tables call `mf_can_scoped`, which
-  checks business + branch permission and own-portfolio ownership. Gaps found:
-  `mf_group_members.business_id` is supplied by the caller and never checked
-  against the group, and nothing checks that the client, the group and the
-  officer belong to the same business/branch.
-- Live data is currently empty (0 clients, 0 groups), so there are no legacy
-  edge cases to migrate.
+The client KYC wave is complete. Nothing to redo there.
 
-**Answer to the "one group" question:** Case D — the workflow expects one, the
-database permits two. You confirmed one active group is correct, so this is
-fixed in the database, not hidden in the form.
+## What the loan application form does today (verified)
 
-## B. Current registration flow and confirmed defects
+In the new-application dialog:
 
-The form already has a group picker, so the "second trip to Groups" is not the
-whole story. Real defects:
+- Client, branch, loan officer and group are four independent pickers.
+- Branch lists every branch; loan officer lists every organisation member
+  (not people actually assigned to a branch); group lists every group in the
+  institution regardless of the client.
+- Picking a client already copies the client's branch and officer into the
+  form, but they remain free-text choices afterwards and the group is untouched.
 
-1. Creating a client and adding the group memberships are **separate writes**.
-   If the membership write fails, a client exists with no group and no message
-   explaining it.
-2. The **branch list ignores the user's branch scope** (it lists every branch,
-   while the save check rejects out-of-scope ones).
-3. The **officer list is every organisation member**, unfiltered by branch, and
-   the officer can contradict the branch.
-4. The **group list silently falls back to every group in the branch** when the
-   chosen officer has none — producing exactly the contradictions to avoid.
-5. **No backend guard** ties client branch, group branch and officer together;
-   the rules exist only in the form.
-6. The two-group allowance contradicts the agreed one-group rule.
+## What the backend already enforces (verified)
 
-Not defects: group being optional, editing group membership from the Groups
-screen, transferring branch/officer later. All preserved.
+The application guard refuses, with plain sentences:
 
-## C. What will change
+- a client from another institution;
+- an application booked outside the client's own branch (non-admins);
+- a group from another institution;
+- "That client is not a member of the selected group".
 
-### Database (three small, separate migrations)
+So the integrity rules are already in the database. This wave is a
+presentation fix: stop asking the operator to reconstruct what the system
+knows, and stop offering combinations the database will refuse.
 
-1. Replace the membership limit trigger: **one active group per client**, with
-   the message "This client already belongs to an active group. Exit that group
-   first."
-2. Add a membership consistency guard: the membership's business must equal the
-   group's business, the client's business must equal the group's business, and
-   the client's branch must equal the group's branch — each with its own plain
-   sentence.
-3. Add one authoritative operation `mf_register_client(...)` that creates the
-   client and, when a group is given, the membership **in one transaction**,
-   after checking the officer is assigned to the chosen branch. It reuses the
-   existing permission function; it does not re-implement it.
+## Changes (frontend only)
 
-### Form (relationship block only)
+Relationship block of the loan application dialog:
 
-- Order becomes **Loan officer → Branch → Group**.
-- Officer list = staff with a branch assignment in this institution.
-- Choosing an officer with one branch fills the branch in automatically and
-  shows it as derived; with several branches, only those branches are offered.
-- Group list = groups of that officer in that branch, open groups only. No
-  silent fallback to unrelated groups.
-- Selecting a group when officer/branch are blank fills both in from the group.
-- Group stays optional; a single choice, not a multi-select.
-- Empty states in words: "This loan officer is not assigned to a branch.",
-  "No groups for this loan officer in this branch.", "Select a loan officer to
-  see their groups."
-- Saving calls the new single operation; refusals are shown through the existing
-  lending message helper, never raw database text.
+1. **Client first.** Choosing a client fills in, and shows as derived:
+   - Branch — the client's branch, shown read-only with the note
+     "Taken from the client's branch."
+   - Loan officer — the client's own officer, chosen from staff actually
+     assigned to that branch (`useBranchOfficers`), not from all members.
+   - Group — the client's single active group, filled in automatically and
+     shown as derived; "This client is not in a group." when there is none.
+2. **No client chosen yet**: branch, officer and group stay disabled with
+   "Select a client first."
+3. **Group is no longer a free list.** Since the backend requires the client to
+   be a member, the only valid value is the client's active group (or none).
+4. Editing an existing application keeps its stored values and re-derives only
+   when the client is changed.
+5. Refusals continue to surface through the existing lending error helper — no
+   new error handling.
 
-## D. Verification I will run and report
+## Technical notes
 
-Backend, by calling the operation directly with bad combinations (bypassing the
-form): group from another branch, group from another business, officer not
-assigned to the branch, client already in an active group, membership row with a
-mistyped business. Each must be refused with its own sentence.
+- New small hook `useMfClientActiveGroup(clientId)` reading `mf_group_members`
+  joined to `mf_groups` for the active membership; it reuses the existing
+  Supabase client and query conventions, and adds no write path.
+- Officer options come from the existing `useBranchOfficers`, filtered to the
+  client's branch.
+- No migration. No change to `_mf_application_guard` — it already covers every
+  invalid combination this form could otherwise produce.
 
-Front end, in the browser: officer with one branch, officer with several, officer
-with no branch, officer with no groups, group-first selection, registering with
-no group, and a reload after registering to confirm the membership stuck.
+## Verification
 
-I will report actual observed results, including anything that fails.
-
-
-========================================IMPLEMENTATION STATUS=========================
-
-COMPLETE (2026-09-09).
-
-Backend, re-verified live against the database (not from notes):
-- `mf_group_members` carries both triggers: `mf_group_members_limit` (one active
-  group per client, message "This client already belongs to an active group.
-  Exit that group first.") and `mf_group_members_consistency`.
-- `mf_register_client(p_business_id, p_client, p_group_id)` exists and, in one
-  transaction, refuses: missing branch, officer not assigned to the branch,
-  group from another institution, group from another branch, closed group,
-  group managed by a different officer — each with its own plain sentence —
-  before inserting the client and the membership.
-
-App (client registration dialog, relationship block only):
-- Officer list now comes from `useBranchOfficers` (real branch assignments),
-  further narrowed to branches the current user may operate in.
-- One-branch officer fills the branch in automatically ("Taken from this loan
-  officer's branch."); multi-branch officers offer only their branches.
-- Group list = open groups of that officer in that branch, no fallback.
-- Selecting a group first fills in its branch and officer.
-- Group optional, single choice; the old two-group toggle and multi-group state
-  are removed.
-- Save goes through `mf_register_client` with the group; refusals surface via
-  `lendingErrorMessage`.
-
-Verification actually run: typecheck clean, build OK.
-
-Not run: signed-in browser walkthrough and live RPC refusal tests. The project
-uses an external Supabase, so no test session can be minted in this
-environment, and the institution currently has 0 clients and 0 groups, so the
-matrix would require creating production rows. Worth walking through in the
-real app once a group exists.
+- Typecheck and build.
+- In the app: pick a client with a group (branch, officer and group all fill
+  in), a client with no group (group shows the empty sentence), change the
+  client (all three re-derive), and save — confirming the application stores
+  the derived group. Results reported as observed, including failures.
