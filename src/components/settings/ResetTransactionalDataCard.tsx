@@ -208,6 +208,19 @@ export function ResetTransactionalDataCard() {
                 </Label>
               </div>
 
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <Checkbox
+                  id="include-products"
+                  checked={includeProducts}
+                  onCheckedChange={(v) => setIncludeProducts(v === true)}
+                />
+                <Label htmlFor="include-products" className="text-sm font-normal leading-snug">
+                  Also remove loan products ({optionalProducts} products,{" "}
+                  {optionalProductVersions} published versions). Leave unchecked to keep the
+                  product catalogue for the next test cycle.
+                </Label>
+              </div>
+
               <Alert>
                 <AlertDescription>
                   <p className="mb-1 text-sm font-medium">Preserved</p>
