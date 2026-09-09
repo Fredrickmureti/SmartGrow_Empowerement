@@ -44,7 +44,11 @@ export function DecisionDialog({
   onApprove,
   onReject,
 }: Props) {
-  const { currentVersion } = useMfLoanProductVersions(application?.product_id ?? null);
+  const { versions, currentVersion } = useMfLoanProductVersions(application?.product_id ?? null);
+  // The application was priced on the version pinned at capture time — the
+  // product may have been repriced since, and that must not move the band.
+  const pricingVersion =
+    versions.find((v) => v.id === application?.product_version_id) ?? currentVersion;
   const [saving, setSaving] = useState(false);
   const [amount, setAmount] = useState("");
   const [term, setTerm] = useState("");
@@ -65,9 +69,16 @@ export function DecisionDialog({
 
   const numericAmount = Number(amount);
   const numericTerm = Number(term);
+  const inBand =
+    !pricingVersion ||
+    (numericAmount >= pricingVersion.min_amount &&
+      numericAmount <= pricingVersion.max_amount &&
+      numericTerm >= pricingVersion.min_term_installments &&
+      numericTerm <= pricingVersion.max_term_installments);
   const approveValid =
     Number.isFinite(numericAmount) && numericAmount > 0 &&
-    Number.isFinite(numericTerm) && numericTerm > 0;
+    Number.isInteger(numericTerm) && numericTerm > 0 && inBand;
+
 
   const submit = async () => {
     if (!application) return;
