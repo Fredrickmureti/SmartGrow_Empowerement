@@ -73,8 +73,11 @@ export function ClientsPage() {
   const [branchId, setBranchId] = useState<string>("all");
   const [status, setStatus] = useState<MfClientStatus | "all">("all");
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<MfClient | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Clicking a client opens the read-only detail sheet. Editing is a separate,
+  // deliberate act from inside that sheet — never the first click.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [feeClient, setFeeClient] = useState<MfClient | null>(null);
 
   const { clients, isLoading, error, createClient, updateClient } = useMfClients({
@@ -98,14 +101,17 @@ export function ClientsPage() {
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? "—";
 
-  const openCreate = () => {
-    setEditing(null);
-    setDialogOpen(true);
-  };
+  // The sheet reads from the live list, so a saved edit is reflected the moment
+  // the query refreshes.
+  const selected = useMemo(
+    () => clients.find((c) => c.id === selectedId) ?? null,
+    [clients, selectedId],
+  );
 
-  const openEdit = (client: MfClient) => {
-    setEditing(client);
-    setDialogOpen(true);
+  const openCreate = () => {
+    setSelectedId(null);
+    setEditing(false);
+    setCreating(true);
   };
 
   return (

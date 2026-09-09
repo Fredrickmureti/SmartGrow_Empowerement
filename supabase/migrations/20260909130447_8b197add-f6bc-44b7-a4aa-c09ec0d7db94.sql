@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.mf_clients_guard_and_audit() FROM PUBLIC, anon, authenticated;
