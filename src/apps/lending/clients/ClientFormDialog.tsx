@@ -660,7 +660,11 @@ export function ClientFormDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Group</Label>
-                <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
+                <Select
+                  value={groupId ?? UNASSIGNED}
+                  onValueChange={chooseGroup}
+                  disabled={!!meetingContext}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="No group" />
                   </SelectTrigger>
@@ -674,11 +678,13 @@ export function ClientFormDialog({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  {!form.branch_id
-                    ? "Choose a loan officer or branch to see their groups."
-                    : availableGroups.length === 0
-                      ? "No groups for this loan officer in this branch."
-                      : "Optional. A client can belong to one group at a time."}
+                  {meetingContext
+                    ? "Fixed to the group whose meeting you are recording."
+                    : !form.branch_id
+                      ? "Choose a loan officer or branch to see their groups."
+                      : availableGroups.length === 0
+                        ? "No groups for this loan officer in this branch."
+                        : "Optional. A client can belong to one group at a time."}
                 </p>
               </div>
               <div className="space-y-1.5">
