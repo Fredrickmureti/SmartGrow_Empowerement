@@ -204,8 +204,6 @@ export function GroupSheetDialog({
             value={collectedOn}
             onChange={setCollectedOn}
           />
-          <div className="hidden">
-          </div>
           <div className="space-y-1.5">
             <Label>Method</Label>
             <Select value={method} onValueChange={setMethod}>
