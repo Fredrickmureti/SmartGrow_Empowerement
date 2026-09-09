@@ -45,6 +45,7 @@ import {
 } from "@/hooks/useMfGroups";
 import { GroupFormDialog } from "./GroupFormDialog";
 import { GroupMembersDialog } from "./GroupMembersDialog";
+import { GroupFeeCollectionDialog } from "./GroupFeeCollectionDialog";
 
 const STATUS_TONE: Record<MfGroupStatus, "neutral" | "success" | "warning" | "danger"> = {
   forming: "warning",
