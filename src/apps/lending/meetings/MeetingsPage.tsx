@@ -10,7 +10,7 @@
  * date, answer "what was scheduled, completed, missed today".
  */
 import { useMemo, useState } from "react";
-import { CalendarDays, PlayCircle, Wallet } from "lucide-react";
+import { CalendarDays, PlayCircle, Wallet, ClipboardPen } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   PageHeader,
@@ -53,6 +53,7 @@ import {
 import { useMfRepayments, useMfRepaymentBatches } from "@/hooks/useMfRepayments";
 import { meetingRowsForDate } from "@/lib/lending/meetingSchedule";
 import { MeetingWorkspaceDialog } from "./MeetingWorkspaceDialog";
+import { RecordMeetingDialog } from "./RecordMeetingDialog";
 import { GroupSheetDialog } from "../repayments/GroupSheetDialog";
 
 const STATUS_TONE: Record<MfMeetingStatus, "neutral" | "success" | "warning" | "danger"> = {
@@ -96,6 +97,7 @@ export function MeetingsPage() {
   const [sheetGroupId, setSheetGroupId] = useState<string | null>(null);
   const [sheetMeetingId, setSheetMeetingId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
 
   const weekday = isoWeekday(date);
 
@@ -188,6 +190,12 @@ export function MeetingsPage() {
                 ))}
               </SelectContent>
             </Select>
+            {canManage && (
+              <Button variant="outline" onClick={() => setRecordOpen(true)}>
+                <ClipboardPen className="mr-1.5 h-4 w-4" />
+                Record a meeting
+              </Button>
+            )}
           </FilterBar>
 
           {error ? (
@@ -198,7 +206,7 @@ export function MeetingsPage() {
             <EmptyState
               icon={CalendarDays}
               title="No meetings on this date"
-              description="No active group has this weekday as its regular meeting day, and no meeting was opened for this date."
+              description="No active group has this weekday as its regular meeting day, and no meeting was opened for this date. Use “Record a meeting” to write up a meeting held on another day."
             />
           ) : (
             <Table>
@@ -274,6 +282,21 @@ export function MeetingsPage() {
           }}
         />
       )}
+
+      <RecordMeetingDialog
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        groups={groups}
+        defaultDate={date}
+        isSaving={openMeeting.isPending}
+        onRecord={async (input) => {
+          await openMeeting.mutateAsync(input);
+          setDate(input.meetingOn);
+          setActiveGroupId(input.groupId);
+          setRecordOpen(false);
+          setWorkspaceOpen(true);
+        }}
+      />
 
       <GroupSheetDialog
         open={sheetOpen}

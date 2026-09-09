@@ -20,6 +20,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { meetingTimesError } from "@/lib/lending/meetingSchedule";
+import {
   Table,
   TableBody,
   TableCell,
@@ -79,7 +87,7 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
-  const { getUserName } = useOrgMembers();
+  const { getUserName, members } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -87,6 +95,10 @@ export function MeetingWorkspaceDialog({
     hhmm(meeting.started_at_time ?? meeting.scheduled_time),
   );
   const [endedAt, setEndedAt] = useState(hhmm(meeting.ended_at_time));
+  const [heldBy, setHeldBy] = useState<string>(
+    meeting.held_by ?? meeting.loan_officer_id ?? "",
+  );
+  const timesError = meetingTimesError(startedAt, endedAt);
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -239,7 +251,32 @@ export function MeetingWorkspaceDialog({
               Required to complete the meeting. Type the time it actually ended.
             </p>
           </div>
+          {isOpenForWork && canManage && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Held by</Label>
+              <Select value={heldBy} onValueChange={setHeldBy}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Who held this meeting" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>
+                      {m.full_name || m.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The loan officer who actually conducted it. Your name is kept separately
+                as the person who entered the record.
+              </p>
+            </div>
+          )}
+          {isOpenForWork && canManage && timesError && (
+            <p className="text-xs text-destructive sm:col-span-2">{timesError}</p>
+          )}
         </div>
+
 
         <div className="space-y-1.5">
           <Label>Meeting notes and pending items</Label>
@@ -315,7 +352,7 @@ export function MeetingWorkspaceDialog({
             </Button>
             {isOpenForWork && canManage && (
               <Button
-                disabled={completeMeeting.isPending || !endedAt}
+                disabled={completeMeeting.isPending || !!timesError}
                 onClick={() =>
                   completeMeeting.mutate(
                     {
@@ -323,6 +360,7 @@ export function MeetingWorkspaceDialog({
                       notes: notes || null,
                       startedAtTime: startedAt || null,
                       endedAtTime: endedAt || null,
+                      heldBy: heldBy || null,
                     },
                     { onSuccess: () => onOpenChange(false) },
                   )

@@ -75,17 +75,28 @@ groups, loan applications, KYC or the client detail work. No existing production
 modified or deleted.
 
 
-===================PROGRESS STATUS============
+===================PROGRESS STATUS — COMPLETE============
 
-I've stopped here — the work is partly in place.
+All of Wave M1 is in place and verified.
 
-Done and live:
+Database (verified against the live functions):
+- `mf_group_meetings` carries `started_at_time`, `ended_at_time`, `held_by`, `recorded_by`.
+- `mf_open_group_meeting(p_group_id, p_meeting_on, p_started_at_time, p_held_by)` — refuses
+  future dates and closed groups, refuses naming another officer when the user is limited to
+  their own portfolio, keeps the existing branch/business scope check.
+- `mf_complete_group_meeting(p_meeting_id, p_notes, p_started_at_time, p_ended_at_time, p_held_by)`
+  — requires both times, refuses an end at or before the start, refuses a second completion,
+  stamps `recorded_by = auth.uid()`, derives the next meeting date.
 
-The meeting record now stores the real start and end times, who actually held the meeting, and who entered it.
-"Complete meeting" now requires an end time, refuses an end time that isn't after the start, and still refuses a second completion. All existing branch and institution safety rules are intact.
-The meeting screen now shows those times and "Held by … · recorded by …", and gives the officer (or an admin recording on their behalf) two time boxes to type the actual start and end — so the closing time no longer goes into free-text notes.
-Still remaining:
+Screen:
+- "Record a meeting" button on the Meetings page opens a dialog: group, date the meeting was
+  held (no future dates), start time, and who held it. Used for a meeting on a day other than
+  the group's regular weekday or one written up afterwards. It opens the meeting and lands
+  straight in the meeting workspace on that date.
+- Meeting workspace: start/end time boxes, a "Held by" officer picker, a plain message when the
+  times are missing or out of order, and "Held by … · recorded by …" on the record.
 
-The "Record a meeting" button on the Meetings page. This is the important one for you today: the group Smart ladies meets on Tuesdays, so on any other date the group vanishes from the list and there's no way to start or write up a meeting. Until that button exists, set the date box on the Meetings page to the Tuesday the meeting was held — the group appears there and you can record it fully, including the real start and end times.
-The option for an admin to pick which officer held the meeting (the database already accepts it; the picker isn't on screen yet).
-The tests listed in the plan, and a typecheck of the last edits.
+Tests: `src/test/lending/meetingSchedule.test.ts` — 13 passing, covering the day list
+(off-schedule dates, officer scoping, ordering) and the start/end time rules. Typecheck clean.
+
+No production client, group, loan or accounting data was changed.
