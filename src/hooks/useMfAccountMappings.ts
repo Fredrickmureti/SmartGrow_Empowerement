@@ -109,7 +109,7 @@ export function useMfAccountMappings(branchId: string | null = null) {
       toast.success("Mapping saved");
     },
     onError: (e: unknown) => {
-      toast.error(e instanceof Error ? e.message : "Could not save the mapping");
+      toast.error(lendingErrorMessage(e, "Could not save the mapping"));
     },
   });
 

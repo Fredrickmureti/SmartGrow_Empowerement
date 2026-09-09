@@ -114,7 +114,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
       toast.success("Client registered");
     },
     onError: (e: unknown) => {
-      toast.error(e instanceof Error ? e.message : "Could not register the client");
+      toast.error(lendingErrorMessage(e, "Could not register the client"));
     },
   });
 
@@ -128,7 +128,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
       toast.success("Client updated");
     },
     onError: (e: unknown) => {
-      toast.error(e instanceof Error ? e.message : "Could not update the client");
+      toast.error(lendingErrorMessage(e, "Could not update the client"));
     },
   });
 

@@ -170,7 +170,7 @@ export function useMfFeeCollections(groupId: string | null) {
       invalidate();
       toast.success("Group fee collection recorded");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   const reverse = useMutation({
@@ -186,7 +186,7 @@ export function useMfFeeCollections(groupId: string | null) {
       invalidate();
       toast.success("Collection reversed");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   return {

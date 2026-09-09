@@ -208,7 +208,7 @@ export function useMfCollectionActivities(loanId?: string) {
       invalidate();
       toast.success("Collection activity recorded");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 
   const cancelActivity = useMutation({
@@ -223,7 +223,7 @@ export function useMfCollectionActivities(loanId?: string) {
       invalidate();
       toast.success("Activity cancelled");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 
   return {
@@ -265,6 +265,6 @@ export function useMfAccruePenalties() {
           : "No new penalties to raise",
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 }
