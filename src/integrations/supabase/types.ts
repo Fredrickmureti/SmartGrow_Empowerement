@@ -26514,6 +26514,10 @@ export type Database = {
       }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
+      mf_postpone_group_meeting: {
+        Args: { p_meeting_id: string; p_new_date?: string; p_reason?: string }
+        Returns: Json
+      }
       mf_raise_client_admission_fee: {
         Args: { p_charged_on?: string; p_client_id: string; p_notes?: string }
         Returns: string
