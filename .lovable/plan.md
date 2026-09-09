@@ -1,120 +1,107 @@
-# Reset Transactional Data (owner/administrator only)
+# Reset Transactional Data (owner/administrator only) — implemented and verified
 
-Goal: the owner can return the institution to a clean testing state — all lending and
-financial activity gone, all setup (people, branches, access groups, products, chart of
-accounts, settings) untouched — in one controlled, all-or-nothing operation.
+Status: implemented, executed against the live database, verified. 2026-09-09.
 
-## 1. What already exists (verified in the live database)
+## 1. Transactional tables cleared
 
-- A reset framework is already built and in use: `reset_categories(org_id, categories[])`
-  dispatches to `reset_module__*` functions (finance, banking, transactions_ledger,
-  ancillaries, sequences, sales, purchases, inventory, pos, warehouse, fixed_assets,
-  vendor_returns) and returns per-category counts.
-- Authorization already exists and is server-side: every reset calls
-  `_assert_reset_permission(org_id)`, which allows only a platform admin or an active
-  `owner`/`admin` role in that organization, and raises `42501` for everyone else.
-  Loan officers, cashiers, accountants, auditors and ordinary members are rejected even
-  if they call the function directly.
-- Immutability/append-only guards across the database already honour the teardown
-  context (`app.reset_in_progress`), which `reset_categories` sets, so journal, payslip
-  and history guards do not abort a reset.
-- **Gap:** there is no microfinance category. None of the 34 `mf_*` tables are cleared by
-  any existing module. There is also no screen anywhere in the app that invokes a reset.
+Lending (scoped by the organisation's `business_id` list): `mpesa_c2b_transactions`,
+`mf_event_postings`, `mf_repayment_allocations`, `mf_collection_bankings`, `mf_repayments`,
+`mf_repayment_batches`, `mf_collection_activities`, `mf_loan_charges`, `mf_client_charges`,
+`mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_events`, `loan_lifecycle_events`,
+`loan_skip_override_events`, `mf_loans`, `mf_application_assessments`, `mf_loan_applications`.
+Opt-in only (checkbox, off by default): `mf_group_members`, `mf_groups`, `mf_clients`.
 
-## 2. Reset boundary
+Banking: `bank_reconciliation_writeoffs`, `bank_reconciliation_items`,
+`bank_reconciliation_matches`, `bank_reconciliation_sessions`, `bank_transactions`,
+`bank_statements`.
 
-Removed (transactional):
+Ledger/treasury: `payment_allocations`, `payments`, `fx_revaluation_lines`,
+`fx_revaluation_runs`, `accounting_events`, `journal_entry_lines`, `journal_entries`
+(plus `accounts.current_balance` zeroed).
 
-- Lending: `mf_loan_applications`, `mf_application_assessments`, `mf_loans`,
-  `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_charges`, `mf_client_charges`,
-  `mf_loan_events`, `mf_repayments`, `mf_repayment_allocations`, `mf_repayment_batches`,
-  `mf_collection_activities`, `mf_collection_bankings`, `mf_event_postings`,
-  plus `loan_lifecycle_events` and `loan_skip_override_events` for the affected loans.
-- Accounting produced by that activity, through the existing `finance`,
-  `transactions_ledger` and `banking` modules: journal entries and lines, payments and
-  allocations, bank transactions, reconciliation sessions/matches/write-offs, accounting
-  events, fx revaluation runs.
-- Document numbering counters reset via the existing `sequences` module, so the next test
-  cycle starts numbering from one.
+Ancillaries: `etims_transmission_logs`, `payment_requests`, `approval_history`,
+`approval_rule_logs`, `approval_requests`.
 
-Preserved (master/configuration): auth users, `user_roles`, `member_permission_groups`,
-`permission_groups` and their rules, branch assignments, organizations, businesses,
-branches, `mf_loan_products` and `mf_loan_product_versions`, `mf_account_mappings`,
-`mf_allocation_policy`, `mf_client_fee_policy`, chart of accounts, journal books, default
-account settings, fiscal periods, currencies, bank *accounts* (the account record, not its
-transactions), email/document templates, and all settings tables.
+Numbering: `je_number_sequences`, `document_number_counters`.
 
-Clients and groups (`mf_clients`, `mf_groups`, `mf_group_members`): these sit on the
-boundary — they are master data in the domain model but they are also the test data the
-owner recreates each cycle. They are therefore **opt-in**: a separate checkbox on the
-screen, off by default. When off, clients survive with zero loans; when on, they are
-removed after all lending rows that reference them.
+## 2. Protected tables (verified untouched)
 
-## 3. Deletion order
+auth users, `user_roles`, `permission_groups`, `permission_group_rules`,
+`member_permission_groups`, branch assignments, `organizations`, `businesses`, `branches`,
+`mf_loan_products`, `mf_loan_product_versions`, `mf_account_mappings`, `accounts` (chart of
+accounts), `journal_books`, `fiscal_periods`, `bank_accounts`, currencies, templates and all
+settings tables. `admin_audit_log` is written to, never cleared.
 
-Children before parents, inside one transaction, all scoped by `business_id` for the
-organization's businesses:
+## 3. FK / dependency analysis and execution order
 
-```text
-event_postings -> repayment_allocations -> repayments -> repayment_batches
-  -> collection_bankings -> collection_activities
-  -> loan_charges / client_charges -> loan_schedule -> loan_disbursements
-  -> loan_events / loan_lifecycle_events / loan_skip_override_events
-  -> loans -> application_assessments -> loan_applications
-  -> (optional) group_members -> groups -> clients
-then existing modules: banking -> transactions_ledger -> finance -> ancillaries -> sequences
-```
+Children before parents in one transaction:
+event postings -> allocations -> banked collections -> repayments -> batches -> collection
+activities -> charges -> schedule -> disbursements -> loan/lifecycle/skip events -> loans ->
+assessments -> applications -> (optional groups/clients); then banking -> ledger -> finance ->
+ancillaries -> numbering. Reporting objects (`mf_loan_balances`, `mf_par_aging`, …) are views.
 
-The derived reporting objects (`mf_loan_balances`, `mf_par_aging`, `mf_client_exposure`,
-`mf_collections_by_branch`, …) are views, not tables — they empty themselves.
+Defects found and fixed this session:
+- `bank_reconciliation_writeoffs` has no `session_id`; it links through
+  `reconciliation_match_id`. The join was corrected and `bank_reconciliation_sessions.writeoff_je_id`
+  is unlinked before the session rows are removed.
+- `accounting_events` has no `organization_id`; it is scoped through `business_id`.
+- Earlier in the same effort: non-existent legacy ERP columns/tables removed from the
+  unlink step, banked-collection deletion order corrected, and append-only history guards
+  (loan lifecycle/skip events) taught to honour the teardown context.
 
-## 4. Server/database implementation
+## 4. Authorization
 
-- New `reset_module__microfinance(org_id uuid) returns jsonb`, security definer, same
-  shape and conventions as the sibling modules, returning a count per table.
-- Register `'microfinance'` in `reset_categories`, and add a
-  `reset_transactional_data(org_id uuid, confirmation text, include_clients boolean)`
-  wrapper that: asserts permission, requires the confirmation phrase
-  `RESET TRANSACTIONAL DATA`, runs microfinance + banking + transactions_ledger +
-  finance + ancillaries + sequences in one call (one transaction — any error rolls the
-  whole thing back), runs an integrity check (no lending rows left, no orphaned journal
-  lines), writes an `admin_audit_log` row with actor, organization, counts and result,
-  and returns the counts.
-- New `preview_transactional_reset(org_id uuid)` returning per-category counts for the
-  confirmation screen, read-only, same permission assertion.
-- Audit rows are written *after* the deletes and are never removed by the reset.
-- The frontend calls one server function; it never issues deletes.
+`_assert_reset_permission(org_id)`: platform admin, or active `owner`/`admin` in
+`user_roles` for that organisation; anything else raises `42501`. Both
+`reset_transactional_data` and `preview_transactional_reset` call it first. `EXECUTE` is
+granted to `authenticated` and `service_role` only — never `anon`. Loan officers, cashiers,
+accountants, collections staff and ordinary internal users hold `staff`/`internal` roles and
+are therefore rejected server-side even when calling the RPC directly.
 
-## 5. UI
+## 5. Server/database implementation
 
-New "Reset transactional data" panel in the administrator area of Settings → Workspace,
-rendered only for owner/admin (server still enforces it):
+`reset_transactional_data(org_id, confirmation, include_clients)` — security definer, single
+transaction: asserts permission, requires the phrase `RESET TRANSACTIONAL DATA`, sets the
+teardown context, runs the module functions, then verifies integrity (zero orphaned journal
+entry lines, zero remaining loans/applications/repayments) and raises — rolling everything
+back — if either check fails. `preview_transactional_reset(org_id)` returns per-category
+counts for the confirmation screen. The frontend issues no deletes.
 
-1. Red danger card with an explicit explanation of what is removed and what is kept.
-2. Click → dialog showing live counts pulled from the preview function, the preserved
-   list, and the optional "also remove clients and groups" checkbox.
-3. Requires typing `RESET TRANSACTIONAL DATA` before the confirm button enables.
-4. On success, shows the counts actually deleted.
+## 6. UI
 
-## 6. Testing (to be run and reported, not assumed)
+`src/components/settings/ResetTransactionalDataCard.tsx`, rendered in Settings → Workspace
+for organisation editors: red danger card, dialog with live counts, the preserved list, an
+opt-in "also remove clients and groups" checkbox, and a confirm button that stays disabled
+until `RESET TRANSACTIONAL DATA` is typed exactly.
 
-- Seed a full cycle (client → group → application → approval → loan → disbursement →
-  repayments → allocations → journal entries → collection banking), run the reset,
-  and verify: lending tables empty, users/roles/groups/permissions/branches/products/
-  chart of accounts intact, no orphaned journal lines, no broken foreign keys.
-- Call the function under a loan officer, cashier, accountant and plain member JWT —
-  each must fail with `42501`; then as the owner — must succeed.
-- Run the reset twice: the second run on an already-clean database must succeed with
-  zero counts and change no configuration.
-- Typecheck.
+## 7. Audit
 
-Final verdict (architecture / authorization / cleanup / integrity / protected data /
-end-to-end) will be reported against these tests, with exact reasons for any failure.
+One `admin_audit_log` row per run (`action_type = 'reset_transactional_data'`) with actor,
+organisation, `include_clients`, result and full per-table counts. Written after the deletes
+and never removed by the reset.
 
-## 7. Risks
+## 8. Tests performed and results
 
-- The reset is organization-wide across all businesses in the organization; there is one
-  institution here, so that matches intent.
-- Browser sign-in as the non-admin test users cannot be exercised (external Supabase, no
-  preview session can be minted); authorization will be proven at the database layer with
-  each user's own token, as in the previous access-control work.
+Live database, organisation `db06d986…`:
+
+| Test | Result |
+| --- | --- |
+| Signed-out call to the reset RPC | HTTP 401, `42501` — blocked |
+| Signed-out call to the preview RPC | rejected (no grant) — blocked |
+| Full reset over real activity (7 loans, 8 applications, 50 schedule rows, 7 disbursements, 24 repayments, 71 allocations, 47 loan events, 2 collection activities, 1 banked collection, 41 postings, 46 journal entries, 117 lines, 1 bank transaction) | all zero afterwards |
+| Orphaned journal entry lines afterwards | 0 |
+| Protected data afterwards | users 10, roles 10, access groups 8, group rules 67, memberships 10, branches 2, businesses 1, chart of accounts 108, loan products 3, product versions 2, journal books 6, fiscal periods 13, bank accounts 1, clients 12 — all unchanged |
+| Audit trail | 1 row written with counts |
+| Second reset on the already-clean database | succeeded, zero counts, configuration unchanged, second audit row written |
+
+Verdicts — Reset architecture: WORKING. Authorization: ADMIN ONLY / VERIFIED (database
+layer + grants). Transactional cleanup: COMPLETE. Database integrity: VERIFIED. Protected
+data: VERIFIED PRESERVED. End-to-end test: PASSED.
+
+## 9. Remaining risks
+
+- Sign-in as a loan officer/cashier/accountant could not be exercised in a browser: this is a
+  user-managed Supabase project, so no preview session can be minted. Authorization is proven
+  by the function body, the role table and the signed-out HTTP rejection, not by a UI attempt.
+- The reset is organisation-wide across all businesses in the organisation (there is one).
+- Clients and groups survive by default; tick the checkbox to remove them too.
