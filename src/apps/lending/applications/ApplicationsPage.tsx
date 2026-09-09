@@ -171,6 +171,7 @@ export function ApplicationsPage() {
                 <TableRow>
                   <TableHead>Reference</TableHead>
                   <TableHead>Client</TableHead>
+                  <TableHead>Priced on</TableHead>
                   <TableHead className="text-right">Requested</TableHead>
                   <TableHead className="text-right">Approved</TableHead>
                   <TableHead>Status</TableHead>
