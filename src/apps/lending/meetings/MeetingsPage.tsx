@@ -10,7 +10,7 @@
  * date, answer "what was scheduled, completed, missed today".
  */
 import { useMemo, useState } from "react";
-import { CalendarDays, PlayCircle, Wallet } from "lucide-react";
+import { CalendarDays, PlayCircle, Wallet, ClipboardPen } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   PageHeader,
