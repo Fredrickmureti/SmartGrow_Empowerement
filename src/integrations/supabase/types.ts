@@ -3990,6 +3990,8 @@ export type Database = {
           code: string | null
           country: string | null
           created_at: string
+          day_control_from: string | null
+          day_variance_tolerance: number
           email: string | null
           id: string
           is_active: boolean | null
@@ -4011,6 +4013,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
+          day_control_from?: string | null
+          day_variance_tolerance?: number
           email?: string | null
           id?: string
           is_active?: boolean | null
@@ -4032,6 +4036,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
+          day_control_from?: string | null
+          day_variance_tolerance?: number
           email?: string | null
           id?: string
           is_active?: boolean | null
