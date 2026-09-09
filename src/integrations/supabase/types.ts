@@ -26776,7 +26776,11 @@ export type Database = {
       reset_module__finance: { Args: { org_id: string }; Returns: Json }
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
       reset_module__microfinance: {
-        Args: { include_clients?: boolean; org_id: string }
+        Args: {
+          include_clients?: boolean
+          include_products?: boolean
+          org_id: string
+        }
         Returns: Json
       }
       reset_module__sequences: { Args: { org_id: string }; Returns: Json }
@@ -26810,6 +26814,7 @@ export type Database = {
         Args: {
           confirmation: string
           include_clients?: boolean
+          include_products?: boolean
           org_id: string
         }
         Returns: Json

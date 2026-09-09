@@ -67,7 +67,7 @@ const PRESERVED = [
   "Users and sign-in accounts",
   "Roles, access groups and permissions",
   "Branches and branch assignments",
-  "Loan products and product versions",
+  "Loan products and product versions (unless you tick the option below)",
   "Chart of accounts and account mappings",
   "Company, workspace and system settings",
 ];
@@ -81,6 +81,7 @@ export function ResetTransactionalDataCard() {
   const [running, setRunning] = useState(false);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [includeClients, setIncludeClients] = useState(false);
+  const [includeProducts, setIncludeProducts] = useState(false);
   const [phrase, setPhrase] = useState("");
 
   const openDialog = async () => {
@@ -88,6 +89,7 @@ export function ResetTransactionalDataCard() {
     setOpen(true);
     setPhrase("");
     setIncludeClients(false);
+    setIncludeProducts(false);
     setCounts(null);
     setLoadingPreview(true);
     try {
@@ -115,6 +117,7 @@ export function ResetTransactionalDataCard() {
         org_id: currentOrg.id,
         confirmation: CONFIRM_PHRASE,
         include_clients: includeClients,
+        include_products: includeProducts,
       });
       if (error) throw new Error(error.message);
       const details = (data as { details?: Record<string, unknown> })?.details ?? {};
@@ -138,6 +141,10 @@ export function ResetTransactionalDataCard() {
 
   const optionalClients = Number(counts?.["mf_clients_optional"] ?? 0);
   const optionalGroups = Number(counts?.["mf_groups_optional"] ?? 0);
+  const optionalProducts = Number(counts?.["mf_loan_products_optional"] ?? 0);
+  const optionalProductVersions = Number(
+    counts?.["mf_loan_product_versions_optional"] ?? 0,
+  );
 
   return (
     <Card className="border-destructive/50">
@@ -198,6 +205,19 @@ export function ResetTransactionalDataCard() {
                   Also remove clients and groups ({optionalClients} clients, {optionalGroups}{" "}
                   groups). Leave unchecked to keep the client register and only clear lending
                   activity.
+                </Label>
+              </div>
+
+              <div className="flex items-start gap-2 rounded-md border p-3">
+                <Checkbox
+                  id="include-products"
+                  checked={includeProducts}
+                  onCheckedChange={(v) => setIncludeProducts(v === true)}
+                />
+                <Label htmlFor="include-products" className="text-sm font-normal leading-snug">
+                  Also remove loan products ({optionalProducts} products,{" "}
+                  {optionalProductVersions} published versions). Leave unchecked to keep the
+                  product catalogue for the next test cycle.
                 </Label>
               </div>
 
