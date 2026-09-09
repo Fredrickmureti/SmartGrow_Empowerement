@@ -116,6 +116,21 @@ export function GroupMembersDialog({
           </Button>
         </div>
 
+        {selectedFee && Number(selectedFee.outstanding_amount) > 0 ? (
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            This client has an outstanding admission fee of{" "}
+            <span className="font-medium text-foreground">
+              {selectedFee.currency_code ?? ""}{" "}
+              {Number(selectedFee.outstanding_amount).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            . Adding them to the group does not collect it — use “Admission fees” on the
+            group when the money is actually received.
+          </p>
+        ) : null}
+
         {error ? (
           <ErrorState description={error.message} />
         ) : isLoading ? (
