@@ -37,6 +37,12 @@ export interface MfGroupMeeting {
   postponed_to: string | null;
   next_scheduled_on: string | null;
   created_at: string;
+  /** Actual clock time reported by the field officer. */
+  started_at_time: string | null;
+  ended_at_time: string | null;
+  /** Officer who conducted the meeting (may differ from who entered it). */
+  held_by: string | null;
+  recorded_by: string | null;
 }
 
 export type MfAttendanceStatus = "present" | "absent" | "excused";
@@ -50,7 +56,7 @@ export interface MfMeetingAttendance {
 }
 
 const MEETING_SELECT =
-  "id,business_id,branch_id,group_id,loan_officer_id,scheduled_on,scheduled_time,meeting_place,status,opened_at,opened_by,closed_at,closed_by,notes,postponed_to,next_scheduled_on,created_at";
+  "id,business_id,branch_id,group_id,loan_officer_id,scheduled_on,scheduled_time,meeting_place,status,opened_at,opened_by,closed_at,closed_by,notes,postponed_to,next_scheduled_on,created_at,started_at_time,ended_at_time,held_by,recorded_by";
 
 export const MEETING_STATUS_LABEL: Record<MfMeetingStatus, string> = {
   scheduled: "Scheduled",
@@ -117,10 +123,17 @@ export function useMfGroupMeetings(options?: {
   };
 
   const openMeeting = useMutation({
-    mutationFn: async (input: { groupId: string; meetingOn: string }) => {
+    mutationFn: async (input: {
+      groupId: string;
+      meetingOn: string;
+      startedAtTime?: string | null;
+      heldBy?: string | null;
+    }) => {
       const { data, error } = await supabase.rpc("mf_open_group_meeting", {
         p_group_id: input.groupId,
         p_meeting_on: input.meetingOn,
+        p_started_at_time: input.startedAtTime ?? null,
+        p_held_by: input.heldBy ?? null,
       });
       if (error) throw error;
       return data as string;
@@ -133,23 +146,38 @@ export function useMfGroupMeetings(options?: {
   });
 
   const completeMeeting = useMutation({
-    mutationFn: async (input: { meetingId: string; notes?: string | null }) => {
+    mutationFn: async (input: {
+      meetingId: string;
+      notes?: string | null;
+      startedAtTime?: string | null;
+      endedAtTime?: string | null;
+      heldBy?: string | null;
+    }) => {
       const { data, error } = await supabase.rpc("mf_complete_group_meeting", {
         p_meeting_id: input.meetingId,
         p_notes: input.notes ?? null,
+        p_started_at_time: input.startedAtTime ?? null,
+        p_ended_at_time: input.endedAtTime ?? null,
+        p_held_by: input.heldBy ?? null,
       });
       if (error) throw error;
       return data as {
         next_scheduled_on: string | null;
         has_recurring_schedule: boolean;
+        started_at_time: string | null;
+        ended_at_time: string | null;
       };
     },
     onSuccess: (result) => {
       invalidate();
+      const ran =
+        result?.started_at_time && result?.ended_at_time
+          ? ` (${result.started_at_time.slice(0, 5)}–${result.ended_at_time.slice(0, 5)})`
+          : "";
       toast.success(
         result?.next_scheduled_on
-          ? `Meeting completed. Next meeting: ${result.next_scheduled_on}`
-          : "Meeting completed. This group has no regular meeting day, so set the next date yourself.",
+          ? `Meeting completed${ran}. Next meeting: ${result.next_scheduled_on}`
+          : `Meeting completed${ran}. This group has no regular meeting day, so set the next date yourself.`,
       );
     },
     onError: (e) =>
