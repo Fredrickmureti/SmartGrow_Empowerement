@@ -71,14 +71,6 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 ====================IMPLEMENTATION STATUS/PROGRESS===========
 
 
-All twelve rehearsal scenarios passed on the live database (and the test data rolled itself back), so the fee workflow is working:
+Group fee collection receipts are now in place: in a group's collection history, each collection has a Receipt option that previews or downloads a printable receipt showing the total collected and exactly how much was allocated to each member. It uses the existing receipt engine, so it looks and behaves like the individual admission-fee receipt.
 
-Individual payment settles a client (500 paid, status paid); group collection of two members posted one balanced journal entry with two client allocations.
-Re-submitting the same collection replays instead of taking money twice; an already-settled member, the same member listed twice, and an over-payment are all rejected by the server.
-Partial collection leaves the member part-paid with the correct outstanding; a newly added member starts with no obligation until raised, then settles normally.
-Reversing a group collection restores each member's outstanding and keeps the original records; re-collecting afterwards works, and individual reversal works too.
-One real defect was found and fixed along the way: a group collection shares one cash reference, and copying that reference onto every member's fee record clashed with the duplicate-reference guard, which blocked collections entirely. The shared reference now stays on the collection record, while an individually-paid fee still keeps its own reference.
-
-Done since: the group-collection receipt is implemented and wired. `fetchAndBuildFeeCollectionReceiptSnapshot` in `src/services/documents/snapshots/lending.ts` builds a `lending.payment_receipt` snapshot from `mf_fee_collections` + non-reversed `mf_client_charge_payments` (group as the collection context, one line per member showing the amount allocated to that client); it is registered as `fee_collection_receipt` in `resolveSourceDocumentRecord.ts`, and each row in the group collection history now exposes Preview/Download through the existing `LendingDocumentsMenu`. No new renderer. Typecheck clean.
-
-Still open: `mf_bank_collection_batch` falls back to `COALESCE(ba.currency, 'KES')` when a bank account has no currency; per the no-implied-rate rule this should raise instead. Needs a small function migration (no migration tool was available in this session).
+One small item remains: when a bank account has no currency recorded, the collection banking routine quietly assumes KES instead of stopping — that needs a short database change I couldn't apply in this session, and it only affects bank accounts with a missing currency.
