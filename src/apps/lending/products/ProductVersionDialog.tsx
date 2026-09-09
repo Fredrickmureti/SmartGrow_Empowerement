@@ -126,13 +126,14 @@ export function ProductVersionDialog({
   product,
   businessId,
 }: ProductVersionDialogProps) {
-  const { versions, isLoading, publishVersion } = useMfLoanProductVersions(
-    product?.id ?? null,
-  );
+  const { versions, currentVersion, isLoading, publishVersion } =
+    useMfLoanProductVersions(product?.id ?? null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
 
-  const latest = versions[0] ?? null;
+  // Seed from the version actually in force today, not merely the newest row —
+  // a future-dated version is scheduled, not the current price.
+  const latest = currentVersion ?? versions[0] ?? null;
 
   useEffect(() => {
     if (!open) return;
