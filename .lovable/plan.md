@@ -192,17 +192,20 @@ contractual obligation with zero unexplained residual.
 
 ======================IMPLEMENTATION PROGRESS=====================
 
-Verified as genuinely done (checked directly in the database, not from notes): the schedule engine prices "flat on principal" once on the loan amount, converts per-annum/per-month rates by repayment frequency, and now refuses an unrecognised rate basis instead of quietly pricing it; loan creation rejects amounts and terms outside the product version's bands; and the safeguards on grace installments, flat-on-principal, duplicate start dates and rate basis are all in place.
+Verified as genuinely done (checked against the live database, not the previous notes):
 
-Finished this session — the Publish New Version form is now dependency-aware:
+The pricing engine handles all four rate bases correctly and refuses anything it doesn't recognise.
+Loan amount and term are checked against the product's allowed bands when a loan is created.
+The grace-period safeguard works — I proved it by trying to save a product with a grace period longer than the shortest allowed term, and the database rejected it.
+Duplicate start dates for the same product are blocked.
+The "Publish new version" form only shows fields that make sense for the chosen setup.
+What I was in the middle of: running a throwaway pricing check across 16 different product setups (flat and reducing-balance interest, all rate bases, weekly/monthly/daily/fortnightly, grace periods, zero interest, and both fee models) on a 10,000 loan, with everything discarded afterwards. It got as far as the last blocker: the test client I'd picked no longer exists in the client list, so the temporary loans couldn't be created. That's a one-line fix — pick a real client — but I ran out of credits before rerunning it.
 
-Rate basis only offers the choices valid for the chosen interest method, each with a plain explanation of what it charges (this also fixed a bug that would have crashed the form when the rate basis list opened).
-Penalty basis is hidden until you enter a penalty rate above zero, with a note that late charges are never part of the schedule at origination.
-The two fee models are now spelled out inline: deducted from disbursement (client receives 9,500, owes 10,000) versus added to the first installment (receives 10,000, owes 10,500).
-Grace installments explained; the form seeds from the version in force today rather than the newest row.
-The application and decision screens were already using the "version in force today" rule, so that item was complete.
+Still outstanding:
 
-Still open (credits ran out mid-task): the deterministic schedule tests and the sweep of loan products exercising every field and dropdown option end-to-end. I had just collected the business, client and product identifiers needed to run them. The KES 10,000 → 10,600 question also remains open — the original loan and schedule rows were cleared before they could be read, so it must be reproduced against the corrected engine once those tests run.
+Rerun that pricing check with a valid client and read the results, including re-deriving the 10,000 → 10,600 figure.
+Confirm the two fee models behave as intended: a deducted fee should reduce the cash handed over without changing what the client owes, and an added fee should increase the first instalment.
+Record the results in the project status file.
 
 
 
