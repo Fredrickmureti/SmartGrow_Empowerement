@@ -267,20 +267,6 @@ export function ClientFormDialog({
         await onUpdate(saved.id, pathPatch);
       }
 
-      // Group membership. The database caps a client at two active groups and
-      // authorizes each insert against the owning group, so this only records
-      // what the user chose.
-      if (!client && groupIds.length > 0) {
-        for (const groupId of groupIds) {
-          const { error } = await supabase.from("mf_group_members").insert({
-            business_id: saved.business_id,
-            group_id: groupId,
-            client_id: saved.id,
-            role_in_group: "member",
-          });
-          if (error) throw error;
-        }
-      }
 
       createdRef.current = null;
       onOpenChange(false);
