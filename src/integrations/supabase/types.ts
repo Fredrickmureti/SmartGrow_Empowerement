@@ -3716,6 +3716,79 @@ export type Database = {
           },
         ]
       }
+      branch_day_events: {
+        Row: {
+          actor_id: string | null
+          branch_id: string
+          business_date: string
+          business_id: string
+          counted_cash: number | null
+          event_at: string
+          event_type: string
+          expected_cash: number | null
+          id: string
+          opening_cash: number | null
+          operational_day_id: string
+          organization_id: string
+          reason: string | null
+          variance: number | null
+        }
+        Insert: {
+          actor_id?: string | null
+          branch_id: string
+          business_date: string
+          business_id: string
+          counted_cash?: number | null
+          event_at?: string
+          event_type: string
+          expected_cash?: number | null
+          id?: string
+          opening_cash?: number | null
+          operational_day_id: string
+          organization_id: string
+          reason?: string | null
+          variance?: number | null
+        }
+        Update: {
+          actor_id?: string | null
+          branch_id?: string
+          business_date?: string
+          business_id?: string
+          counted_cash?: number | null
+          event_at?: string
+          event_type?: string
+          expected_cash?: number | null
+          id?: string
+          opening_cash?: number | null
+          operational_day_id?: string
+          organization_id?: string
+          reason?: string | null
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_day_events_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_day_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_day_events_operational_day_id_fkey"
+            columns: ["operational_day_id"]
+            isOneToOne: false
+            referencedRelation: "branch_operational_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_operational_days: {
         Row: {
           branch_id: string
