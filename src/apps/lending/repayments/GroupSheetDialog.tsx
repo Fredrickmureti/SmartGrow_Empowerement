@@ -95,6 +95,7 @@ export function GroupSheetDialog({
   const [method, setMethod] = useState("cash");
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
   const [failures, setFailures] = useState<string[]>([]);
 
   const { rows, isLoading, error } = useMfGroupSheet(open ? groupId || null : null);

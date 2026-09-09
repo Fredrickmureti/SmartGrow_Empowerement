@@ -66,6 +66,7 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
   const { collections, allocations, collect, reverse } = useMfFeeCollections(groupId);
 
   const [collectedOn, setCollectedOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const dayGate = useBranchDayGate();
   const [method, setMethod] = useState("cash");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -228,8 +229,6 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
                     onChange={setCollectedOn}
                     className="space-y-1"
                   />
-                  <div className="hidden">
-                  </div>
                   <div>
                     <Label className="text-xs">Method</Label>
                     <Select value={method} onValueChange={setMethod}>

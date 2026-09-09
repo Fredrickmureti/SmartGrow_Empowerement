@@ -55,6 +55,7 @@ export function BankBatchDialog({
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
 
   useEffect(() => {
     if (!open) return;
@@ -122,8 +123,6 @@ export function BankBatchDialog({
             value={bankedOn}
             onChange={setBankedOn}
           />
-          <div className="hidden">
-          </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="deposit-ref">Deposit slip / reference</Label>

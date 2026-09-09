@@ -57,6 +57,7 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
   const [receivedBy, setReceivedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
   // Fees are resolved server-side; this dialog only displays them.
   const { fees, deductedTotal, isLoading: feesLoading } = useMfLoanFeePreview(
     open ? (loan?.id ?? null) : null,
@@ -149,8 +150,6 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
               value={date}
               onChange={setDate}
             />
-            <div className="hidden">
-            </div>
             <div className="space-y-1.5">
               <Label>Method</Label>
               <Select value={method} onValueChange={setMethod}>
