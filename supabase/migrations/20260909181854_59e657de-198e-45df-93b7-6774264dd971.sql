@@ -1,0 +1,2 @@
+ALTER TABLE public.mf_account_mappings DROP CONSTRAINT mf_account_mappings_key_valid;
+ALTER TABLE public.mf_account_mappings ADD CONSTRAINT mf_account_mappings_key_valid CHECK (mapping_key = ANY (ARRAY['principal_receivable','interest_income','interest_receivable','fee_income','penalty_income','cash','bank','mobile_money','write_off_expense','loan_loss_provision','suspended_interest','client_advance','cash_over_short']));
