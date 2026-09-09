@@ -192,6 +192,9 @@ export function ApplicationsPage() {
                       {a.application_number}
                     </TableCell>
                     <TableCell className="font-medium">{clientName(a.client_id)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {pricedOn(a)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {a.requested_amount} / {a.requested_term_installments}
                     </TableCell>
