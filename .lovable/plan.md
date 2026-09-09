@@ -131,19 +131,14 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-Here's where things stand on the branch operational day.
+All the branch day invariants now pass against the live database.
 
-Verified as genuinely done (I checked the live database, not just the log): the branch day records and their history, the open/close/reopen actions with their rules, the lock that refuses money dated a closed or unopened day, the collection-round check, the fiscal-period flag fix, the branch day page with the reopen dialog, the date fields in the payment, group sheet, fee, disbursement and banking dialogs, and the "Branch day" menu entry.
+Two things the earlier log claimed were done were not actually true: the day records and their history had no read access granted for signed-in staff, and worse, they were fully writable directly from the app — meaning day state could have been changed outside the controlled open/close/reopen actions. Both are now fixed: staff can read them, signed-out visitors cannot, and all direct write access is removed.
 
-Three real defects I found and fixed:
+What remains for a future session:
 
-The "admin override" switch on an access group was being ignored by the permission engine, so only owners and admins could approve a cash difference or reopen a day. Configured roles now work as intended — no new roles were invented.
-The day records had no read access granted, so the branch day screen would have failed to load in a deployed environment.
-"Only one day open per branch" was only guarded inside the actions; it is now a hard database rule, so two people acting at the same moment cannot both open a day.
-What remains: I wrote a database invariants test file (supabase/tests/branch_operational_day_invariants_test.sql) covering uniqueness, no direct client writes, gated reads, append-only history, the guard triggers, the action posture and the capability check — it is saved but has not been executed yet. Also still open: running it, a signed-in walkthrough of open → record → close → open next day on a branch with no loans, and recording this progress in the plan file and roadmap.
-
-Nothing is half-applied in the database; the fixes above are live.
-
+A signed-in walkthrough (open a day → record → close → open next day on a branch with no loans). I couldn't do it here because this project uses your own Supabase, so no test sign-in can be created from my side — it needs someone signed in on the preview.
+Writing this progress into the plan file and roadmap.
 
 KINDLY NOTE AND NOTE  CAREFULLY
 ==========================================
