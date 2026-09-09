@@ -124,6 +124,7 @@ export function ClientFormDialog({
   client,
   onCreate,
   onUpdate,
+  meetingContext = null,
 }: ClientFormDialogProps) {
   const { branches } = useBranches();
   const { officers } = useBranchOfficers();
