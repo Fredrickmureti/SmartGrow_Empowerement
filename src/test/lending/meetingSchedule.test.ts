@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   isoWeekdayOf,
   meetingRowsForDate,
+  meetingTimesError,
   type MeetingScheduleGroup,
 } from "@/lib/lending/meetingSchedule";
 
@@ -97,5 +98,26 @@ describe("meetingRowsForDate", () => {
 
   it("returns nothing when no group has a recurring rule for the date", () => {
     expect(meetingRowsForDate([group({ meeting_day: null })], [], WED)).toHaveLength(0);
+  });
+});
+
+describe("meetingTimesError", () => {
+  it("asks for the end time when it is missing", () => {
+    expect(meetingTimesError("09:00", "")).toBe("Enter the time the meeting ended.");
+  });
+
+  it("asks for the start time when it is missing", () => {
+    expect(meetingTimesError("", "12:00")).toBe("Enter the time the meeting started.");
+  });
+
+  it("refuses an end time that is not after the start time", () => {
+    expect(meetingTimesError("12:00", "09:00")).toBe(
+      "The end time must be after the start time.",
+    );
+    expect(meetingTimesError("09:00", "09:00")).not.toBeNull();
+  });
+
+  it("accepts a meeting that ran 09:00 to 12:00", () => {
+    expect(meetingTimesError("09:00", "12:00")).toBeNull();
   });
 });
