@@ -130,18 +130,20 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 
 ===============IMPLEMENTATION PROGRESS=================
-Here's where things stand.
 
-Done this session
+Verified in the database (present and live):
+- `branch_operational_days` and the append-only `branch_day_events` history.
+- RPCs `open_branch_day`, `close_branch_day`, `reopen_branch_day`, `branch_day_expected_cash`.
+- Guards: `trg_enforce_branch_day_lock` on `journal_entries`, `trg_enforce_batch_branch_day` on `mf_repayment_batches`, `trg_branch_day_events_append_only`.
+- Accounting-month closed/open marker inconsistency fixed; existing months corrected.
 
-Verified the earlier work is genuinely in the database: the branch day record, its history trail, and the open / close / reopen actions all exist.
-Added the missing enforcement: money dated a day that is closed, or a day that was never opened, is now refused at the branch — with a plain-English reason.
-Same rule now applies to collection rounds: a round cannot be dated a closed or unopened day.
-Fixed a long-standing inconsistency where closing an accounting month set one marker but not the other, so some checks still treated a closed month as open. Existing months were corrected.
-Not finished
+Completed this session:
+- Fixed the two component mismatches on the Branch day screen (status pill, error state).
+- Added **Lending → Servicing → Branch day** to the menu and the `/lending/day` route (permission `recordRepayments`).
+- Typecheck passes.
 
-The Branch day screen. I wrote the data layer (useBranchDay) and the page itself (open the day with a cash count, live "what the books expect", close against a physical count with an over/short reason, and a register of past days with reopen), but I had not yet:
-fixed two small component mismatches I spotted just before stopping — the status pill takes its text as content rather than a status prop, and the loading/error/empty props need matching to the shared ones;
-added the "Branch day" entry to the lending menu and its route;
-run the typecheck and build.
-So the safeguards are live, but the screen isn't reachable yet. Picking up from that point is a short, well-defined piece of work whenever you're ready.
+Still outstanding:
+- Phase 3 remainder: bound the date field in the other money dialogs to the open day and show the day they post to.
+- Phase 4: stale-day alert, daily branch cash report, late-entry visibility.
+- Automated tests for the lifecycle, branch isolation and concurrency.
+- Open business questions 1–5 above are still unanswered by the client.
