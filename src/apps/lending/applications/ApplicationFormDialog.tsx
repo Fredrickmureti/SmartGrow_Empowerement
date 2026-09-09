@@ -104,10 +104,6 @@ export function ApplicationFormDialog({
   const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  const selectedClient = useMemo(
-    () => clients.find((c) => c.id === form.client_id) ?? null,
-    [clients, form.client_id],
-  );
 
   // The client is the meaningful business entity: the branch it is registered
   // in, and the group it is a member of, are facts the system already holds.
