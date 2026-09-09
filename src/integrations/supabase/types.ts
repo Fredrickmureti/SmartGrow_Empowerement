@@ -12927,6 +12927,80 @@ export type Database = {
           },
         ]
       }
+      mf_group_meetings: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          group_id: string
+          id: string
+          loan_officer_id: string | null
+          meeting_place: string | null
+          next_scheduled_on: string | null
+          notes: string | null
+          opened_at: string | null
+          opened_by: string | null
+          postponed_to: string | null
+          scheduled_on: string
+          scheduled_time: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_id: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_place?: string | null
+          next_scheduled_on?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          postponed_to?: string | null
+          scheduled_on: string
+          scheduled_time?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_id?: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_place?: string | null
+          next_scheduled_on?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          postponed_to?: string | null
+          scheduled_on?: string
+          scheduled_time?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_group_meetings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_group_members: {
         Row: {
           business_id: string
