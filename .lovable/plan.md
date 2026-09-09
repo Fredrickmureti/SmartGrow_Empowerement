@@ -131,11 +131,13 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-Where things stand: Branch day (Lending → Branch day) is live and enforced by the database — opening with a cash count, closing against a physical count with an over/short reason, and reopening a past day.
+I picked up from the progress log and confirmed the earlier work is genuinely in place: the branch day table, its append-only history, the open/close/reopen routines, the expected-cash calculation and the two database locks (on journal entries and on collection batches) all exist live, and the Branch day page and hook are wired into Lending.
 
-Still to do when you're ready:
+I then started the next item on the list — tying the date on the money forms to the branch's open day. I added one shared date control and wired it into record payment, group collection sheet, bank deposit, disbursement and group fees: once a branch is under day control the date stops being typeable, shows "Posting to Wednesday 9 September 2026 — the open day at <branch>", and the save button is blocked with a clear message when no day is open. Before a branch's start date, the forms behave exactly as before.
 
-Lock the date on the other money forms (record payment, group sheet, bank deposit, disbursement, group fees) to the branch's open day, with a clear "posting to Wednesday" hint and a block when no day is open.
-A stale-day reminder, a daily branch cash report, and visibility of late entries.
-Automated checks for the open/close/reopen rules and branch separation.
-Your answers to the five open questions: who may close a day, who may reopen it, the acceptable over/short tolerance, whether unbanked cash may carry to the next day, and the start date per branch.
+What still remains:
+
+A typecheck/build pass over those five edited forms — I hadn't run it when work stopped, so please expect to re-run it.
+Stale-day reminder, daily branch cash report, and visibility of late entries.
+Automated checks for open/close/reopen and branch separation.
+Your answers to the five open questions: who may close a day, who may reopen it, the acceptable over/short tolerance, whether unbanked cash may carry into the next day, and each branch's start date for day control.
