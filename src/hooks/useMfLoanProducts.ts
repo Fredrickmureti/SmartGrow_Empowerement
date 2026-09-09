@@ -9,6 +9,7 @@
  * No pricing maths happens here: the schedule engine (C6) derives money
  * server-side from the version a loan snapshots.
  */
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
