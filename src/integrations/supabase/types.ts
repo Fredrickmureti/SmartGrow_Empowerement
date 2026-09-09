@@ -12207,6 +12207,7 @@ export type Database = {
           kind: string
           method: string | null
           notes: string | null
+          paid_amount: number
           paid_on: string | null
           receipt_number: string | null
           reference: string | null
@@ -12230,6 +12231,7 @@ export type Database = {
           kind?: string
           method?: string | null
           notes?: string | null
+          paid_amount?: number
           paid_on?: string | null
           receipt_number?: string | null
           reference?: string | null
@@ -12253,6 +12255,7 @@ export type Database = {
           kind?: string
           method?: string | null
           notes?: string | null
+          paid_amount?: number
           paid_on?: string | null
           receipt_number?: string | null
           reference?: string | null
