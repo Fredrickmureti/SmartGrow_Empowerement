@@ -103,20 +103,34 @@ I will report actual observed results, including anything that fails.
 
 ========================================IMPLEMENTATION STATUS=========================
 
-I had to stop partway. Here's where things stand.
+COMPLETE (2026-09-09).
 
-Done (backend, live and verified as applied):
+Backend, re-verified live against the database (not from notes):
+- `mf_group_members` carries both triggers: `mf_group_members_limit` (one active
+  group per client, message "This client already belongs to an active group.
+  Exit that group first.") and `mf_group_members_consistency`.
+- `mf_register_client(p_business_id, p_client, p_group_id)` exists and, in one
+  transaction, refuses: missing branch, officer not assigned to the branch,
+  group from another institution, group from another branch, closed group,
+  group managed by a different officer — each with its own plain sentence —
+  before inserting the client and the membership.
 
-A client can now belong to only one active group at a time; a second one is refused with a clear message.
-New safety check: a group membership must match the client's institution and branch, and closed groups can't take members.
-New single operation mf_register_client creates the client and joins the group in one step, and refuses a loan officer who isn't assigned to the chosen branch.
-Done (app):
+App (client registration dialog, relationship block only):
+- Officer list now comes from `useBranchOfficers` (real branch assignments),
+  further narrowed to branches the current user may operate in.
+- One-branch officer fills the branch in automatically ("Taken from this loan
+  officer's branch."); multi-branch officers offer only their branches.
+- Group list = open groups of that officer in that branch, no fallback.
+- Selecting a group first fills in its branch and officer.
+- Group optional, single choice; the old two-group toggle and multi-group state
+  are removed.
+- Save goes through `mf_register_client` with the group; refusals surface via
+  `lendingErrorMessage`.
 
-New list of loan officers drawn from real branch assignments.
-Client registration now sends the group along with the client in one save.
-The form's relationship block now shows Loan officer → Branch → Group, with the branch limited to the officer's branches and the group list limited to that officer's open groups in that branch, plus plain-language empty states.
-Remaining (small, all in the registration dialog file):
+Verification actually run: typecheck clean, build OK.
 
-Finish the last three cleanups I was mid-way through: remove the now-unused two-group toggle helper and old group state, swap useOrgMembers for the new officer list, and add the chooseOfficer / chooseBranch / chooseGroup handlers and officerOptions / branchOptions / availableGroups lists the new fields reference.
-Then run the type check and test the flow in the browser.
-Until those handlers are added the client registration screen will not compile, so this needs one more short session to finish.
+Not run: signed-in browser walkthrough and live RPC refusal tests. The project
+uses an external Supabase, so no test session can be minted in this
+environment, and the institution currently has 0 clients and 0 groups, so the
+matrix would require creating production rows. Worth walking through in the
+real app once a group exists.
