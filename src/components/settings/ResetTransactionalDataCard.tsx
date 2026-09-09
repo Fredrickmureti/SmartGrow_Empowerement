@@ -67,7 +67,7 @@ const PRESERVED = [
   "Users and sign-in accounts",
   "Roles, access groups and permissions",
   "Branches and branch assignments",
-  "Loan products and product versions",
+  "Loan products and product versions (unless you tick the option below)",
   "Chart of accounts and account mappings",
   "Company, workspace and system settings",
 ];
@@ -81,6 +81,7 @@ export function ResetTransactionalDataCard() {
   const [running, setRunning] = useState(false);
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [includeClients, setIncludeClients] = useState(false);
+  const [includeProducts, setIncludeProducts] = useState(false);
   const [phrase, setPhrase] = useState("");
 
   const openDialog = async () => {
@@ -115,6 +116,7 @@ export function ResetTransactionalDataCard() {
         org_id: currentOrg.id,
         confirmation: CONFIRM_PHRASE,
         include_clients: includeClients,
+        include_products: includeProducts,
       });
       if (error) throw new Error(error.message);
       const details = (data as { details?: Record<string, unknown> })?.details ?? {};
