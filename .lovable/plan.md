@@ -1,104 +1,125 @@
-# Loan Product ↔ Loan Application: audit and remediation
+# Loan lifecycle workflow — sequencing, guards, errors, guided UX
 
-## A. Current state (evidence)
+Findings below come from reading the lending screens/hooks and the live database
+(`_mf_application_guard`, `mf_create_loan_from_application`, `mf_disburse_loan`,
+constraints and SoD triggers). No code changed yet.
 
-Loan product = **identity only** (`mf_loan_products`: code, name, description, status draft/active/retired, `current_version_id`). All commercial terms live on `mf_loan_product_versions`: `currency_code`, `min_amount`/`max_amount`, `min_term_installments`/`max_term_installments`, `repayment_frequency` (daily/weekly/biweekly/monthly), `interest_method`, `interest_rate`, `interest_rate_period`, `grace_period_installments`, `fees` (jsonb), `penalty_rate`, `penalty_basis`, `eligibility` (jsonb), `effective_from`, `is_published`. A published version is frozen by `_mf_lpv_freeze_guard`; repricing publishes a new version.
+## A. The real business-event sequence (as the database enforces it)
 
-So the product is **not a fixed package**: it is a versioned rule set with amount and term *bands*. Evidence: the band columns themselves, the constraints `mf_lpv_amount_chk`/`mf_lpv_term_chk`, and both band checks below.
+```text
+Application created (draft, or submitted directly)
+        ↓  submit — product eligibility rules bite here (cycles, age, group)
+Submitted
+        ↓  start review
+Under review
+        ↓  assessment recorded (at least one, physical visit)  ── required
+Approved  (branch manager/admin only; not the person who submitted — SoD;
+           approved amount + term required and inside the product-version band)
+        ↓  CREATE LOAN  (mf_create_loan_from_application)
+           = mints the loan, freezes product terms, generates the schedule,
+             writes the loan_created event AND flips the application to
+             "ready for disbursement" — one business event, several steps
+Loan pending disbursement
+        ↓  DISBURSE (mf_disburse_loan) — one-shot; realigns schedule to the
+           value date, deducts configured fees, posts the ledger entry,
+           activates the loan, sets the application to "disbursed"
+Active loan → repayments (batch per group meeting) → banking → closure,
+             or write-off / top-up / restructure / disbursement reversal
+```
 
-Application (`mf_loan_applications`) stores `requested_amount`, `requested_term_installments`, and separately `approved_amount`, `approved_term_installments`, plus `product_id` and `product_version_id`.
+Key point: `ready_for_disbursement` is a **consequence of loan creation**, not a
+step a human performs. The database allows the bare status flip, but nothing in
+the business chain is served by it.
 
-- `mf_apps_requested_chk` only requires requested amount/term > 0. **No band check on requested values anywhere.**
-- `_mf_application_guard` on approval requires: authoriser is admin/branch manager, an assessment exists, `product_version_id` is present, approved amount **and** term present, and both inside that version's bands. A decided application's key fields become immutable.
-- `sod_mf_loan_applications_guard` blocks self-approval.
-- `mf_create_loan_from_application` re-checks the band, then writes the loan from the **version** (currency, frequency, interest method/rate/period, grace, fees, penalty) and from the **application** (amount, term, client, branch, officer, group), generates the schedule, and moves the application to ready_for_disbursement.
-- `mf_loans_freeze_terms` forbids changing principal, term, rate, method, frequency or version once the loan leaves pending_disbursement.
+## B. Defects found
 
-Verdict: the intended model is **hybrid** — product version owns the financial rules and the legal envelope; the application owns the customer's requested amount/term; approval decides the contractual amount/term inside the envelope; the loan snapshots everything.
+1. **"Mark ready" is a trap (the workflow defect).**
+   The applications table shows a `Mark ready` button on approved applications.
+   It only flips the status. But the Create-loan dialog lists *only*
+   applications with status exactly `approved`. So an operator who clicks
+   `Mark ready` after approval moves the application out of the only picker
+   that can create its loan — the application becomes a dead end with no
+   action anywhere in the UI, while `mf_create_loan_from_application` would in
+   fact still accept it. This is the "action offered before/instead of its real
+   prerequisite" class the wave is about.
 
-## B. Defects found (each confirmed against code/DB)
+2. **`[object Object]` toasts — root cause identified.**
+   Every lending hook normalises errors with
+   `error instanceof Error ? error.message : String(error)`. Supabase returns
+   `PostgrestError` as a **plain object**, not an `Error`, so `String(...)`
+   yields `[object Object]`. Every refusal raised by a guard trigger or RPC
+   (`mf_loan_applications` updates, `mf_create_loan_from_application`,
+   `mf_disburse_loan`, repayments, batches, banking, products) currently loses
+   its business message this way. The project already owns a central
+   normaliser (`normalizeError` in `src/services/resilience`) plus an ESLint
+   rule against raw error text in toasts — the mf hooks bypass both.
 
-1. **The browser pins the pricing version.** `ApplicationFormDialog` sends `product_version_id: currentVersion?.id`. Nothing server-side checks that the version belongs to `product_id`, to the same business, is published, or is in force — only a foreign key exists. A direct API call can pin any version, including another product's or another institution's.
-2. **Editing an application silently reprices it.** Every save resends today's in-force version, overwriting the version captured at submission — and writes `null` if versions have not loaded yet. The snapshot intent exists on the loan but is not protected on the application.
-3. **A request can become a contract.** `mf_create_loan_from_application` does `COALESCE(a.approved_amount, a.requested_amount)` and the same for term. Any row reaching loan creation without approved values turns an unapproved *request* into contractual principal.
-4. **Product eligibility is configured but never enforced.** No `mf_*` function reads `eligibility` (checked across all function bodies) — min/max completed cycles, age, group-membership requirement are dead configuration.
-5. **Free-text amount/term with no product context.** Requesting outside the band is legitimate business (it can be declined or approved down), but the inputs are untyped text, accept anything > 0, and the band hint only appears after a product is chosen. No frequency/unit is shown next to "installments".
-6. **Client selection is a frontend convenience only.** Branch and officer are defaulted from the client in React; nothing server-side requires the application's branch/officer to match the client's, or that the client and product belong to the same business.
+3. **The `disbursed` application state is invisible to the UI.**
+   The database allows and sets `status = 'disbursed'`; the frontend status
+   list, labels and colour map do not contain it, so a disbursed application
+   renders with an empty badge and cannot be filtered.
 
-## C. Authoritative rules to enforce
+4. **No state/next-step guidance.** Both pages render bare action buttons per
+   status flag. Nothing tells the operator what has already happened, what the
+   next legitimate event is, or why disbursement is not yet possible (loan not
+   created, or fees/accounting mapping unresolved).
 
-- Product version is the contractual envelope and financial ruleset; it is resolved and validated **server-side** at application creation and never re-pinned after submission.
-- Requested amount/term = customer statement of intent. Retained, numeric, may fall outside the band, flagged in the UI, never contractual.
-- Approved amount/term = institution's decision, mandatory before approval, band-checked (already true).
-- Loan principal/term = approved values only; no fallback to requested.
-- Frequency, interest, fees, penalties, grace, currency = product-version-controlled, snapshotted at loan creation, never editable on the application.
-- Branch/business/client/officer coherence is a backend invariant.
+5. **Prerequisites that exist only in the backend and are never surfaced:**
+   assessment before decision, decision-maker ≠ submitter (SoD), approved
+   amount/term inside the product band, published product version in force,
+   accounting mapping resolvable for the disbursement method, fees not
+   exceeding principal, loan exists before disbursement, no prior
+   disbursement, `active` before repayment/closure/write-off.
 
-## D. Field ownership matrix
+Backend guards are sound; nothing needs weakening.
 
-| Concept | Product | Applicant | Approval | Derived | Validated by | Consumed by |
-|---|---|---|---|---|---|---|
-| Loan product / version | yes | selects product only | — | version resolved server-side | new guard (Phase 1) | loan, schedule, fees |
-| Requested amount / term | band advisory | yes | — | — | `mf_apps_requested_chk` + band warning | reporting, decision context |
-| Approved amount / term | band | — | yes | — | `_mf_application_guard` | loan creation |
-| Loan principal / term | band | — | source | from approved | `mf_create_loan_from_application` | schedule, accounting |
-| Frequency, interest, fees, penalty, grace, currency | yes | — | — | snapshot on loan | version constraints | schedule, penalties, postings |
-| Branch / business / client / officer | scope | selects client | — | defaulted from client | new invariant check (Phase 1) | RLS scope, portfolio, reports |
+## C. Remediation
 
-## E. Remediation, phased (one object per migration)
+### Phase 1 — error truth (do first, it makes everything else diagnosable)
+- Add one shared lending error mapper built on the existing `normalizeError`,
+  which reads `message`/`details`/`hint`/`code` off Postgres/Postgrest objects
+  and keeps the guard's business sentence (e.g. "An application cannot be
+  decided before an assessment is recorded"), while suppressing SQL text,
+  constraint names and stack detail.
+- Route every `mf_*` hook's `onError` through it. Delete the four local
+  `friendly()` copies. No second error architecture.
 
-Phase 1 — backend (in order, each verified before the next):
-1. Guard function on `mf_loan_applications` insert/update: resolve `product_version_id` server-side from the product's in-force published version when absent; reject a supplied version that is not the product's, not the business's, unpublished, or future-dated; refuse re-pinning once the application leaves draft.
-2. Same guard: enforce client/branch/business/product coherence (client belongs to the business; branch matches the client's branch unless an admin overrides; product belongs to the business and is active).
-3. Same guard: evaluate the version's `eligibility` (completed cycles, age, group membership) at submission, with clear refusal messages.
-4. Replace the `COALESCE(approved…, requested…)` fallback in `mf_create_loan_from_application` with a hard requirement for approved values.
+### Phase 2 — correct the sequence in the UI
+- Remove `Mark ready` as an operator action; readiness is produced by loan
+  creation.
+- Approved applications get a single primary action: **Create loan**, opening
+  the existing create-loan dialog pre-selected on that application.
+- The create-loan picker accepts `approved` *and* `ready_for_disbursement`
+  applications without a loan (matching the RPC), so existing stuck records
+  recover.
+- Add `disbursed` to the status list, labels and tone map; show the linked loan
+  number on an application that has one.
 
-Phase 2 — application workflow: keep requested vs approved separate exactly as today; stop sending `product_version_id` from the browser; surface the pinned version on the application record.
+### Phase 3 — guided workflow
+- A workflow strip on each application row/detail: completed events (submitted
+  → assessed → approved), current state, and one clear next step.
+- On the loans page, state-aware actions: pending-disbursement loans lead with
+  **Disburse**; lifecycle actions stay on active loans only. Where an action is
+  legitimately visible but blocked, it is disabled with the reason stated
+  ("Disbursement becomes available once the loan is created"), never silently.
+- Keep all legitimate alternatives (reject, cancel, return to draft, reverse,
+  top-up, restructure) exposed at the states the guard actually accepts.
 
-Phase 3 — UI (consequence of the model): numeric inputs for amount and term; show the in-force band with currency and frequency ("12 weekly installments"); non-blocking warning when the request falls outside the band, with the reason it is allowed; block submission only on rules the backend also enforces.
+### Phase 4 — tests
+- Happy path: draft → submit → review → assess → approve → create loan →
+  disburse → active.
+- Premature actions rejected by the backend: approve without assessment,
+  approve by the submitter, create loan twice, disburse a loan with no loan
+  record/already disbursed, repay a pending loan, close an unsettled loan.
+- Error rendering: a Postgrest-shaped plain error object must render its
+  business sentence, never `[object Object]` and never raw SQL.
+- Reload/stale-state: after refetch the available actions match the stored
+  state; a stale button still gets refused by the backend.
 
-## F. Test matrix
-
-SQL tests under `supabase/tests` plus a signed-in Playwright pass:
-A fixed-ish product (min = max) — request/approve at the single value.
-B amount range — min, max, below, above, boundaries (request allowed-with-warning, approval rejected outside).
-C term range — same set, plus non-numeric input.
-D request 15,000/12 → approve 10,000/10 → verify loan principal/term, schedule, disbursement and postings all follow the approved values.
-E application against version 1, publish version 2, then approve — must still price on version 1.
-F direct API calls with a foreign version, unpublished version, inactive product, out-of-band approval, missing assessment — all rejected.
-G product/client from another business or branch — rejected.
-H end-to-end consistency: product → application → approval → loan → disbursement → schedule → repayment.
-
-## Notes
-
-Nothing here changes the schedule engine, accounting mappings, RLS scope model, or the loan lifecycle beyond removing the requested-value fallback.
-
-
-========================================IMPLEMENTATION STATUS=========================
-
-Phases 1–3 complete and re-verified against the live database on 2026-09-09:
-
-- `_mf_application_guard` is wired to `mf_loan_applications` and its body enforces the
-  published check, the in-force date, product eligibility and branch/institution
-  coherence; the pricing version is resolved server-side.
-- `mf_create_loan_from_application` no longer falls back to requested values: it raises
-  "This application has no approved amount and term — it cannot become a loan", then
-  re-checks the approved figures against the version band.
-- `_mf_lpv_freeze_guard` (published versions frozen) and `mf_loans_freeze_terms`
-  (contractual terms frozen after disbursement) both present; RLS on applications on.
-- The browser no longer pins `product_version_id` on create — the only remaining
-  references are read-only display in `ApplicationsPage` ("Priced on" column) and
-  `DecisionDialog`.
-- No application in the database is priced on a foreign product or foreign-institution
-  version (0 rows).
-- Scenario tests A–H live in `supabase/tests/mf_application_product_band_test.sql`.
-
-Open, blocked (not code work):
-1. Signed-in click-through in the preview is not possible in this environment — the
-   Supabase connection is external/unmanaged, so no preview session can be created.
-   The full lifecycle (request 15,000/12 → approve 10,000/10 → loan → disbursement →
-   schedule → postings) was proven earlier in the V1 run and is now additionally
-   guarded by the rules above.
-2. The institution database currently holds 3 products / 2 published versions and
-   zero clients, applications and loans, so scenarios D and H cannot be re-run against
-   live data without deliberately creating financial history.
+## Technical notes
+- No migration is expected. If the audit turns up a genuinely missing guard
+  (rather than a UI mismatch), it goes in as its own small single-purpose
+  migration.
+- Files in scope: `src/hooks/useMf*.ts`, `src/apps/lending/applications/*`,
+  `src/apps/lending/loans/*`, plus one new lending error mapper under
+  `src/services/resilience` usage, and tests under `src/test/`.
