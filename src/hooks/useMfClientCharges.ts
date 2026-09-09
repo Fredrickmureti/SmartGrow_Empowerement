@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export type MfClientChargeStatus = "outstanding" | "paid" | "reversed";
 
@@ -84,7 +85,7 @@ export function useMfClientFeePolicy() {
       queryClient.invalidateQueries({ queryKey: ["mf-client-fee-policy", businessId] });
       toast.success("Admission fee policy saved");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   return { policy: query.data ?? null, isLoading: query.isLoading, save };
@@ -127,7 +128,7 @@ export function useMfClientCharges(clientId: string | null) {
       invalidate();
       toast.success("Admission fee raised");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   const payCharge = useMutation({
@@ -152,7 +153,7 @@ export function useMfClientCharges(clientId: string | null) {
       invalidate();
       toast.success("Admission fee payment recorded");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   const reverseCharge = useMutation({
@@ -169,7 +170,7 @@ export function useMfClientCharges(clientId: string | null) {
       invalidate();
       toast.success("Admission fee payment reversed");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   return {

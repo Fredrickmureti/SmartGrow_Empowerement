@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export interface MfClientFeePosition {
   client_id: string;
@@ -170,7 +171,7 @@ export function useMfFeeCollections(groupId: string | null) {
       invalidate();
       toast.success("Group fee collection recorded");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   const reverse = useMutation({
@@ -186,7 +187,7 @@ export function useMfFeeCollections(groupId: string | null) {
       invalidate();
       toast.success("Collection reversed");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That request was refused")),
   });
 
   return {

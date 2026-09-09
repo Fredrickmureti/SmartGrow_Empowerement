@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { KycCaptureField, type KycPending } from "./KycCaptureField";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 const UNASSIGNED = "__unassigned__";
 const UNSPECIFIED = "__unspecified__";
@@ -285,7 +286,7 @@ export function ClientFormDialog({
       createdRef.current = null;
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the client's photos");
+      toast.error(lendingErrorMessage(e, "Could not save the client's photos"));
     } finally {
       setSaving(false);
     }

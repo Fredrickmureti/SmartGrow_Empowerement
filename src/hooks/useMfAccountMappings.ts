@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
 import { toast } from "sonner";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export type MfMappingKey =
   | "principal_receivable"
@@ -109,7 +110,7 @@ export function useMfAccountMappings(branchId: string | null = null) {
       toast.success("Mapping saved");
     },
     onError: (e: unknown) => {
-      toast.error(e instanceof Error ? e.message : "Could not save the mapping");
+      toast.error(lendingErrorMessage(e, "Could not save the mapping"));
     },
   });
 

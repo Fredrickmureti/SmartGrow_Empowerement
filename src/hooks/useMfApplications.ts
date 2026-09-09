@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export type MfApplicationStatus =
   | "draft"
@@ -18,6 +19,7 @@ export type MfApplicationStatus =
   | "approved"
   | "rejected"
   | "ready_for_disbursement"
+  | "disbursed"
   | "cancelled";
 
 export const MF_APPLICATION_STATUSES: MfApplicationStatus[] = [
@@ -27,6 +29,7 @@ export const MF_APPLICATION_STATUSES: MfApplicationStatus[] = [
   "approved",
   "rejected",
   "ready_for_disbursement",
+  "disbursed",
   "cancelled",
 ];
 
@@ -36,18 +39,25 @@ export const MF_APPLICATION_STATUS_LABELS: Record<MfApplicationStatus, string> =
   under_review: "Under review",
   approved: "Approved",
   rejected: "Rejected",
-  ready_for_disbursement: "Ready for disbursement",
+  ready_for_disbursement: "Loan created — awaiting disbursement",
+  disbursed: "Disbursed",
   cancelled: "Cancelled",
 };
 
-/** Transitions the database guard accepts — mirrored only to shape the UI. */
+/**
+ * Transitions the database guard accepts — mirrored only to shape the UI.
+ *
+ * `ready_for_disbursement` and `disbursed` are set by the loan-creation and
+ * disbursement events, not by an operator flipping a status.
+ */
 export const MF_APPLICATION_TRANSITIONS: Record<MfApplicationStatus, MfApplicationStatus[]> = {
   draft: ["submitted", "cancelled"],
   submitted: ["under_review", "draft", "cancelled"],
   under_review: ["approved", "rejected", "cancelled"],
-  approved: ["ready_for_disbursement", "cancelled"],
+  approved: ["cancelled"],
   rejected: [],
-  ready_for_disbursement: [],
+  ready_for_disbursement: ["cancelled"],
+  disbursed: [],
   cancelled: [],
 };
 
@@ -139,16 +149,6 @@ const APPLICATION_SELECT =
 const ASSESSMENT_SELECT =
   "id,business_id,application_id,assessed_by,assessed_at,visit_date,visit_location,business_verified,monthly_income,monthly_expenses,existing_obligations,collateral_description,character_notes,recommended_amount,recommended_term_installments,recommendation,notes,created_at,updated_at";
 
-function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
-  if (/mf_apps_number_uniq|duplicate key/i.test(msg)) {
-    return "An application with that reference already exists.";
-  }
-  if (/row-level security/i.test(msg)) {
-    return "You do not have permission to change this application.";
-  }
-  return msg || fallback;
-}
 
 /** Applications for the institution, newest first. */
 export function useMfApplications(options?: {
@@ -205,7 +205,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success("Application captured");
     },
-    onError: (e) => toast.error(friendly(e, "Could not create the application")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the application")),
   });
 
   const updateApplication = useMutation({
@@ -223,7 +223,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success("Application updated");
     },
-    onError: (e) => toast.error(friendly(e, "Could not update the application")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the application")),
   });
 
   /**
@@ -253,7 +253,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success(`Application moved to ${MF_APPLICATION_STATUS_LABELS[to].toLowerCase()}`);
     },
-    onError: (e) => toast.error(friendly(e, "That transition was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That transition was refused")),
   });
 
   return {
@@ -307,7 +307,7 @@ export function useMfApplicationAssessments(applicationId?: string) {
       queryClient.invalidateQueries({ queryKey: ["mf-applications"] });
       toast.success("Assessment recorded");
     },
-    onError: (e) => toast.error(friendly(e, "Could not record the assessment")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not record the assessment")),
   });
 
   return {
@@ -326,4 +326,32 @@ export function nextApplicationNumber(existing: Array<{ application_number: stri
     if (m) max = Math.max(max, Number(m[1]));
   }
   return `APP-${String(max + 1).padStart(4, "0")}`;
+}
+
+/**
+ * Which applications already have a recorded assessment.
+ *
+ * The decision guard refuses an approval or rejection before an assessment
+ * exists, so the pipeline needs this to explain the prerequisite instead of
+ * letting the operator discover it through a refusal.
+ */
+export function useMfAssessedApplicationIds() {
+  const { currentBusiness } = useBusinesses();
+  const businessId = currentBusiness?.id;
+
+  const query = useQuery({
+    queryKey: ["mf-assessed-application-ids", businessId],
+    queryFn: async () => {
+      if (!businessId) return new Set<string>();
+      const { data, error } = await supabase
+        .from("mf_application_assessments")
+        .select("application_id")
+        .eq("business_id", businessId);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.application_id as string));
+    },
+    enabled: !!businessId,
+  });
+
+  return { assessedIds: query.data ?? new Set<string>(), isLoading: query.isLoading };
 }

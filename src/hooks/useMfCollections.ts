@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export const MF_ACTIVITY_TYPES = [
   { value: "call", label: "Phone call" },
@@ -208,7 +209,7 @@ export function useMfCollectionActivities(loanId?: string) {
       invalidate();
       toast.success("Collection activity recorded");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 
   const cancelActivity = useMutation({
@@ -223,7 +224,7 @@ export function useMfCollectionActivities(loanId?: string) {
       invalidate();
       toast.success("Activity cancelled");
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 
   return {
@@ -265,6 +266,6 @@ export function useMfAccruePenalties() {
           : "No new penalties to raise",
       );
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error) => toast.error(lendingErrorMessage(error, "That request was refused")),
   });
 }

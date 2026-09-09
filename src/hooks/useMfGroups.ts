@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinesses } from "./useBusinesses";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 export type MfGroupStatus = "forming" | "active" | "dormant" | "closed";
 
@@ -74,16 +75,6 @@ const GROUP_SELECT =
 const MEMBER_SELECT =
   "id,business_id,group_id,client_id,role_in_group,joined_on,exited_on,is_active";
 
-function friendly(e: unknown, fallback: string): string {
-  const msg = e instanceof Error ? e.message : "";
-  if (/leader/i.test(msg) || /uniq.*leader/i.test(msg)) {
-    return "This group already has an active leader. Demote the current leader first.";
-  }
-  if (/duplicate key|already exists|unique/i.test(msg)) {
-    return "That record already exists for this group.";
-  }
-  return msg || fallback;
-}
 
 export function useMfGroups(options?: {
   branchId?: string | null;
@@ -134,7 +125,7 @@ export function useMfGroups(options?: {
       invalidate();
       toast.success("Group created");
     },
-    onError: (e) => toast.error(friendly(e, "Could not create the group")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the group")),
   });
 
   const updateGroup = useMutation({
@@ -146,7 +137,7 @@ export function useMfGroups(options?: {
       invalidate();
       toast.success("Group updated");
     },
-    onError: (e) => toast.error(friendly(e, "Could not update the group")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the group")),
   });
 
   return {
@@ -200,7 +191,7 @@ export function useMfGroupMembers(groupId: string | null) {
       invalidate();
       toast.success("Member added");
     },
-    onError: (e) => toast.error(friendly(e, "Could not add the member")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not add the member")),
   });
 
   const setRole = useMutation({
@@ -215,7 +206,7 @@ export function useMfGroupMembers(groupId: string | null) {
       invalidate();
       toast.success("Role updated");
     },
-    onError: (e) => toast.error(friendly(e, "Could not update the role")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the role")),
   });
 
   const exitMember = useMutation({
@@ -234,7 +225,7 @@ export function useMfGroupMembers(groupId: string | null) {
       invalidate();
       toast.success("Member exited the group");
     },
-    onError: (e) => toast.error(friendly(e, "Could not exit the member")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not exit the member")),
   });
 
   return {

@@ -15,6 +15,7 @@ import { useBusinesses } from "@/hooks/useBusinesses";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 const COMPONENT_LABEL: Record<string, string> = {
   penalty: "Penalties",
@@ -69,7 +70,7 @@ export function AllocationPolicyCard() {
       queryClient.invalidateQueries({ queryKey: ["mf-allocation-policy", businessId] });
       toast.success("Allocation order saved");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not save the allocation policy")),
   });
 
   const move = (index: number, delta: number) => {
