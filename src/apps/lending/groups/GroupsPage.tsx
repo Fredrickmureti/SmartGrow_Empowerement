@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Receipt } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -45,6 +45,7 @@ import {
 } from "@/hooks/useMfGroups";
 import { GroupFormDialog } from "./GroupFormDialog";
 import { GroupMembersDialog } from "./GroupMembersDialog";
+import { GroupFeeCollectionDialog } from "./GroupFeeCollectionDialog";
 
 const STATUS_TONE: Record<MfGroupStatus, "neutral" | "success" | "warning" | "danger"> = {
   forming: "warning",
@@ -65,6 +66,9 @@ export function GroupsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [rollGroup, setRollGroup] = useState<MfGroup | null>(null);
   const [rollOpen, setRollOpen] = useState(false);
+  const [feeGroup, setFeeGroup] = useState<MfGroup | null>(null);
+  const [feeOpen, setFeeOpen] = useState(false);
+  const canCollectFees = can("recordRepayments");
 
   const { groups, isLoading, error, createGroup, updateGroup } = useMfGroups({
     branchId: branchId === "all" ? null : branchId,
@@ -196,17 +200,31 @@ export function GroupsPage() {
                       <StatusBadge tone={STATUS_TONE[g.status]}>{g.status}</StatusBadge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRoll(g);
-                        }}
-                      >
-                        <Users className="mr-1.5 h-3.5 w-3.5" />
-                        Roll
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRoll(g);
+                          }}
+                        >
+                          <Users className="mr-1.5 h-3.5 w-3.5" />
+                          Roll
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFeeGroup(g);
+                            setFeeOpen(true);
+                          }}
+                        >
+                          <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                          Admission fees
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -233,6 +251,13 @@ export function GroupsPage() {
         open={rollOpen}
         onOpenChange={setRollOpen}
         group={rollGroup}
+      />
+
+      <GroupFeeCollectionDialog
+        open={feeOpen}
+        onOpenChange={setFeeOpen}
+        group={feeGroup}
+        canCollect={canCollectFees}
       />
     </>
   );

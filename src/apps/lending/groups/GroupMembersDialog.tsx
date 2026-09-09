@@ -32,6 +32,10 @@ import {
 import { EmptyState, LoadingState, ErrorState, StatusBadge } from "@/design-system";
 import { useMfClients, type MfClient } from "@/hooks/useMfClients";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
+import {
+  useMfClientFeePosition,
+  useMfGroupFeePositions,
+} from "@/hooks/useMfFeeCollections";
 
 const ROLES = ["member", "leader", "secretary", "treasurer"] as const;
 
@@ -53,6 +57,14 @@ export function GroupMembersDialog({
   const { members, isLoading, error, addMember, setRole, exitMember } =
     useMfGroupMembers(open && group ? group.id : null);
   const [selectedClient, setSelectedClient] = useState<string>("");
+  const { data: feePositions = [] } = useMfGroupFeePositions(
+    open && group ? group.id : null,
+  );
+  const { data: selectedFee } = useMfClientFeePosition(selectedClient || null);
+  const feeByClient = useMemo(
+    () => new Map(feePositions.map((p) => [p.client_id, p])),
+    [feePositions],
+  );
 
   const clientById = useMemo(() => {
     const map = new Map<string, MfClient>();
@@ -104,6 +116,21 @@ export function GroupMembersDialog({
           </Button>
         </div>
 
+        {selectedFee && Number(selectedFee.outstanding_amount) > 0 ? (
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            This client has an outstanding admission fee of{" "}
+            <span className="font-medium text-foreground">
+              {selectedFee.currency_code ?? ""}{" "}
+              {Number(selectedFee.outstanding_amount).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            . Adding them to the group does not collect it — use “Admission fees” on the
+            group when the money is actually received.
+          </p>
+        ) : null}
+
         {error ? (
           <ErrorState description={error.message} />
         ) : isLoading ? (
@@ -121,6 +148,7 @@ export function GroupMembersDialog({
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Admission fee</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -160,6 +188,24 @@ export function GroupMembersDialog({
                       <StatusBadge tone={m.is_active ? "success" : "neutral"}>
                         {m.is_active ? "active" : `exited ${m.exited_on ?? ""}`}
                       </StatusBadge>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const fee = feeByClient.get(m.client_id);
+                        if (!fee || !fee.charge_id) return <span className="text-muted-foreground">—</span>;
+                        const out = Number(fee.outstanding_amount);
+                        return out > 0 ? (
+                          <StatusBadge tone="warning">
+                            {out.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            outstanding
+                          </StatusBadge>
+                        ) : (
+                          <StatusBadge tone="success">settled</StatusBadge>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right">
                       {m.is_active ? (
