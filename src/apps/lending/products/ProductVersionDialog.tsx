@@ -484,6 +484,19 @@ export function ProductVersionDialog({
               </Button>
             </div>
 
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              <li>
+                <span className="font-medium">Deducted from disbursement</span> — the client
+                takes home less cash but still owes the full loan amount. On a 10,000 loan
+                with a 500 fee they receive 9,500 and repay 10,000 plus interest.
+              </li>
+              <li>
+                <span className="font-medium">Added to first installment</span> — the client
+                takes home the full loan amount and the fee is collected with the first
+                repayment. They receive 10,000 and repay 10,500 plus interest.
+              </li>
+            </ul>
+
             {form.fees.length === 0 ? (
               <p className="text-sm text-muted-foreground">No fees on this version.</p>
             ) : (
