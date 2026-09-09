@@ -23679,6 +23679,7 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      branch_day_expected_cash: { Args: { p_day_id: string }; Returns: number }
       budget_fiscal_months: {
         Args: { _business_id: string; _fiscal_year: number }
         Returns: {
