@@ -6,6 +6,7 @@
  * collection sheet, now stamped with this meeting.
  */
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,7 @@ export function MeetingWorkspaceDialog({
     to: meeting.scheduled_on,
   });
 
+  const queryClient = useQueryClient();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -231,6 +233,11 @@ export function MeetingWorkspaceDialog({
               </Button>
             )}
             {isOpenForWork && canManage && (
+              <Button variant="outline" onClick={() => setRegistering(true)}>
+                Register a client here
+              </Button>
+            )}
+            {isOpenForWork && canManage && (
               <>
                 <Button
                   variant="outline"
@@ -279,6 +286,23 @@ export function MeetingWorkspaceDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      <ClientFormDialog
+        open={registering}
+        onOpenChange={(o) => {
+          if (!o) setRegistering(false);
+        }}
+        client={null}
+        meetingContext={{ meetingId: meeting.id, groupId: meeting.group_id }}
+        onCreate={async (input) => {
+          const created = await createClient.mutateAsync(input);
+          queryClient.invalidateQueries({ queryKey: ["mf-meeting-summary"] });
+          return created;
+        }}
+        onUpdate={async (id, patch) => {
+          await updateClient.mutateAsync({ id, ...patch });
+        }}
+      />
     </Dialog>
   );
 }
