@@ -207,7 +207,7 @@ export function BranchDayPage() {
           {isLoading ? (
             <LoadingState />
           ) : error ? (
-            <ErrorState error={error as Error} />
+            <ErrorState description="We couldn’t load this branch’s days. Try again in a moment." />
           ) : days.length === 0 ? (
             <EmptyState
               icon={CalendarClock}
@@ -233,10 +233,9 @@ export function BranchDayPage() {
                   <TableRow key={d.id}>
                     <TableCell className="font-medium">{d.business_date}</TableCell>
                     <TableCell>
-                      <StatusBadge
-                        status={d.status === "open" ? "Open" : "Closed"}
-                        tone={d.status === "open" ? "success" : "neutral"}
-                      />
+                      <StatusBadge tone={d.status === "open" ? "success" : "neutral"}>
+                        {d.status === "open" ? "Open" : "Closed"}
+                      </StatusBadge>
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(Number(d.opening_cash ?? 0))}

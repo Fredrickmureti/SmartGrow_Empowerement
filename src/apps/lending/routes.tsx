@@ -19,6 +19,7 @@ import { LoansPage } from "./loans/LoansPage";
 import { RepaymentsPage } from "./repayments/RepaymentsPage";
 import { MeetingsPage } from "./meetings/MeetingsPage";
 import { CollectionsPage } from "./collections/CollectionsPage";
+import { BranchDayPage } from "./day/BranchDayPage";
 import { PortfolioReport } from "./reports/PortfolioReport";
 import { ArrearsReport } from "./reports/ArrearsReport";
 import { CollectionsReport } from "./reports/CollectionsReport";
@@ -98,6 +99,16 @@ export function LendingApp() {
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="recordRepayments">
               <RepaymentsPage />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="day"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="recordRepayments">
+              <BranchDayPage />
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
