@@ -97,6 +97,7 @@ export function MeetingsPage() {
   const [sheetGroupId, setSheetGroupId] = useState<string | null>(null);
   const [sheetMeetingId, setSheetMeetingId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [recordOpen, setRecordOpen] = useState(false);
 
   const weekday = isoWeekday(date);
 
