@@ -1,149 +1,101 @@
-# Loan lifecycle workflow — sequencing, guards, errors, guided UX
+# Client registration — branch, loan officer and group
 
-Findings below come from reading the lending screens/hooks and the live database
-(`_mf_application_guard`, `mf_create_loan_from_application`, `mf_disburse_loan`,
-constraints and SoD triggers). No code changed yet.
+Scope: only the relationship block (Branch / Loan officer / Group) of the client
+registration form, plus the backend rules behind it. No other KYC field changes.
 
-## A. The real business-event sequence (as the database enforces it)
+## A. What the system actually says today (verified)
 
-```text
-Application created (draft, or submitted directly)
-        ↓  submit — product eligibility rules bite here (cycles, age, group)
-Submitted
-        ↓  start review
-Under review
-        ↓  assessment recorded (at least one, physical visit)  ── required
-Approved  (branch manager/admin only; not the person who submitted — SoD;
-           approved amount + term required and inside the product-version band)
-        ↓  CREATE LOAN  (mf_create_loan_from_application)
-           = mints the loan, freezes product terms, generates the schedule,
-             writes the loan_created event AND flips the application to
-             "ready for disbursement" — one business event, several steps
-Loan pending disbursement
-        ↓  DISBURSE (mf_disburse_loan) — one-shot; realigns schedule to the
-           value date, deducts configured fees, posts the ledger entry,
-           activates the loan, sets the application to "disbursed"
-Active loan → repayments (batch per group meeting) → banking → closure,
-             or write-off / top-up / restructure / disbursement reversal
-```
+Evidence from the live database and the code, not assumptions.
 
-Key point: `ready_for_disbursement` is a **consequence of loan creation**, not a
-step a human performs. The database allows the bare status flip, but nothing in
-the business chain is served by it.
+- **Client → branch**: `mf_clients.branch_id` is required, one branch per client,
+  foreign key to `branches`.
+- **Client → officer**: `mf_clients.loan_officer_id` is optional and has **no
+  foreign key** — any UUID is accepted, including a person with no branch.
+- **Client → group**: through `mf_group_members`. A trigger
+  (`_mf_group_members_limit`) currently allows **two** active memberships per
+  client; a partial unique index prevents joining the same group twice while
+  active. Membership has `joined_on` / `exited_on` / `is_active`, so history is
+  supported. Group membership is **optional** — nothing requires it.
+- **Group → branch**: exactly one, required (`mf_groups.branch_id`).
+- **Group → officer**: at most one, optional (`mf_groups.loan_officer_id`, no
+  foreign key).
+- **Officer → branch**: many-to-many via `user_branch_assignments`
+  (user, business, branch, primary flag). Live data: 6 assignments, 2 branches,
+  each person currently on one branch.
+- **Security**: row-level rules on all three tables call `mf_can_scoped`, which
+  checks business + branch permission and own-portfolio ownership. Gaps found:
+  `mf_group_members.business_id` is supplied by the caller and never checked
+  against the group, and nothing checks that the client, the group and the
+  officer belong to the same business/branch.
+- Live data is currently empty (0 clients, 0 groups), so there are no legacy
+  edge cases to migrate.
 
-## B. Defects found
+**Answer to the "one group" question:** Case D — the workflow expects one, the
+database permits two. You confirmed one active group is correct, so this is
+fixed in the database, not hidden in the form.
 
-1. **"Mark ready" is a trap (the workflow defect).**
-   The applications table shows a `Mark ready` button on approved applications.
-   It only flips the status. But the Create-loan dialog lists *only*
-   applications with status exactly `approved`. So an operator who clicks
-   `Mark ready` after approval moves the application out of the only picker
-   that can create its loan — the application becomes a dead end with no
-   action anywhere in the UI, while `mf_create_loan_from_application` would in
-   fact still accept it. This is the "action offered before/instead of its real
-   prerequisite" class the wave is about.
+## B. Current registration flow and confirmed defects
 
-2. **`[object Object]` toasts — root cause identified.**
-   Every lending hook normalises errors with
-   `error instanceof Error ? error.message : String(error)`. Supabase returns
-   `PostgrestError` as a **plain object**, not an `Error`, so `String(...)`
-   yields `[object Object]`. Every refusal raised by a guard trigger or RPC
-   (`mf_loan_applications` updates, `mf_create_loan_from_application`,
-   `mf_disburse_loan`, repayments, batches, banking, products) currently loses
-   its business message this way. The project already owns a central
-   normaliser (`normalizeError` in `src/services/resilience`) plus an ESLint
-   rule against raw error text in toasts — the mf hooks bypass both.
+The form already has a group picker, so the "second trip to Groups" is not the
+whole story. Real defects:
 
-3. **The `disbursed` application state is invisible to the UI.**
-   The database allows and sets `status = 'disbursed'`; the frontend status
-   list, labels and colour map do not contain it, so a disbursed application
-   renders with an empty badge and cannot be filtered.
+1. Creating a client and adding the group memberships are **separate writes**.
+   If the membership write fails, a client exists with no group and no message
+   explaining it.
+2. The **branch list ignores the user's branch scope** (it lists every branch,
+   while the save check rejects out-of-scope ones).
+3. The **officer list is every organisation member**, unfiltered by branch, and
+   the officer can contradict the branch.
+4. The **group list silently falls back to every group in the branch** when the
+   chosen officer has none — producing exactly the contradictions to avoid.
+5. **No backend guard** ties client branch, group branch and officer together;
+   the rules exist only in the form.
+6. The two-group allowance contradicts the agreed one-group rule.
 
-4. **No state/next-step guidance.** Both pages render bare action buttons per
-   status flag. Nothing tells the operator what has already happened, what the
-   next legitimate event is, or why disbursement is not yet possible (loan not
-   created, or fees/accounting mapping unresolved).
+Not defects: group being optional, editing group membership from the Groups
+screen, transferring branch/officer later. All preserved.
 
-5. **Prerequisites that exist only in the backend and are never surfaced:**
-   assessment before decision, decision-maker ≠ submitter (SoD), approved
-   amount/term inside the product band, published product version in force,
-   accounting mapping resolvable for the disbursement method, fees not
-   exceeding principal, loan exists before disbursement, no prior
-   disbursement, `active` before repayment/closure/write-off.
+## C. What will change
 
-Backend guards are sound; nothing needs weakening.
+### Database (three small, separate migrations)
 
-## C. Remediation
+1. Replace the membership limit trigger: **one active group per client**, with
+   the message "This client already belongs to an active group. Exit that group
+   first."
+2. Add a membership consistency guard: the membership's business must equal the
+   group's business, the client's business must equal the group's business, and
+   the client's branch must equal the group's branch — each with its own plain
+   sentence.
+3. Add one authoritative operation `mf_register_client(...)` that creates the
+   client and, when a group is given, the membership **in one transaction**,
+   after checking the officer is assigned to the chosen branch. It reuses the
+   existing permission function; it does not re-implement it.
 
-### Phase 1 — error truth (do first, it makes everything else diagnosable)
-- Add one shared lending error mapper built on the existing `normalizeError`,
-  which reads `message`/`details`/`hint`/`code` off Postgres/Postgrest objects
-  and keeps the guard's business sentence (e.g. "An application cannot be
-  decided before an assessment is recorded"), while suppressing SQL text,
-  constraint names and stack detail.
-- Route every `mf_*` hook's `onError` through it. Delete the four local
-  `friendly()` copies. No second error architecture.
+### Form (relationship block only)
 
-### Phase 2 — correct the sequence in the UI
-- Remove `Mark ready` as an operator action; readiness is produced by loan
-  creation.
-- Approved applications get a single primary action: **Create loan**, opening
-  the existing create-loan dialog pre-selected on that application.
-- The create-loan picker accepts `approved` *and* `ready_for_disbursement`
-  applications without a loan (matching the RPC), so existing stuck records
-  recover.
-- Add `disbursed` to the status list, labels and tone map; show the linked loan
-  number on an application that has one.
+- Order becomes **Loan officer → Branch → Group**.
+- Officer list = staff with a branch assignment in this institution.
+- Choosing an officer with one branch fills the branch in automatically and
+  shows it as derived; with several branches, only those branches are offered.
+- Group list = groups of that officer in that branch, open groups only. No
+  silent fallback to unrelated groups.
+- Selecting a group when officer/branch are blank fills both in from the group.
+- Group stays optional; a single choice, not a multi-select.
+- Empty states in words: "This loan officer is not assigned to a branch.",
+  "No groups for this loan officer in this branch.", "Select a loan officer to
+  see their groups."
+- Saving calls the new single operation; refusals are shown through the existing
+  lending message helper, never raw database text.
 
-### Phase 3 — guided workflow
-- A workflow strip on each application row/detail: completed events (submitted
-  → assessed → approved), current state, and one clear next step.
-- On the loans page, state-aware actions: pending-disbursement loans lead with
-  **Disburse**; lifecycle actions stay on active loans only. Where an action is
-  legitimately visible but blocked, it is disabled with the reason stated
-  ("Disbursement becomes available once the loan is created"), never silently.
-- Keep all legitimate alternatives (reject, cancel, return to draft, reverse,
-  top-up, restructure) exposed at the states the guard actually accepts.
+## D. Verification I will run and report
 
-### Phase 4 — tests
-- Happy path: draft → submit → review → assess → approve → create loan →
-  disburse → active.
-- Premature actions rejected by the backend: approve without assessment,
-  approve by the submitter, create loan twice, disburse a loan with no loan
-  record/already disbursed, repay a pending loan, close an unsettled loan.
-- Error rendering: a Postgrest-shaped plain error object must render its
-  business sentence, never `[object Object]` and never raw SQL.
-- Reload/stale-state: after refetch the available actions match the stored
-  state; a stale button still gets refused by the backend.
+Backend, by calling the operation directly with bad combinations (bypassing the
+form): group from another branch, group from another business, officer not
+assigned to the branch, client already in an active group, membership row with a
+mistyped business. Each must be refused with its own sentence.
 
-## Technical notes
-- No migration is expected. If the audit turns up a genuinely missing guard
-  (rather than a UI mismatch), it goes in as its own small single-purpose
-  migration.
-- Files in scope: `src/hooks/useMf*.ts`, `src/apps/lending/applications/*`,
-  `src/apps/lending/loans/*`, plus one new lending error mapper under
-  `src/services/resilience` usage, and tests under `src/test/`.
+Front end, in the browser: officer with one branch, officer with several, officer
+with no branch, officer with no groups, group-first selection, registering with
+no group, and a reload after registering to confirm the membership stuck.
 
-
-========================================IMPLEMENTATION STATUS=========================
-
-All four phases are complete.
-
-Phase 1 (errors): one shared translator (`src/lib/lending/lendingError.ts`) built on
-`normalizeError`; every `mf_*` hook routes `onError` through it. Verified in place.
-
-Phase 2 (sequence): `disbursed` added to the status list/labels/tone map; the operator
-"Mark ready" shortcut removed from both the transition model and the applications page;
-the create-loan picker accepts approved and ready-for-disbursement applications without
-a loan. Verified in place.
-
-Phase 3 (guided UX): applications rows now show completed events, what the state means
-and the single next legitimate event (`applicationWorkflow.ts`, wired via `WorkflowTrail`);
-Approve is disabled with its reason until an assessment exists; approved applications get
-a direct **Create loan** action opening the pre-selected dialog; applications already
-holding a loan show its number. The loans page states what each loan state means, what
-happens next, and why lifecycle actions are unavailable before disbursement.
-
-Phase 4 (tests): `src/lib/lending/__tests__/loanWorkflow.test.ts` — happy-path step
-ordering, premature-action explanations, and error rendering (no `[object Object]`, no
-SQL/constraint/policy leakage). 13 tests pass; typecheck and lint clean.
+I will report actual observed results, including anything that fails.
