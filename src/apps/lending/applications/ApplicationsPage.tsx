@@ -123,6 +123,8 @@ export function ApplicationsPage() {
   const [decisionTarget, setDecisionTarget] = useState<MfLoanApplication | null>(null);
   const [decisionMode, setDecisionMode] = useState<"approve" | "reject">("approve");
   const [decisionOpen, setDecisionOpen] = useState(false);
+  const [loanApplicationId, setLoanApplicationId] = useState<string | null>(null);
+  const [loanOpen, setLoanOpen] = useState(false);
 
   const {
     applications,
