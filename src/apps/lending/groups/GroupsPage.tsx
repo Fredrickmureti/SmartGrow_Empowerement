@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus, Users } from "lucide-react";
+import { Plus, Users, Receipt } from "lucide-react";
 import {
   PageHeader,
   PageBody,
