@@ -26516,7 +26516,12 @@ export type Database = {
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_open_group_meeting: {
-        Args: { p_group_id: string; p_meeting_on?: string }
+        Args: {
+          p_group_id: string
+          p_held_by?: string
+          p_meeting_on?: string
+          p_started_at_time?: string
+        }
         Returns: string
       }
       mf_pay_client_charge: {
