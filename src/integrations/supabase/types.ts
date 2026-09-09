@@ -26775,16 +26775,14 @@ export type Database = {
       reset_module__banking: { Args: { org_id: string }; Returns: Json }
       reset_module__finance: { Args: { org_id: string }; Returns: Json }
       reset_module__fixed_assets: { Args: { org_id: string }; Returns: Json }
-      reset_module__microfinance:
-        | { Args: { include_clients?: boolean; org_id: string }; Returns: Json }
-        | {
-            Args: {
-              include_clients?: boolean
-              include_products?: boolean
-              org_id: string
-            }
-            Returns: Json
-          }
+      reset_module__microfinance: {
+        Args: {
+          include_clients?: boolean
+          include_products?: boolean
+          org_id: string
+        }
+        Returns: Json
+      }
       reset_module__sequences: { Args: { org_id: string }; Returns: Json }
       reset_module__transactions_ledger: {
         Args: { org_id: string }
@@ -26812,24 +26810,15 @@ export type Database = {
         }
         Returns: undefined
       }
-      reset_transactional_data:
-        | {
-            Args: {
-              confirmation: string
-              include_clients?: boolean
-              org_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              confirmation: string
-              include_clients?: boolean
-              include_products?: boolean
-              org_id: string
-            }
-            Returns: Json
-          }
+      reset_transactional_data: {
+        Args: {
+          confirmation: string
+          include_clients?: boolean
+          include_products?: boolean
+          org_id: string
+        }
+        Returns: Json
+      }
       reset_user_pin: { Args: { p_device_fingerprint: string }; Returns: Json }
       resolve_adjustment_offset_account:
         | {
