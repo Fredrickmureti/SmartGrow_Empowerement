@@ -291,10 +291,15 @@ export function ApplicationsPage() {
                         ? `${a.approved_amount} / ${a.approved_term_installments ?? "—"}`
                         : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[280px] space-y-1.5">
                       <StatusBadge tone={STATUS_TONE[a.status]}>
                         {MF_APPLICATION_STATUS_LABELS[a.status]}
                       </StatusBadge>
+                      <WorkflowTrail
+                        status={a.status}
+                        hasAssessment={assessedIds.has(a.id)}
+                        loanNumber={loanNumberFor(a.id)}
+                      />
                     </TableCell>
                     <TableCell
                       className="space-x-1.5 text-right"
