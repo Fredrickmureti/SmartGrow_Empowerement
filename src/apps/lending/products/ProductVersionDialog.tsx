@@ -474,8 +474,8 @@ export function ProductVersionDialog({
               <div>
                 <p className="text-sm font-medium">Fees</p>
                 <p className="text-xs text-muted-foreground">
-                  Amounts are resolved server-side at disbursement; the client's obligation
-                  stays the full principal.
+                  Fee amounts are worked out on the server at disbursement. A fee is never
+                  added to the principal.
                 </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addFee}>
