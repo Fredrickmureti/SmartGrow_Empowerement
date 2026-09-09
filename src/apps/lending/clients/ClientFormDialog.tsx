@@ -376,7 +376,13 @@ export function ClientFormDialog({
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) return;
+        requestClose();
+      }}
+    >
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{client ? "Edit client" : "Register client"}</DialogTitle>
