@@ -12052,6 +12052,146 @@ export type Database = {
           },
         ]
       }
+      mf_client_charge_payments: {
+        Row: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charge_id: string
+          client_id: string
+          collection_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          journal_entry_id: string | null
+          method: string
+          notes: string | null
+          paid_on: string
+          receipt_number: string | null
+          reference: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charge_id: string
+          client_id: string
+          collection_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          business_id?: string
+          charge_id?: string
+          client_id?: string
+          collection_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_client_charge_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_client_charges: {
         Row: {
           amount: number
