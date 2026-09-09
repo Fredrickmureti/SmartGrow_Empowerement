@@ -331,22 +331,29 @@ export function ApplicationFormDialog({
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label>Group (optional)</Label>
-            <Select value={form.group_id} onValueChange={(v) => set("group_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Not a group meeting" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.group_number} — {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Group</Label>
+            <Input
+              value={
+                clientGroup ? `${clientGroup.group_number} — ${clientGroup.name}` : ""
+              }
+              placeholder={
+                !form.client_id
+                  ? "Select a client first"
+                  : groupLoading
+                    ? "Checking membership…"
+                    : "Not in a group"
+              }
+              readOnly
+              disabled
+            />
             <p className="text-xs text-muted-foreground">
-              Membership is context only — liability stays individual.
+              {!form.client_id
+                ? "Select a client first."
+                : groupLoading
+                  ? "Checking this client's membership."
+                  : clientGroup
+                    ? "The client's active group. Membership is context only — liability stays individual."
+                    : "This client is not in a group."}
             </p>
           </div>
           <div className="space-y-1.5">
