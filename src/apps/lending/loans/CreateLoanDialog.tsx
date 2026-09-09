@@ -4,6 +4,11 @@
  * Terms are not entered here: the server copies the approved amount/term and
  * the frozen product version onto the loan and generates the schedule. The
  * operator only chooses the value dates.
+ *
+ * The picker mirrors what `mf_create_loan_from_application` actually accepts —
+ * an approved application, or one already marked ready for disbursement, that
+ * does not yet have a loan. Narrowing it further than the guard would leave
+ * applications stranded with no way forward.
  */
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -26,10 +31,13 @@ import {
 } from "@/components/ui/select";
 import { useMfApplications } from "@/hooks/useMfApplications";
 import { useMfClients } from "@/hooks/useMfClients";
+import { useMfLoans } from "@/hooks/useMfLoans";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Application to pre-select when the dialog is opened from the pipeline. */
+  presetApplicationId?: string | null;
   onCreate: (input: {
     applicationId: string;
     expectedDisbursementDate: string;
@@ -39,17 +47,33 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function CreateLoanDialog({ open, onOpenChange, onCreate }: Props) {
+export function CreateLoanDialog({
+  open,
+  onOpenChange,
+  presetApplicationId,
+  onCreate,
+}: Props) {
   const { applications } = useMfApplications({ status: "all" });
   const { clients } = useMfClients();
+  const { loans } = useMfLoans({ status: "all" });
   const [applicationId, setApplicationId] = useState("");
   const [expected, setExpected] = useState(today());
   const [firstDue, setFirstDue] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const loanedApplicationIds = useMemo(
+    () => new Set(loans.map((l) => l.application_id).filter(Boolean) as string[]),
+    [loans],
+  );
+
   const eligible = useMemo(
-    () => applications.filter((a) => a.status === "approved"),
-    [applications],
+    () =>
+      applications.filter(
+        (a) =>
+          (a.status === "approved" || a.status === "ready_for_disbursement") &&
+          !loanedApplicationIds.has(a.id),
+      ),
+    [applications, loanedApplicationIds],
   );
 
   const clientLabel = useMemo(() => {
@@ -59,10 +83,10 @@ export function CreateLoanDialog({ open, onOpenChange, onCreate }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setApplicationId("");
+    setApplicationId(presetApplicationId ?? "");
     setExpected(today());
     setFirstDue("");
-  }, [open]);
+  }, [open, presetApplicationId]);
 
   const submit = async () => {
     if (!applicationId) return;
@@ -86,7 +110,8 @@ export function CreateLoanDialog({ open, onOpenChange, onCreate }: Props) {
           <DialogTitle>Create loan</DialogTitle>
           <DialogDescription>
             The approved amount, term and the frozen product version are carried over by
-            the system. The repayment schedule is generated server-side.
+            the system. The repayment schedule is generated server-side. Creating the loan
+            does not pay any money out — disbursement is a separate step.
           </DialogDescription>
         </DialogHeader>
 
