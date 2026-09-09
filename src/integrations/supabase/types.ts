@@ -3716,6 +3716,90 @@ export type Database = {
           },
         ]
       }
+      branch_operational_days: {
+        Row: {
+          branch_id: string
+          business_date: string
+          business_id: string
+          closed_at: string | null
+          closed_by: string | null
+          counted_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          opening_cash: number
+          organization_id: string
+          reopened_count: number
+          status: string
+          updated_at: string
+          variance: number | null
+          variance_journal_entry_id: string | null
+          variance_reason: string | null
+        }
+        Insert: {
+          branch_id: string
+          business_date: string
+          business_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_cash?: number
+          organization_id: string
+          reopened_count?: number
+          status?: string
+          updated_at?: string
+          variance?: number | null
+          variance_journal_entry_id?: string | null
+          variance_reason?: string | null
+        }
+        Update: {
+          branch_id?: string
+          business_date?: string
+          business_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_cash?: number
+          organization_id?: string
+          reopened_count?: number
+          status?: string
+          updated_at?: string
+          variance?: number | null
+          variance_journal_entry_id?: string | null
+          variance_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_operational_days_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_operational_days_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_overridable_settings: {
         Row: {
           category: string
