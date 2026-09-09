@@ -89,6 +89,21 @@ export function ApplicationsPage() {
     return (id: string) => map.get(id) ?? "—";
   }, [clients]);
 
+  // The version an application was pinned to at capture time. Repricing the
+  // product afterwards must never appear to move an existing application.
+  const productLabel = useMemo(() => {
+    const map = new Map(products.map((p) => [p.id, p.code]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [products]);
+
+  const pricedOn = (a: MfLoanApplication) => {
+    const version = a.product_version_id ? versionsById.get(a.product_version_id) : undefined;
+    return version
+      ? `${productLabel(a.product_id)} v${version.version_no}`
+      : productLabel(a.product_id);
+  };
+
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return applications;
