@@ -51,6 +51,7 @@ import {
   type MfMeetingStatus,
 } from "@/hooks/useMfMeetings";
 import { useMfRepayments, useMfRepaymentBatches } from "@/hooks/useMfRepayments";
+import { meetingRowsForDate } from "@/lib/lending/meetingSchedule";
 import { MeetingWorkspaceDialog } from "./MeetingWorkspaceDialog";
 import { GroupSheetDialog } from "../repayments/GroupSheetDialog";
 
@@ -98,21 +99,16 @@ export function MeetingsPage() {
 
   const weekday = isoWeekday(date);
 
-  const rows: Row[] = useMemo(() => {
-    const byGroup = new Map(meetings.map((m) => [m.group_id, m]));
-    return groups
-      .filter((g) => {
-        if (officerId !== "all" && g.loan_officer_id !== officerId) return false;
-        if (byGroup.has(g.id)) return true;
-        return g.status === "active" && g.meeting_day === weekday;
-      })
-      .map((g) => ({ group: g, meeting: byGroup.get(g.id) ?? null }))
-      .sort((a, b) => {
-        const at = a.meeting?.scheduled_time ?? a.group.meeting_time ?? "";
-        const bt = b.meeting?.scheduled_time ?? b.group.meeting_time ?? "";
-        return at.localeCompare(bt) || a.group.name.localeCompare(b.group.name);
-      });
-  }, [groups, meetings, officerId, weekday]);
+  const rows: Row[] = useMemo(
+    () =>
+      meetingRowsForDate(
+        groups,
+        meetings,
+        date,
+        officerId === "all" ? null : officerId,
+      ),
+    [groups, meetings, date, officerId],
+  );
 
   const activeRow = rows.find((r) => r.group.id === activeGroupId) ?? null;
   const activeMeeting = activeRow?.meeting ?? null;
