@@ -206,7 +206,7 @@ export function MeetingsPage() {
             <EmptyState
               icon={CalendarDays}
               title="No meetings on this date"
-              description="No active group has this weekday as its regular meeting day, and no meeting was opened for this date."
+              description="No active group has this weekday as its regular meeting day, and no meeting was opened for this date. Use “Record a meeting” to write up a meeting held on another day."
             />
           ) : (
             <Table>
