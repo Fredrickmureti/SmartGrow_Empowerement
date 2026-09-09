@@ -26430,6 +26430,10 @@ export type Database = {
         }
         Returns: string
       }
+      mf_complete_group_meeting: {
+        Args: { p_meeting_id: string; p_notes?: string }
+        Returns: Json
+      }
       mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
       mf_create_loan_from_application: {
         Args: {
