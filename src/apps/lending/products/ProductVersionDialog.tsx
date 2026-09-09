@@ -126,13 +126,14 @@ export function ProductVersionDialog({
   product,
   businessId,
 }: ProductVersionDialogProps) {
-  const { versions, isLoading, publishVersion } = useMfLoanProductVersions(
-    product?.id ?? null,
-  );
+  const { versions, currentVersion, isLoading, publishVersion } =
+    useMfLoanProductVersions(product?.id ?? null);
   const [form, setForm] = useState<FormState>(EMPTY);
   const [saving, setSaving] = useState(false);
 
-  const latest = versions[0] ?? null;
+  // Seed from the version actually in force today, not merely the newest row —
+  // a future-dated version is scheduled, not the current price.
+  const latest = currentVersion ?? versions[0] ?? null;
 
   useEffect(() => {
     if (!open) return;
@@ -183,6 +184,9 @@ export function ProductVersionDialog({
 
   /** Bases the schedule engine will accept for the chosen interest method. */
   const allowedRatePeriods = MF_VALID_RATE_PERIODS[form.interest_method];
+
+  /** A basis only means something once a late charge is actually priced. */
+  const penaltyEnabled = Number(form.penalty_rate) > 0;
 
   // Changing the method can strand an unsupported basis; fall back to per annum
   // rather than letting the database reject the publish.
@@ -352,7 +356,7 @@ export function ProductVersionDialog({
                 <SelectContent>
                   {MF_INTEREST_METHODS.map((m) => (
                     <SelectItem key={m} value={m}>
-                      {m.replace(/_/g, " ")}
+                      {MF_INTEREST_METHOD_LABELS[m]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -380,13 +384,16 @@ export function ProductVersionDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MF_INTEREST_RATE_PERIODS.map((p) => (
+                  {allowedRatePeriods.map((p) => (
                     <SelectItem key={p} value={p}>
-                      {p.replace(/_/g, " ")}
+                      {MF_RATE_PERIOD_LABELS[p]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {MF_RATE_PERIOD_HELP[form.interest_rate_period]}
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -394,9 +401,14 @@ export function ProductVersionDialog({
               <Input
                 id="v-grace"
                 type="number"
+                min={0}
                 value={form.grace_period_installments}
                 onChange={(e) => set("grace_period_installments", e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Opening installments that carry no principal. The loan is repaid over the
+                remaining installments; nothing is waived and no date moves.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="v-penalty">Penalty rate (%)</Label>
@@ -404,28 +416,39 @@ export function ProductVersionDialog({
                 id="v-penalty"
                 type="number"
                 step="0.01"
+                min={0}
                 value={form.penalty_rate}
                 onChange={(e) => set("penalty_rate", e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Charged only after an installment falls overdue — never part of the
+                schedule at origination. Leave at 0 for no late charge.
+              </p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="v-penalty-basis">Penalty basis</Label>
-              <Select
-                value={form.penalty_basis}
-                onValueChange={(v) => set("penalty_basis", v as MfPenaltyBasis)}
-              >
-                <SelectTrigger id="v-penalty-basis">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {MF_PENALTY_BASES.map((b) => (
-                    <SelectItem key={b} value={b}>
-                      {b.replace(/_/g, " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {penaltyEnabled ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="v-penalty-basis">Penalty basis</Label>
+                <Select
+                  value={form.penalty_basis}
+                  onValueChange={(v) => set("penalty_basis", v as MfPenaltyBasis)}
+                >
+                  <SelectTrigger id="v-penalty-basis">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MF_PENALTY_BASES.map((b) => (
+                      <SelectItem key={b} value={b}>
+                        {MF_PENALTY_BASIS_LABELS[b]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  The amount the penalty percentage is charged on.
+                </p>
+              </div>
+            ) : null}
+
 
             <div className="space-y-1.5">
               <Label htmlFor="v-effective">Effective from</Label>
@@ -452,8 +475,8 @@ export function ProductVersionDialog({
               <div>
                 <p className="text-sm font-medium">Fees</p>
                 <p className="text-xs text-muted-foreground">
-                  Amounts are resolved server-side at disbursement; the client's obligation
-                  stays the full principal.
+                  Fee amounts are worked out on the server at disbursement. A fee is never
+                  added to the principal.
                 </p>
               </div>
               <Button type="button" variant="outline" size="sm" onClick={addFee}>
@@ -461,6 +484,19 @@ export function ProductVersionDialog({
                 Add fee
               </Button>
             </div>
+
+            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+              <li>
+                <span className="font-medium">Deducted from disbursement</span> — the client
+                takes home less cash but still owes the full loan amount. On a 10,000 loan
+                with a 500 fee they receive 9,500 and repay 10,000 plus interest.
+              </li>
+              <li>
+                <span className="font-medium">Added to first installment</span> — the client
+                takes home the full loan amount and the fee is collected with the first
+                repayment. They receive 10,000 and repay 10,500 plus interest.
+              </li>
+            </ul>
 
             {form.fees.length === 0 ? (
               <p className="text-sm text-muted-foreground">No fees on this version.</p>
