@@ -176,23 +176,47 @@ export function ProductVersionDialog({
   const removeFee = (index: number) =>
     setForm((prev) => ({ ...prev, fees: prev.fees.filter((_, i) => i !== index) }));
 
+  /** Bases the schedule engine will accept for the chosen interest method. */
+  const allowedRatePeriods = MF_VALID_RATE_PERIODS[form.interest_method];
+
+  // Changing the method can strand an unsupported basis; fall back to per annum
+  // rather than letting the database reject the publish.
+  useEffect(() => {
+    if (!allowedRatePeriods.includes(form.interest_rate_period)) {
+      setForm((prev) => ({ ...prev, interest_rate_period: "per_annum" }));
+    }
+  }, [allowedRatePeriods, form.interest_rate_period]);
+
   const invalid = useMemo(() => {
     const min = Number(form.min_amount);
     const max = Number(form.max_amount);
     const minT = Number(form.min_term_installments);
     const maxT = Number(form.max_term_installments);
+    const grace = Number(form.grace_period_installments);
     if (!(min > 0) || !(max >= min)) return "Amount band is invalid.";
     if (!(minT > 0) || !(maxT >= minT)) return "Term band is invalid.";
     if (Number(form.interest_rate) < 0) return "Interest rate cannot be negative.";
+    if (!MF_VALID_RATE_PERIODS[form.interest_method].includes(form.interest_rate_period))
+      return "That rate basis cannot be used with the selected interest method.";
+    if (!(grace >= 0)) return "Grace installments cannot be negative.";
+    if (grace >= minT)
+      return "Grace installments must be fewer than the minimum number of installments.";
+    if (Number(form.penalty_rate) < 0) return "Penalty rate cannot be negative.";
+    let percentFees = 0;
     for (const fee of form.fees) {
       if (!fee.name.trim()) return "Every fee needs a name.";
       const value = Number(fee.value);
       if (!Number.isFinite(value) || value < 0) return `Fee "${fee.name}" has an invalid value.`;
-      if (fee.basis === "percent_of_principal" && value >= 100)
-        return `Fee "${fee.name}" cannot be 100% or more of principal.`;
+      if (fee.basis === "percent_of_principal") {
+        if (value >= 100) return `Fee "${fee.name}" cannot be 100% or more of principal.`;
+        percentFees += value;
+      }
     }
+    if (percentFees >= 100)
+      return "Percentage fees add up to 100% or more of the principal.";
     return null;
   }, [form]);
+
 
   const submit = async () => {
     if (!product || !businessId || invalid) return;
