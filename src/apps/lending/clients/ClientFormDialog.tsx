@@ -216,7 +216,7 @@ export function ClientFormDialog({
   useEffect(() => {
     if (!open) return;
     setImages({});
-    setGroupIds([]);
+    setGroupId(null);
     createdRef.current = null;
     if (client) {
       setForm({
@@ -254,15 +254,6 @@ export function ClientFormDialog({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const toggleGroup = (id: string) =>
-    setGroupIds((prev) => {
-      if (prev.includes(id)) return prev.filter((g) => g !== id);
-      if (prev.length >= 2) {
-        toast.error("A client can belong to at most two groups.");
-        return prev;
-      }
-      return [...prev, id];
-    });
 
   const canSave =
     form.full_name.trim() !== "" &&
