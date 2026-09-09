@@ -274,9 +274,28 @@ export function ClientFormDialog({
         loan_officer_id:
           branchScope.isOwnPortfolioOnly && user?.id ? user.id : UNASSIGNED,
       }));
+      if (meetingContext) setGroupId(meetingContext.groupId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client]);
+
+  // Registering from inside a meeting: the group is fixed to the meeting's
+  // group, and its branch and loan officer are taken from that group.
+  useEffect(() => {
+    if (!open || client || !meetingContext) return;
+    const group = groups.find((g) => g.id === meetingContext.groupId);
+    if (!group) return;
+    setGroupId(group.id);
+    setForm((prev) => ({
+      ...prev,
+      branch_id: group.branch_id ?? prev.branch_id,
+      loan_officer_id:
+        prev.loan_officer_id === UNASSIGNED && group.loan_officer_id
+          ? group.loan_officer_id
+          : prev.loan_officer_id,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, client, meetingContext?.groupId, groups]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
