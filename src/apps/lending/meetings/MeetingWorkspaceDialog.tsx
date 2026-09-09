@@ -29,9 +29,11 @@ import {
 import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { useMfClients } from "@/hooks/useMfClients";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
+import { ClientFormDialog } from "../clients/ClientFormDialog";
 import {
   useMfGroupMeetings,
   useMfMeetingAttendance,
+  useMfMeetingSummary,
   MEETING_STATUS_LABEL,
   type MfAttendanceStatus,
   type MfGroupMeeting,
