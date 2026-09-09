@@ -315,10 +315,15 @@ export function MeetingWorkspaceDialog({
             </Button>
             {isOpenForWork && canManage && (
               <Button
-                disabled={completeMeeting.isPending}
+                disabled={completeMeeting.isPending || !endedAt}
                 onClick={() =>
                   completeMeeting.mutate(
-                    { meetingId: meeting.id, notes: notes || null },
+                    {
+                      meetingId: meeting.id,
+                      notes: notes || null,
+                      startedAtTime: startedAt || null,
+                      endedAtTime: endedAt || null,
+                    },
                     { onSuccess: () => onOpenChange(false) },
                   )
                 }
