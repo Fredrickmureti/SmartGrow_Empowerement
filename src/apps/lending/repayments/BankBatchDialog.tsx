@@ -14,6 +14,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -51,6 +55,7 @@ export function BankBatchDialog({
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
 
   useEffect(() => {
     if (!open) return;
@@ -112,15 +117,12 @@ export function BankBatchDialog({
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="banked-on">Banked on</Label>
-            <Input
-              id="banked-on"
-              type="date"
-              value={bankedOn}
-              onChange={(e) => setBankedOn(e.target.value)}
-            />
-          </div>
+          <BranchDayDateField
+            id="banked-on"
+            label="Banked on"
+            value={bankedOn}
+            onChange={setBankedOn}
+          />
 
           <div className="space-y-1.5">
             <Label htmlFor="deposit-ref">Deposit slip / reference</Label>
@@ -148,7 +150,10 @@ export function BankBatchDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || !bankAccountId || !bankedOn}>
+          <Button
+            onClick={submit}
+            disabled={saving || !bankAccountId || !bankedOn || dayGate.blocked}
+          >
             {saving ? "Banking…" : "Bank collections"}
           </Button>
         </DialogFooter>

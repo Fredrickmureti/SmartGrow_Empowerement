@@ -23,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MF_REPAYMENT_METHODS, type MfLoanBalance } from "@/hooks/useMfRepayments";
+import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
 
 interface Props {
   open: boolean;
@@ -48,6 +52,7 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
 
   useEffect(() => {
     if (!open) return;
@@ -120,10 +125,12 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Paid on</Label>
-              <Input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
-            </div>
+            <BranchDayDateField
+              label="Paid on"
+              value={paidOn}
+              onChange={setPaidOn}
+              className="grid gap-1.5"
+            />
             <div className="grid gap-1.5">
               <Label>Amount</Label>
               <Input
@@ -168,7 +175,7 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || !loanId || !amount}>
+          <Button onClick={submit} disabled={saving || !loanId || !amount || dayGate.blocked}>
             {saving ? "Recording…" : "Record payment"}
           </Button>
         </DialogFooter>

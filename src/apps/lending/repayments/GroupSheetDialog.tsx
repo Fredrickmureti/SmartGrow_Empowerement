@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -91,6 +95,7 @@ export function GroupSheetDialog({
   const [method, setMethod] = useState("cash");
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
   const [failures, setFailures] = useState<string[]>([]);
 
   const { rows, isLoading, error } = useMfGroupSheet(open ? groupId || null : null);
@@ -199,14 +204,11 @@ export function GroupSheetDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Meeting date</Label>
-            <Input
-              type="date"
-              value={collectedOn}
-              onChange={(e) => setCollectedOn(e.target.value)}
-            />
-          </div>
+          <BranchDayDateField
+            label="Meeting date"
+            value={collectedOn}
+            onChange={setCollectedOn}
+          />
           <div className="space-y-1.5">
             <Label>Method</Label>
             <Select value={method} onValueChange={setMethod}>
@@ -318,7 +320,10 @@ export function GroupSheetDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={saving || lines.length === 0}>
+            <Button
+              onClick={submit}
+              disabled={saving || lines.length === 0 || dayGate.blocked}
+            >
               {saving ? "Posting…" : "Post collection sheet"}
             </Button>
           </div>
