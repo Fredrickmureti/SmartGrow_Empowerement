@@ -231,6 +231,11 @@ export function MeetingWorkspaceDialog({
               </Button>
             )}
             {isOpenForWork && canManage && (
+              <Button variant="outline" onClick={() => setRegistering(true)}>
+                Register a client here
+              </Button>
+            )}
+            {isOpenForWork && canManage && (
               <>
                 <Button
                   variant="outline"
@@ -279,6 +284,19 @@ export function MeetingWorkspaceDialog({
           </div>
         </DialogFooter>
       </DialogContent>
+
+      <ClientFormDialog
+        open={registering}
+        onOpenChange={(o) => {
+          if (!o) setRegistering(false);
+        }}
+        client={null}
+        meetingContext={{ meetingId: meeting.id, groupId: meeting.group_id }}
+        onCreate={async (input) => createClient.mutateAsync(input)}
+        onUpdate={async (id, patch) => {
+          await updateClient.mutateAsync({ id, ...patch });
+        }}
+      />
     </Dialog>
   );
 }
