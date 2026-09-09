@@ -278,12 +278,12 @@ export function ProductVersionDialog({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="v-currency">Currency</Label>
-              <Input
-                id="v-currency"
-                value={form.currency_code}
-                onChange={(e) => set("currency_code", e.target.value)}
-              />
+              <Input id="v-currency" value={form.currency_code} readOnly disabled />
+              <p className="text-xs text-muted-foreground">
+                All lending is in Kenyan shillings.
+              </p>
             </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="v-min-amount">Minimum amount</Label>
               <Input
