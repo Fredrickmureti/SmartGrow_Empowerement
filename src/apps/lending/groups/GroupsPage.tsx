@@ -66,6 +66,9 @@ export function GroupsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [rollGroup, setRollGroup] = useState<MfGroup | null>(null);
   const [rollOpen, setRollOpen] = useState(false);
+  const [feeGroup, setFeeGroup] = useState<MfGroup | null>(null);
+  const [feeOpen, setFeeOpen] = useState(false);
+  const canCollectFees = can("recordRepayments");
 
   const { groups, isLoading, error, createGroup, updateGroup } = useMfGroups({
     branchId: branchId === "all" ? null : branchId,
