@@ -63,6 +63,11 @@ export type MfClientInput = Partial<Omit<MfClient, "id" | "business_id" | "creat
   /** Assigned server-side by the numbering trigger; never sent on create. */
   client_number?: string;
   full_name: string;
+  /**
+   * Optional group to join at registration. Handled by `mf_register_client` in
+   * the same transaction as the client, so a client is never left half-assigned.
+   */
+  group_id?: string | null;
 };
 
 const SELECT =
@@ -100,15 +105,20 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
   const createClient = useMutation({
     mutationFn: async (input: MfClientInput) => {
       if (!businessId) throw new Error("No institution selected");
-      const { data: auth } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("mf_clients")
-        // Cast until the generated Database types pick up the KYC path columns.
-        .insert({ ...input, business_id: businessId, created_by: auth.user?.id ?? null } as never)
-        .select(SELECT)
-        .single();
+      const { group_id, ...client } = input;
+      // One server operation owns both the client and the group membership, so
+      // a failure leaves nothing behind. Cast until the generated Database
+      // types pick up the function.
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>)("mf_register_client", {
+        p_business_id: businessId,
+        p_client: client,
+        p_group_id: group_id ?? null,
+      });
       if (error) throw error;
-      return data as unknown as MfClient;
+      return (Array.isArray(data) ? data[0] : data) as MfClient;
     },
     onSuccess: () => {
       invalidate();

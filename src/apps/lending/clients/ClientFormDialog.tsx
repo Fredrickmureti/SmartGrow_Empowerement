@@ -26,11 +26,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBranches } from "@/hooks/useBranches";
-import { useOrgMembers } from "@/hooks/useOrgMembers";
+import { useBranchOfficers } from "@/hooks/useBranchOfficers";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranchScope } from "@/hooks/useBranchScope";
 import { useMfGroups } from "@/hooks/useMfGroups";
-import { supabase } from "@/integrations/supabase/client";
 import {
   MF_CLIENT_STATUSES,
   MF_KYC_COLUMN,
@@ -237,7 +236,7 @@ export function ClientFormDialog({
       // same client instead of registering a duplicate.
       const saved = client
         ? { id: client.id, business_id: client.business_id }
-        : (createdRef.current ??= await onCreate(payload));
+        : (createdRef.current ??= await onCreate({ ...payload, group_id: groupId }));
 
       if (!client && createdRef.current) {
         // Retry path: keep the stored record in step with the edited form.
@@ -268,20 +267,6 @@ export function ClientFormDialog({
         await onUpdate(saved.id, pathPatch);
       }
 
-      // Group membership. The database caps a client at two active groups and
-      // authorizes each insert against the owning group, so this only records
-      // what the user chose.
-      if (!client && groupIds.length > 0) {
-        for (const groupId of groupIds) {
-          const { error } = await supabase.from("mf_group_members").insert({
-            business_id: saved.business_id,
-            group_id: groupId,
-            client_id: saved.id,
-            role_in_group: "member",
-          });
-          if (error) throw error;
-        }
-      }
 
       createdRef.current = null;
       onOpenChange(false);
@@ -485,39 +470,80 @@ export function ClientFormDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Branch</Label>
-            <Select value={form.branch_id} onValueChange={(v) => set("branch_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>Loan officer</Label>
             <Select
               value={form.loan_officer_id}
-              onValueChange={(v) => set("loan_officer_id", v)}
+              onValueChange={chooseOfficer}
+              disabled={officerLocked}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Unassigned" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.email || "Unnamed member"}
+                {officerOptions.map((o) => (
+                  <SelectItem key={o.user_id} value={o.user_id}>
+                    {o.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {officerOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No staff are assigned to a branch yet.
+              </p>
+            )}
           </div>
+          <div className="space-y-1.5">
+            <Label>Branch</Label>
+            <Select value={form.branch_id} onValueChange={chooseBranch}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select branch" />
+              </SelectTrigger>
+              <SelectContent>
+                {branchOptions.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOfficer && branchOptions.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                This loan officer is not assigned to a branch.
+              </p>
+            )}
+            {selectedOfficer && selectedOfficer.branchIds.length === 1 && form.branch_id && (
+              <p className="text-xs text-muted-foreground">
+                Taken from this loan officer's branch.
+              </p>
+            )}
+          </div>
+          {!client && (
+            <div className="space-y-1.5">
+              <Label>Group</Label>
+              <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
+                <SelectTrigger>
+                  <SelectValue placeholder="No group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>No group</SelectItem>
+                  {availableGroups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {!form.branch_id
+                  ? "Choose a loan officer or branch to see their groups."
+                  : availableGroups.length === 0
+                    ? "No groups for this loan officer in this branch."
+                    : "Optional. A client can belong to one group at a time."}
+              </p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Status</Label>
             <Select
