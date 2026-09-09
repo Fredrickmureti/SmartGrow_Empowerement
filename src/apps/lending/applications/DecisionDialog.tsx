@@ -44,7 +44,11 @@ export function DecisionDialog({
   onApprove,
   onReject,
 }: Props) {
-  const { currentVersion } = useMfLoanProductVersions(application?.product_id ?? null);
+  const { versions, currentVersion } = useMfLoanProductVersions(application?.product_id ?? null);
+  // The application was priced on the version pinned at capture time — the
+  // product may have been repriced since, and that must not move the band.
+  const pricingVersion =
+    versions.find((v) => v.id === application?.product_version_id) ?? currentVersion;
   const [saving, setSaving] = useState(false);
   const [amount, setAmount] = useState("");
   const [term, setTerm] = useState("");
@@ -65,9 +69,16 @@ export function DecisionDialog({
 
   const numericAmount = Number(amount);
   const numericTerm = Number(term);
+  const inBand =
+    !pricingVersion ||
+    (numericAmount >= pricingVersion.min_amount &&
+      numericAmount <= pricingVersion.max_amount &&
+      numericTerm >= pricingVersion.min_term_installments &&
+      numericTerm <= pricingVersion.max_term_installments);
   const approveValid =
     Number.isFinite(numericAmount) && numericAmount > 0 &&
-    Number.isFinite(numericTerm) && numericTerm > 0;
+    Number.isInteger(numericTerm) && numericTerm > 0 && inBand;
+
 
   const submit = async () => {
     if (!application) return;
@@ -107,11 +118,13 @@ export function DecisionDialog({
 
         {mode === "approve" ? (
           <div className="space-y-4">
-            {currentVersion && (
+            {pricingVersion && (
               <p className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
-                Product band: {currentVersion.currency_code} {currentVersion.min_amount}–
-                {currentVersion.max_amount}, {currentVersion.min_term_installments}–
-                {currentVersion.max_term_installments} installments.
+                Priced on version {pricingVersion.version_no}: {pricingVersion.currency_code}{" "}
+                {pricingVersion.min_amount}–{pricingVersion.max_amount} over{" "}
+                {pricingVersion.min_term_installments}–
+                {pricingVersion.max_term_installments} {pricingVersion.repayment_frequency}{" "}
+                installments.
               </p>
             )}
             <div className="grid gap-4 sm:grid-cols-2">
@@ -119,6 +132,9 @@ export function DecisionDialog({
                 <Label htmlFor="approved_amount">Approved amount</Label>
                 <Input
                   id="approved_amount"
+                  type="number"
+                  min={0}
+                  step="0.01"
                   inputMode="decimal"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
@@ -128,10 +144,14 @@ export function DecisionDialog({
                 <Label htmlFor="approved_term">Approved installments</Label>
                 <Input
                   id="approved_term"
+                  type="number"
+                  min={1}
+                  step={1}
                   inputMode="numeric"
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
                 />
+
               </div>
             </div>
             <div className="space-y-1.5">
