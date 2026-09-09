@@ -326,7 +326,7 @@ export function ClientFormDialog({
       }
 
       if (client) {
-        await onUpdate(client.id, { ...payload, ...pathPatch });
+        await onUpdate(client.id, { ...editPatch, ...pathPatch });
       } else if (Object.keys(pathPatch).length > 0) {
         await onUpdate(saved.id, pathPatch);
       }
