@@ -12142,10 +12142,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mf_client_charge_payments_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["charge_id"]
+          },
+          {
             foreignKeyName: "mf_client_charge_payments_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -12285,6 +12299,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -12569,6 +12590,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -12955,6 +12983,13 @@ export type Database = {
             foreignKeyName: "mf_group_members_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -13131,6 +13166,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -13709,6 +13751,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -13951,6 +14000,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_repayments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -14254,6 +14310,13 @@ export type Database = {
             columns: ["matched_client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -20596,6 +20659,56 @@ export type Database = {
           },
         ]
       }
+      mf_client_fee_positions: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          charge_id: string | null
+          charge_status: string | null
+          charged_on: string | null
+          client_id: string | null
+          client_number: string | null
+          currency_code: string | null
+          fee_amount: number | null
+          full_name: string | null
+          group_id: string | null
+          kind: string | null
+          last_collection_id: string | null
+          last_paid_on: string | null
+          outstanding_amount: number | null
+          paid_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_ccp_collection_fk"
+            columns: ["last_collection_id"]
+            isOneToOne: false
+            referencedRelation: "mf_fee_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_client_statement: {
         Row: {
           amount_in: number | null
@@ -20689,6 +20802,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -20720,6 +20840,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
