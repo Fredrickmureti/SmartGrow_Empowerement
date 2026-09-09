@@ -199,13 +199,12 @@ export function GroupSheetDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Meeting date</Label>
-            <Input
-              type="date"
-              value={collectedOn}
-              onChange={(e) => setCollectedOn(e.target.value)}
-            />
+          <BranchDayDateField
+            label="Meeting date"
+            value={collectedOn}
+            onChange={setCollectedOn}
+          />
+          <div className="hidden">
           </div>
           <div className="space-y-1.5">
             <Label>Method</Label>

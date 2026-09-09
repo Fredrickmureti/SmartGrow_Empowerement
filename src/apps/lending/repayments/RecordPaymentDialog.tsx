@@ -52,6 +52,7 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const dayGate = useBranchDayGate();
 
   useEffect(() => {
     if (!open) return;
