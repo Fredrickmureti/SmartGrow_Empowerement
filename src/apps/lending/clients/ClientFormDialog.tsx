@@ -499,25 +499,6 @@ export function ClientFormDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Loan officer</Label>
-            <Select
-              value={form.loan_officer_id}
-              onValueChange={(v) => set("loan_officer_id", v)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.email || "Unnamed member"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label>Status</Label>
             <Select
               value={form.status}
