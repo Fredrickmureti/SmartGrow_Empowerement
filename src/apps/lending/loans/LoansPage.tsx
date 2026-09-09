@@ -301,6 +301,12 @@ export function LoansPage() {
                           Disburse
                         </Button>
                       )}
+                      {canManage && loan.status === "pending_disbursement" && (
+                        <span className="text-xs text-muted-foreground">
+                          Top-up, restructure, closure and write-off become available once the
+                          loan has been disbursed.
+                        </span>
+                      )}
                       {canManage && loan.status === "active" && !loan.settled_by_loan_id && (
                         <>
                           <Button
