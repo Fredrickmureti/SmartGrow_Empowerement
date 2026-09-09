@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { useMfClients } from "@/hooks/useMfClients";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
 import { ClientFormDialog } from "../clients/ClientFormDialog";
 import {
@@ -45,6 +46,11 @@ const ATTENDANCE_OPTIONS: { value: MfAttendanceStatus; label: string }[] = [
   { value: "absent", label: "Absent" },
   { value: "excused", label: "Excused" },
 ];
+
+/** "09:00:00" → "09:00"; null → "". */
+function hhmm(value: string | null | undefined): string {
+  return value ? value.slice(0, 5) : "";
+}
 
 interface Props {
   open: boolean;
@@ -73,9 +79,14 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
+  const { getUserName } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
+  const [startedAt, setStartedAt] = useState(
+    hhmm(meeting.started_at_time ?? meeting.scheduled_time),
+  );
+  const [endedAt, setEndedAt] = useState(hhmm(meeting.ended_at_time));
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -112,11 +123,18 @@ export function MeetingWorkspaceDialog({
           <span className="text-muted-foreground">
             {presentCount} of {activeMembers.length} member(s) marked present
           </span>
-          {meeting.closed_at && (
+          {meeting.status === "completed" && (
             <span className="text-muted-foreground">
-              Closed at {new Date(meeting.closed_at).toLocaleTimeString()}
+              Ran {hhmm(meeting.started_at_time) || "—"} to{" "}
+              {hhmm(meeting.ended_at_time) || "—"}
             </span>
           )}
+          <span className="text-muted-foreground">
+            Held by {getUserName(meeting.held_by ?? meeting.loan_officer_id ?? "")}
+            {meeting.recorded_by && meeting.recorded_by !== (meeting.held_by ?? meeting.loan_officer_id)
+              ? ` · recorded by ${getUserName(meeting.recorded_by)}`
+              : ""}
+          </span>
           {meeting.next_scheduled_on && (
             <span className="text-muted-foreground">
               Next meeting: {meeting.next_scheduled_on}
@@ -197,8 +215,33 @@ export function MeetingWorkspaceDialog({
           </ul>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="meeting-started">Meeting started at</Label>
+            <Input
+              id="meeting-started"
+              type="time"
+              value={startedAt}
+              onChange={(e) => setStartedAt(e.target.value)}
+              disabled={!canManage || !isOpenForWork}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meeting-ended">Meeting ended at</Label>
+            <Input
+              id="meeting-ended"
+              type="time"
+              value={endedAt}
+              onChange={(e) => setEndedAt(e.target.value)}
+              disabled={!canManage || !isOpenForWork}
+            />
+            <p className="text-xs text-muted-foreground">
+              Required to complete the meeting. Type the time it actually ended.
+            </p>
+          </div>
+        </div>
 
+        <div className="space-y-1.5">
           <Label>Meeting notes and pending items</Label>
           <Textarea
             value={notes}
@@ -272,10 +315,15 @@ export function MeetingWorkspaceDialog({
             </Button>
             {isOpenForWork && canManage && (
               <Button
-                disabled={completeMeeting.isPending}
+                disabled={completeMeeting.isPending || !endedAt}
                 onClick={() =>
                   completeMeeting.mutate(
-                    { meetingId: meeting.id, notes: notes || null },
+                    {
+                      meetingId: meeting.id,
+                      notes: notes || null,
+                      startedAtTime: startedAt || null,
+                      endedAtTime: endedAt || null,
+                    },
                     { onSuccess: () => onOpenChange(false) },
                   )
                 }

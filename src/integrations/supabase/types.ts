@@ -12945,7 +12945,9 @@ export type Database = {
           closed_by: string | null
           created_at: string
           created_by: string | null
+          ended_at_time: string | null
           group_id: string
+          held_by: string | null
           id: string
           loan_officer_id: string | null
           meeting_place: string | null
@@ -12954,8 +12956,10 @@ export type Database = {
           opened_at: string | null
           opened_by: string | null
           postponed_to: string | null
+          recorded_by: string | null
           scheduled_on: string
           scheduled_time: string | null
+          started_at_time: string | null
           status: string
           updated_at: string
         }
@@ -12966,7 +12970,9 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          ended_at_time?: string | null
           group_id: string
+          held_by?: string | null
           id?: string
           loan_officer_id?: string | null
           meeting_place?: string | null
@@ -12975,8 +12981,10 @@ export type Database = {
           opened_at?: string | null
           opened_by?: string | null
           postponed_to?: string | null
+          recorded_by?: string | null
           scheduled_on: string
           scheduled_time?: string | null
+          started_at_time?: string | null
           status?: string
           updated_at?: string
         }
@@ -12987,7 +12995,9 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          ended_at_time?: string | null
           group_id?: string
+          held_by?: string | null
           id?: string
           loan_officer_id?: string | null
           meeting_place?: string | null
@@ -12996,8 +13006,10 @@ export type Database = {
           opened_at?: string | null
           opened_by?: string | null
           postponed_to?: string | null
+          recorded_by?: string | null
           scheduled_on?: string
           scheduled_time?: string | null
+          started_at_time?: string | null
           status?: string
           updated_at?: string
         }
@@ -26431,7 +26443,13 @@ export type Database = {
         Returns: string
       }
       mf_complete_group_meeting: {
-        Args: { p_meeting_id: string; p_notes?: string }
+        Args: {
+          p_ended_at_time?: string
+          p_held_by?: string
+          p_meeting_id: string
+          p_notes?: string
+          p_started_at_time?: string
+        }
         Returns: Json
       }
       mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
@@ -26498,7 +26516,12 @@ export type Database = {
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_open_group_meeting: {
-        Args: { p_group_id: string; p_meeting_on?: string }
+        Args: {
+          p_group_id: string
+          p_held_by?: string
+          p_meeting_on?: string
+          p_started_at_time?: string
+        }
         Returns: string
       }
       mf_pay_client_charge: {
