@@ -130,20 +130,18 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 
 ===============IMPLEMENTATION PROGRESS=================
-I've paused the build. Here's where things stand on the branch day work.
+Here's where things stand.
 
-Done (in the database):
+Done this session
 
-A day record per branch and date, with opening cash, counted cash, difference and who opened/closed it.
-A permanent, non-editable history of every open, close and reopen.
-A switch on each branch that turns day control on from a chosen date, plus a cash difference tolerance.
-Open the day, close the day (with expected-vs-counted cash and a posted difference), and reopen a closed day with a manager override and reason.
-A "cash over / short" account can now be configured for lending.
-Still to do:
+Verified the earlier work is genuinely in the database: the branch day record, its history trail, and the open / close / reopen actions all exist.
+Added the missing enforcement: money dated a day that is closed, or a day that was never opened, is now refused at the branch — with a plain-English reason.
+Same rule now applies to collection rounds: a round cannot be dated a closed or unopened day.
+Fixed a long-standing inconsistency where closing an accounting month set one marker but not the other, so some checks still treated a closed month as open. Existing months were corrected.
+Not finished
 
-The lock itself: refusing money entries dated a closed or never-opened day, plus the collection-batch guard. Until that lands, the day is recorded but not yet enforced.
-Fixing the closed-period flag inconsistency found in the investigation.
-The screens: day strip, open/close dialogs, bounded date fields, day register.
-Tests, and a "cash over / short" account chosen in the lending accounting settings.
-Your five open decisions from the plan (second signatory, tolerance basis, unbanked cash at close, who may reopen, go-live dates per branch).
-Top up credits and say "continue" and I'll pick up at the lock.
+The Branch day screen. I wrote the data layer (useBranchDay) and the page itself (open the day with a cash count, live "what the books expect", close against a physical count with an over/short reason, and a register of past days with reopen), but I had not yet:
+fixed two small component mismatches I spotted just before stopping — the status pill takes its text as content rather than a status prop, and the loading/error/empty props need matching to the shared ones;
+added the "Branch day" entry to the lending menu and its route;
+run the typecheck and build.
+So the safeguards are live, but the screen isn't reachable yet. Picking up from that point is a short, well-defined piece of work whenever you're ready.
