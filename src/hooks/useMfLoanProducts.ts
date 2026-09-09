@@ -387,7 +387,23 @@ export function useMfLoanProductVersions(productId: string | null) {
   };
 }
 
+/**
+ * The version in force today: the published version whose effective date has
+ * arrived, highest version number first. A version dated in the future is
+ * scheduled, not live — it must never price a loan written before its date.
+ */
+export function resolveVersionInForce(
+  versions: MfLoanProductVersion[],
+): MfLoanProductVersion | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const live = versions
+    .filter((v) => v.is_published && (v.effective_from ?? "") <= today)
+    .sort((a, b) => b.version_no - a.version_no);
+  return live[0] ?? null;
+}
+
 /** Next sequential product code, e.g. LP-0004. */
+
 export function nextProductCode(existing: Array<{ code: string }>): string {
   let max = 0;
   for (const row of existing) {
