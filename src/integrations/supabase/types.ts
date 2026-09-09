@@ -26249,6 +26249,18 @@ export type Database = {
         Args: { p_closed_on?: string; p_loan_id: string; p_notes?: string }
         Returns: string
       }
+      mf_collect_group_admission_fees: {
+        Args: {
+          p_client_request_id?: string
+          p_collected_on?: string
+          p_group_id: string
+          p_lines?: Json
+          p_method?: string
+          p_notes?: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
       mf_create_loan_from_application: {
         Args: {
