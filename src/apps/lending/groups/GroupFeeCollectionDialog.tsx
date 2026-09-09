@@ -233,8 +233,8 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
                       </SelectTrigger>
                       <SelectContent>
                         {MF_REPAYMENT_METHODS.map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {m.replace(/_/g, " ")}
+                          <SelectItem key={m.value} value={m.value}>
+                            {m.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
