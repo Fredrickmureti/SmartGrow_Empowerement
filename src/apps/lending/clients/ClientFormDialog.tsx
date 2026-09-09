@@ -274,6 +274,20 @@ export function ClientFormDialog({
     setForm((prev) => ({ ...prev, [key]: value }));
 
 
+  const isDirty =
+    JSON.stringify(form) !== baselineRef.current ||
+    Object.keys(images).length > 0;
+
+  // Cancel discards; it only asks first when there is something to lose.
+  const requestClose = () => {
+    if (saving) return;
+    if (isDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onOpenChange(false);
+  };
+
   const canSave =
     form.full_name.trim() !== "" &&
     form.branch_id !== "" &&
