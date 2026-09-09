@@ -53,9 +53,8 @@ export function ApplicationFormDialog({
   onUpdate,
 }: Props) {
   const { branches } = useBranches();
-  const { members } = useOrgMembers();
+  const { officers } = useBranchOfficers();
   const { clients } = useMfClients();
-  const { groups } = useMfGroups();
   const { products } = useMfLoanProducts({ status: "active" });
 
   const [form, setForm] = useState({
