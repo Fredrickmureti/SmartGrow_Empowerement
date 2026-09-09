@@ -204,6 +204,7 @@ export function useMfRepaymentBatches() {
       groupId?: string | null;
       branchId?: string | null;
       notes?: string | null;
+      meetingId?: string | null;
     }) => {
       if (!businessId) throw new Error("No institution selected");
       const stamp = new Date();
@@ -220,6 +221,7 @@ export function useMfRepaymentBatches() {
           group_id: input.groupId ?? null,
           batch_number: batchNumber,
           collected_on: input.collectedOn,
+          meeting_id: input.meetingId ?? null,
           notes: input.notes ?? null,
         })
         .select("id")

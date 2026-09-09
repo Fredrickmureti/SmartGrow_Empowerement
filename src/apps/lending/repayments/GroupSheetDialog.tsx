@@ -48,12 +48,19 @@ const money = (value: number, currency = "") =>
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When collecting from inside a meeting, the group is fixed. */
+  lockedGroupId?: string | null;
+  /** Stamps the batch with the meeting this money was collected at. */
+  meetingId?: string | null;
+  /** Default collection date (the meeting date when launched from a meeting). */
+  defaultDate?: string;
   /** Opens the meeting batch and returns its id. */
   onOpenBatch: (input: {
     collectedOn: string;
     groupId: string;
     branchId: string | null;
     notes: string | null;
+    meetingId?: string | null;
   }) => Promise<string>;
   /** Posts one member's payment; the server allocates it. */
   onRecord: (input: {
@@ -71,6 +78,9 @@ interface Props {
 export function GroupSheetDialog({
   open,
   onOpenChange,
+  lockedGroupId,
+  meetingId,
+  defaultDate,
   onOpenBatch,
   onRecord,
   onPosted,
@@ -88,12 +98,12 @@ export function GroupSheetDialog({
 
   useEffect(() => {
     if (!open) return;
-    setGroupId("");
-    setCollectedOn(new Date().toISOString().slice(0, 10));
+    setGroupId(lockedGroupId ?? "");
+    setCollectedOn(defaultDate ?? new Date().toISOString().slice(0, 10));
     setMethod("cash");
     setAmounts({});
     setFailures([]);
-  }, [open]);
+  }, [open, lockedGroupId, defaultDate]);
 
   // Pre-fill each line with the contractual amount due now, arrears first.
   useEffect(() => {
@@ -132,6 +142,7 @@ export function GroupSheetDialog({
         groupId,
         branchId: group?.branch_id ?? null,
         notes: group ? `Group meeting — ${group.name}` : null,
+        meetingId: meetingId ?? null,
       });
       const failed: string[] = [];
       for (const line of lines) {
@@ -171,7 +182,11 @@ export function GroupSheetDialog({
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label>Group</Label>
-            <Select value={groupId} onValueChange={setGroupId}>
+            <Select
+              value={groupId}
+              onValueChange={setGroupId}
+              disabled={!!lockedGroupId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select group" />
               </SelectTrigger>
