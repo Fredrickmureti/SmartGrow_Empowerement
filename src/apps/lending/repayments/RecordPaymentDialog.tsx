@@ -23,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MF_REPAYMENT_METHODS, type MfLoanBalance } from "@/hooks/useMfRepayments";
+import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
 
 interface Props {
   open: boolean;
@@ -170,7 +174,7 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || !loanId || !amount}>
+          <Button onClick={submit} disabled={saving || !loanId || !amount || dayGate.blocked}>
             {saving ? "Recording…" : "Record payment"}
           </Button>
         </DialogFooter>
