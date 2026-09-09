@@ -89,7 +89,7 @@ export function ApplicationFormDialog({
     } else {
       setForm({
         application_number: "",
-        branch_id: branches[0]?.id ?? "",
+        branch_id: "",
         client_id: "",
         group_id: NONE,
         product_id: "",
