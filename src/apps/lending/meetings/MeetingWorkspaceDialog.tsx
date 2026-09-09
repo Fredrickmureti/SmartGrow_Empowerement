@@ -251,7 +251,32 @@ export function MeetingWorkspaceDialog({
               Required to complete the meeting. Type the time it actually ended.
             </p>
           </div>
+          {isOpenForWork && canManage && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Held by</Label>
+              <Select value={heldBy} onValueChange={setHeldBy}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Who held this meeting" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((m) => (
+                    <SelectItem key={m.user_id} value={m.user_id}>
+                      {m.full_name || m.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The loan officer who actually conducted it. Your name is kept separately
+                as the person who entered the record.
+              </p>
+            </div>
+          )}
+          {isOpenForWork && canManage && timesError && (
+            <p className="text-xs text-destructive sm:col-span-2">{timesError}</p>
+          )}
         </div>
+
 
         <div className="space-y-1.5">
           <Label>Meeting notes and pending items</Label>
