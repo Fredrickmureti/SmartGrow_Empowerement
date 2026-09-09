@@ -119,19 +119,49 @@ export function ApplicationFormDialog({
 
   const bandHint = useMemo(() => {
     if (!currentVersion) return null;
-    return `Version ${currentVersion.version_no}: ${currentVersion.currency_code} ${currentVersion.min_amount}–${currentVersion.max_amount}, ${currentVersion.min_term_installments}–${currentVersion.max_term_installments} ${currentVersion.repayment_frequency} installments`;
+    const v = currentVersion;
+    return `Version ${v.version_no} in force: ${v.currency_code} ${v.min_amount}–${v.max_amount} over ${v.min_term_installments}–${v.max_term_installments} ${v.repayment_frequency} installments`;
   }, [currentVersion]);
 
   const amount = Number(form.requested_amount);
   const term = Number(form.requested_term_installments);
+
+  /**
+   * A request outside the product band is a legitimate business fact — the
+   * applicant asked for it — but it can only be approved down into the band,
+   * so the officer is warned rather than blocked.
+   */
+  const outsideBand = useMemo(() => {
+    if (!currentVersion) return null;
+    const notes: string[] = [];
+    if (Number.isFinite(amount) && amount > 0) {
+      if (amount < currentVersion.min_amount || amount > currentVersion.max_amount) {
+        notes.push(
+          `amount is outside ${currentVersion.currency_code} ${currentVersion.min_amount}–${currentVersion.max_amount}`,
+        );
+      }
+    }
+    if (Number.isFinite(term) && term > 0) {
+      if (
+        term < currentVersion.min_term_installments ||
+        term > currentVersion.max_term_installments
+      ) {
+        notes.push(
+          `term is outside ${currentVersion.min_term_installments}–${currentVersion.max_term_installments} installments`,
+        );
+      }
+    }
+    return notes.length > 0 ? notes.join(" and ") : null;
+  }, [currentVersion, amount, term]);
+
   const valid =
     form.branch_id !== "" &&
     form.client_id !== "" &&
     form.product_id !== "" &&
+    Number.isInteger(term) &&
+    term > 0 &&
     Number.isFinite(amount) &&
-    amount > 0 &&
-    Number.isFinite(term) &&
-    term > 0;
+    amount > 0;
 
   const submit = async () => {
     if (!valid) return;
@@ -142,12 +172,14 @@ export function ApplicationFormDialog({
         client_id: form.client_id,
         group_id: form.group_id === NONE ? null : form.group_id,
         product_id: form.product_id,
-        product_version_id: currentVersion?.id ?? null,
+        // The pricing version is resolved and pinned by the database — the
+        // browser must never choose which version prices an application.
         loan_officer_id: form.loan_officer_id === NONE ? null : form.loan_officer_id,
         requested_amount: amount,
         requested_term_installments: term,
         purpose: form.purpose.trim() || null,
       };
+
       if (application) await onUpdate(application.id, payload);
       else await onCreate(payload);
       onOpenChange(false);
