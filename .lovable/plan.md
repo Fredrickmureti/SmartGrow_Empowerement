@@ -1,150 +1,75 @@
-# Field / Group Meeting Lifecycle — Investigation Verdict and Remediation
+# Recording a real meeting — findings and fix
 
-## 1. Verdict
+## What I checked (evidence)
 
-**The business event "a group meeting happened" is not recorded anywhere.** This is
-a missing authoritative event, not a hidden or fragmented feature — and it is *not*
-a missing "Close Day".
+- Group in production: **Smart ladies**, regular meeting day = **Tuesday**, time 09:00,
+  branch Headquarters, officer Rose Mwende (`mf_groups` row).
+- Today in the screenshot is **Wednesday 2026-09-09**.
+- The Meetings list is built by `meetingRowsForDate` (`src/lib/lending/meetingSchedule.ts`),
+  which lists a group only when the chosen date matches its regular weekday, or when a
+  meeting row already exists for that exact date.
+- Permissions: `mf_can_scoped` (database) already lets a branch manager/administrator act
+  on any group in their branch; only officers limited to "own portfolio" are restricted to
+  their own groups. So this is **not** a permissions problem.
+- Completion (`mf_complete_group_meeting`) stamps `closed_at = now()` — the server clock.
+  `mf_group_meetings` has `opened_at`/`closed_at` only; there is **no field for the actual
+  start and end time** the officer writes on paper.
+- The meeting form (`MeetingWorkspaceDialog`) offers attendance, free-text notes, postpone,
+  missed, complete. No time inputs, no "who actually held the meeting".
 
-What exists today:
+## Verdict
 
-- A group carries a **recurring meeting rule**: `mf_groups.meeting_day` (smallint
-  weekday), `meeting_time` (time), `meeting_place` (text), plus `loan_officer_id`
-  and `branch_id`. The rule is captured and displayed on the Groups list
-  (`GroupsPage.tsx` lines 195-197) but nothing consumes it: no "today's meetings"
-  view, no due date derivation, no next-meeting calculation anywhere in code or SQL.
-- A **collection batch** (`mf_repayment_batches`: group_id, collected_on,
-  collected_by, status, batch_number) is the only per-meeting-ish record. It is
-  money-only: it holds repayment receipts and nothing else. It is opened and closed
-  by direct client-side inserts/updates from `useMfRepayments.ts` (batch number is
-  generated in JavaScript), with one server guard, `mf_guard_batch_closure`, that
-  prevents reopening a closed batch and blocks receipts into a closed one.
-- `mf_collection_activities` exists (loan-level follow-up log: promise to pay,
-  outcome, notes) with 0 rows. It is per-loan arrears follow-up, not a meeting.
-- **Nothing else exists.** No table, view, RPC, trigger, hook, route or component
-  for: meeting/session, attendance, field visit, operational day, branch or officer
-  working day, meeting outcome, meeting completion, next-meeting scheduling,
-  postponement, or follow-up items. Verified by full schema scan of `public` and a
-  repository-wide search.
+Three defects, none of them "missing feature" in the big sense:
 
-Consequences the owners are describing exactly match this gap: an officer can take
-money at a meeting, but cannot record that the meeting occurred, who attended, what
-was accomplished, what is pending, or when the group meets next. Today they write
-the closing time on paper.
+1. **Visibility defect** — on any day that is not the group's regular weekday, the group
+   disappears from Meetings, so there is literally no button to record a meeting held on
+   another day, or to record yesterday's meeting today.
+2. **Data defect** — start and end time are taken from the system clock, so a meeting held
+   09:00–12:00 and typed in the next morning is recorded with the wrong times. The officer
+   is forced to put the closing time in free-text notes, which is exactly what the plan
+   was meant to remove.
+3. **Attribution gap** — an administrator *can* record on the officer's behalf, but the
+   record does not distinguish "held by Rose" from "entered by the administrator".
 
-Production data checked before proposing anything: 1 group (with a meeting day set),
-6 clients, 6 group members, 0 loans, 0 batches, 0 collection activities. Live
-lending has not started, so a new event table can be introduced without back-filling
-financial history.
+## Fix — one wave, small and self-contained
 
-## 2. Current business event model
+### Wave M1 — Record a meeting exactly as it happened
 
-```text
-Group created (recurring day/time/place stored, never used again)
-        |
-        v
-Officer goes to field  ................. not represented
-Meeting occurs         ................. not represented
-Attendance             ................. not represented
-New client onboarded   ................. client row only, no link to the meeting
-Application created    ................. application row only, no link to the meeting
-Repayments collected   ................. collection batch (money only)
-Meeting completed      ................. not represented (batch close ~= "money done")
-Outcome / follow-up    ................. not represented
-Next meeting           ................. not represented
-```
+**Database (three small, separate migrations)**
 
-## 3. Target business event model (minimum correct)
+1. Add to `mf_group_meetings`: `started_at_time time`, `ended_at_time time`,
+   `held_by uuid` (the officer who actually conducted it), `recorded_by uuid`.
+2. Extend `mf_complete_group_meeting(p_meeting_id, p_notes, p_started_at_time,
+   p_ended_at_time, p_held_by)`: validates end after start, records `recorded_by = auth.uid()`,
+   keeps every existing rule (already-completed refusal, open-collection rule,
+   next-meeting derivation, branch/business scope).
+3. Extend `mf_open_group_meeting(p_group_id, p_meeting_on, p_started_at_time, p_held_by)`
+   so an off-schedule or back-dated meeting can be opened with the true start time.
+   Same scope checks; no new privileges.
 
-The authoritative event is **Group Meeting**, not "Operational Day". A branch or
-officer day-close is an oversight layer that adds nothing until meetings themselves
-are recorded — it is explicitly deferred.
+**Screen (`MeetingsPage`, `MeetingWorkspaceDialog`)**
 
-```text
-Recurring rule on the group (meeting_day/time/place)  -> derives DUE meetings
-        |
-        v
-SCHEDULED  --open-->  IN_PROGRESS  --complete-->  COMPLETED
-                            |                          |
-                            +--postpone--> POSTPONED    +-> next meeting date
-                            +--cancel----> MISSED           surfaced immediately
-```
+- A **"Record a meeting"** button above the list: pick group + date + start time (+ officer,
+  when the user has branch-wide rights). This is the path for a meeting held on a day other
+  than the group's regular weekday, or being typed up after the fact.
+- Groups already meeting that weekday keep working exactly as now.
+- In the meeting workspace, a small **Meeting times** block: *Started* and *Ended*, prefilled
+  with the group's regular time and the current time, both editable. Completing without an
+  end time is refused with a plain message.
+- **Held by** shown on the record; an administrator recording for an officer picks the
+  officer, and the summary reads "Held by Rose Mwende · recorded by <admin>".
+- Completion summary shows date, start, end, attendance, collections and the next meeting date.
 
-Attached to one meeting record: group, branch, officer, scheduled date/time/place,
-actual start/end, attendance per active member (present / absent / excused),
-the repayment batch for that meeting, clients onboarded during it, applications
-taken during it, notes, and open follow-up items.
+**Tests** (business-event level, alongside `src/test/lending/meetingSchedule.test.ts`)
 
-Loan lifecycle stays independent: a meeting may *create* an application; it never
-approves, creates, or disburses a loan. No waiting-period rule exists in the product
-configuration and none will be introduced.
+- Meeting on a non-regular weekday can be recorded and appears on that date.
+- End time before start time refused.
+- Completing twice still refused.
+- Administrator recording for an officer stores held-by = officer, recorded-by = admin.
+- Cross-branch group refused at the database.
 
-## 4. Gaps
+## Non-goals
 
-- **Data model**: no meeting entity; no attendance; no meeting-to-batch link; no
-  meeting stamp on clients onboarded or applications taken; no follow-up items.
-- **Backend rules**: no server-side completion, no duplicate-completion guard, no
-  next-meeting derivation; batch open/close is client-driven with a JS-generated
-  batch number (duplicate-number race under concurrent officers).
-- **Workflow**: nowhere to open, run, or complete today's meeting; the group sheet
-  dialog is a money form reached from Repayments, not from the group's meeting.
-- **Visibility**: officer has no "today's meetings" list; branch manager has no view
-  of scheduled / completed / missed meetings.
-- **Security**: any new surface must reuse the existing business+branch scoping;
-  a meeting must be forbidden from pointing at a group in another business/branch.
-- **Testing**: no business-event tests for any of the above.
-
-## 5. Remediation waves
-
-**Wave A — Meeting as an authoritative event (data + backend)**
-- `mf_group_meetings`: business_id, branch_id, group_id, loan_officer_id,
-  scheduled_on/at, meeting_place, status (scheduled/in_progress/completed/
-  postponed/missed), opened_at/by, closed_at/by, closing notes, next_scheduled_on.
-  Grants, RLS mirroring the existing lending tables, and a trigger asserting the
-  group's business_id/branch_id match the meeting's.
-- `mf_meeting_attendance`: meeting_id, client_id, status, note; unique per
-  (meeting, client); trigger asserting the client is an active member of the group.
-- Nullable `meeting_id` on `mf_repayment_batches`, `mf_clients`, `mf_loan_applications`
-  so activity done at a meeting is attributable, with a same-business guard.
-- RPCs, each one migration: `mf_open_group_meeting`, `mf_complete_group_meeting`
-  (idempotent — a second completion is refused with a business message; computes and
-  stores the next meeting date from the group's recurring rule, or leaves it null and
-  says so when no rule exists), `mf_postpone_group_meeting`.
-- Completion records that money for the meeting is done by closing the linked batch
-  through the existing guard; it does **not** touch accounting periods.
-
-**Wave B — Meeting execution workflow (frontend)**
-- "Meetings" entry in the Lending nav: today's meetings for the signed-in officer
-  (or the branch, for managers), derived from each group's recurring day plus any
-  already-created meeting rows.
-- Meeting workspace: mark attendance, launch the existing group collection sheet
-  (now stamped with the meeting), onboard a client / start an application from within
-  the meeting, capture notes, then Complete — which shows the next meeting date.
-- Errors through the existing `lendingErrorMessage` normaliser; no new formatter.
-
-**Wave C — Next meeting and supervisor visibility**
-- Next meeting shown on the group record and on the officer's list; manual override
-  allowed where the group has no recurring rule.
-- Branch manager list: scheduled / completed / missed today, by officer.
-
-**Wave D — Business-event tests**
-Normal meeting; new client onboarded during a meeting (client and application keep
-their own independent lifecycle); no recurring rule; postponed meeting; duplicate
-completion refused; cross-branch/cross-business meeting refused at the database;
-direct RPC manipulation refused; loan disbursement provably unaffected by completion.
-
-## 6. Explicit non-goals for this wave
-
-No operational-day / branch-day-close entity. No changes to accounting periods, the
-loan application lifecycle, KYC onboarding, or the Client detail/edit work. No
-calendar product, no reporting suite, no notification infrastructure, no AI. No
-deletion of any existing lending data or record.
-
-
-===================PROGRESS STATUS============
-
-I picked up where the last session stopped. Everything it claimed is genuinely in place — I checked both the app and the live database: the meeting record, attendance, opening, completing (with closing time and next meeting date), postponing, marking missed, the branch/institution safety rules, the Meetings page, and the "What happened at this meeting" summary.
-
-The one unfinished item is now done: inside a meeting there is a "Register a client here" button that opens the client form fixed to that group and records that the client joined at that meeting.
-
-Your loan officer can now stop noting closing times on paper. To record today's meeting: sign in → Lending → Meetings → open the group → mark attendance, record collections or register clients → type the closing time and any pending items in the notes → Complete meeting. The next meeting date appears immediately. No existing client or group data was changed.
+No operational-day/close-day entity, no accounting-period changes, no changes to clients,
+groups, loan applications, KYC or the client detail work. No existing production data is
+modified or deleted.
