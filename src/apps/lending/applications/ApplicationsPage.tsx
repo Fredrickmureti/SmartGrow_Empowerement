@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, Plus } from "lucide-react";
 import {
   PageHeader,
   PageBody,
