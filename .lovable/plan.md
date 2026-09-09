@@ -127,8 +127,23 @@ Backend guards are sound; nothing needs weakening.
 
 ========================================IMPLEMENTATION STATUS=========================
 
-I've completed the first part of the work and stopped mid-way.
+All four phases are complete.
 
-Done so far: every lending refusal now shows the real business reason instead of [object Object] — there's a single shared translator for loan errors, and all lending screens and data hooks go through it. The applications pipeline also now understands the "disbursed" stage, the misleading "Mark ready" shortcut has been removed from the state model, and the create-loan picker accepts any approved application that doesn't yet have a loan (so previously stranded applications can move forward again).
+Phase 1 (errors): one shared translator (`src/lib/lending/lendingError.ts`) built on
+`normalizeError`; every `mf_*` hook routes `onError` through it. Verified in place.
 
-Still outstanding: the guided workflow display on the applications page (completed steps, current meaning, single clear next action, and explanations for unavailable actions), wiring the new "Create loan" action there, the same guidance on the loans page, and the workflow test matrix. Typechecking passed on everything changed so far.
+Phase 2 (sequence): `disbursed` added to the status list/labels/tone map; the operator
+"Mark ready" shortcut removed from both the transition model and the applications page;
+the create-loan picker accepts approved and ready-for-disbursement applications without
+a loan. Verified in place.
+
+Phase 3 (guided UX): applications rows now show completed events, what the state means
+and the single next legitimate event (`applicationWorkflow.ts`, wired via `WorkflowTrail`);
+Approve is disabled with its reason until an assessment exists; approved applications get
+a direct **Create loan** action opening the pre-selected dialog; applications already
+holding a loan show its number. The loans page states what each loan state means, what
+happens next, and why lifecycle actions are unavailable before disbursement.
+
+Phase 4 (tests): `src/lib/lending/__tests__/loanWorkflow.test.ts` — happy-path step
+ordering, premature-action explanations, and error rendering (no `[object Object]`, no
+SQL/constraint/policy leakage). 13 tests pass; typecheck and lint clean.

@@ -74,6 +74,19 @@ const STATUS_TONE: Record<
   cancelled: "neutral",
 };
 
+/**
+ * What each loan state means and what happens next, in business terms.
+ * Mirrors the guards in `mf_disburse_loan` and the lifecycle RPCs.
+ */
+const LOAN_STATE_GUIDANCE: Record<MfLoanStatus, string> = {
+  pending_disbursement:
+    "Contract and schedule exist; no money has moved. Next: disburse the loan.",
+  active: "Money paid out and repayments are due. Next: record repayments as they are collected.",
+  closed: "Fully settled. No further lifecycle events apply.",
+  written_off: "Recognised as a loss. Recoveries only.",
+  cancelled: "Cancelled before disbursement. No further events apply.",
+};
+
 const money = (value: number, currency: string) =>
   `${currency} ${Number(value ?? 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -241,10 +254,15 @@ export function LoansPage() {
                           ? `Expected ${loan.expected_disbursement_date}`
                           : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[240px] space-y-1">
                       <StatusBadge tone={STATUS_TONE[loan.status]}>
                         {MF_LOAN_STATUS_LABELS[loan.status]}
                       </StatusBadge>
+                      {/* What has happened, and the next legitimate event. The
+                          database remains the authority; this only explains it. */}
+                      <p className="text-xs text-muted-foreground">
+                        {LOAN_STATE_GUIDANCE[loan.status]}
+                      </p>
                     </TableCell>
                     <TableCell
                       className="space-x-1.5 text-right"
@@ -282,6 +300,12 @@ export function LoansPage() {
                           <HandCoins className="mr-1.5 h-3.5 w-3.5" />
                           Disburse
                         </Button>
+                      )}
+                      {canManage && loan.status === "pending_disbursement" && (
+                        <span className="text-xs text-muted-foreground">
+                          Top-up, restructure, closure and write-off become available once the
+                          loan has been disbursed.
+                        </span>
                       )}
                       {canManage && loan.status === "active" && !loan.settled_by_loan_id && (
                         <>

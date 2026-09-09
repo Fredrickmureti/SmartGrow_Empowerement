@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { ClipboardCheck, Plus } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, Plus } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -44,9 +44,16 @@ import {
   MF_APPLICATION_STATUSES,
   MF_APPLICATION_STATUS_LABELS,
   useMfApplications,
+  useMfAssessedApplicationIds,
   type MfApplicationStatus,
   type MfLoanApplication,
 } from "@/hooks/useMfApplications";
+import { useMfLoans } from "@/hooks/useMfLoans";
+import {
+  decisionBlockedReason,
+  describeApplicationWorkflow,
+} from "@/lib/lending/applicationWorkflow";
+import { CreateLoanDialog } from "../loans/CreateLoanDialog";
 import { ApplicationFormDialog } from "./ApplicationFormDialog";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
@@ -60,9 +67,48 @@ const STATUS_TONE: Record<
   under_review: "warning",
   approved: "success",
   rejected: "danger",
-  ready_for_disbursement: "success",
+  ready_for_disbursement: "info",
+  disbursed: "success",
   cancelled: "neutral",
 };
+
+/** Completed events and the next legitimate one, for one application row. */
+function WorkflowTrail({
+  status,
+  hasAssessment,
+  loanNumber,
+}: {
+  status: MfApplicationStatus;
+  hasAssessment: boolean;
+  loanNumber: string | null;
+}) {
+  const { meaning, nextStep, steps } = describeApplicationWorkflow(
+    status,
+    hasAssessment,
+    loanNumber,
+  );
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+        {steps.map((step) => (
+          <span
+            key={step.label}
+            className={
+              step.done
+                ? "inline-flex items-center gap-0.5 text-muted-foreground"
+                : "inline-flex items-center gap-0.5 text-muted-foreground/50"
+            }
+          >
+            {step.done ? <Check className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {step.label}
+          </span>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{meaning}</p>
+      {nextStep && <p className="text-xs font-medium text-foreground">Next: {nextStep}</p>}
+    </div>
+  );
+}
 
 export function ApplicationsPage() {
   const { can } = usePermissions();
@@ -77,6 +123,8 @@ export function ApplicationsPage() {
   const [decisionTarget, setDecisionTarget] = useState<MfLoanApplication | null>(null);
   const [decisionMode, setDecisionMode] = useState<"approve" | "reject">("approve");
   const [decisionOpen, setDecisionOpen] = useState(false);
+  const [loanApplicationId, setLoanApplicationId] = useState<string | null>(null);
+  const [loanOpen, setLoanOpen] = useState(false);
 
   const {
     applications,
@@ -89,6 +137,20 @@ export function ApplicationsPage() {
   const { clients } = useMfClients();
   const { products } = useMfLoanProducts({ status: "all" });
   const { versionsById } = useMfProductVersionIndex();
+  const { assessedIds } = useMfAssessedApplicationIds();
+  // The loan an application has already produced. Loan creation — not a status
+  // flip — is what makes an application ready for disbursement, so the row has
+  // to know whether that event has happened.
+  const { loans, createFromApplication } = useMfLoans({ status: "all" });
+
+  const loanNumberFor = useMemo(() => {
+    const map = new Map(
+      loans
+        .filter((l) => l.application_id)
+        .map((l) => [l.application_id as string, l.loan_number]),
+    );
+    return (applicationId: string) => map.get(applicationId) ?? null;
+  }, [loans]);
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
@@ -133,6 +195,11 @@ export function ApplicationsPage() {
 
   const move = (id: string, to: MfApplicationStatus) => {
     transition.mutate({ id, to });
+  };
+
+  const openLoanCreation = (application: MfLoanApplication) => {
+    setLoanApplicationId(application.id);
+    setLoanOpen(true);
   };
 
   return (
@@ -224,10 +291,15 @@ export function ApplicationsPage() {
                         ? `${a.approved_amount} / ${a.approved_term_installments ?? "—"}`
                         : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[280px] space-y-1.5">
                       <StatusBadge tone={STATUS_TONE[a.status]}>
                         {MF_APPLICATION_STATUS_LABELS[a.status]}
                       </StatusBadge>
+                      <WorkflowTrail
+                        status={a.status}
+                        hasAssessment={assessedIds.has(a.id)}
+                        loanNumber={loanNumberFor(a.id)}
+                      />
                     </TableCell>
                     <TableCell
                       className="space-x-1.5 text-right"
@@ -262,9 +334,18 @@ export function ApplicationsPage() {
                       )}
                       {canApprove && a.status === "under_review" && (
                         <>
-                          <Button size="sm" onClick={() => openDecision(a, "approve")}>
-                            Approve
-                          </Button>
+                          {/* Visible but refused-with-a-reason: the decision guard
+                              requires an assessment, so say so instead of letting
+                              the operator discover it through a rejection. */}
+                          <span title={decisionBlockedReason(a.status, assessedIds.has(a.id)) ?? ""}>
+                            <Button
+                              size="sm"
+                              disabled={!!decisionBlockedReason(a.status, assessedIds.has(a.id))}
+                              onClick={() => openDecision(a, "approve")}
+                            >
+                              Approve
+                            </Button>
+                          </span>
                           <Button
                             size="sm"
                             variant="destructive"
@@ -274,13 +355,20 @@ export function ApplicationsPage() {
                           </Button>
                         </>
                       )}
-                      {canManage && a.status === "approved" && (
-                        <Button
-                          size="sm"
-                          onClick={() => move(a.id, "ready_for_disbursement")}
-                        >
-                          Mark ready
-                        </Button>
+                      {/* Loan creation is the business event that makes an
+                          application ready for disbursement; there is no operator
+                          status flip for readiness. */}
+                      {canManage &&
+                        (a.status === "approved" || a.status === "ready_for_disbursement") &&
+                        !loanNumberFor(a.id) && (
+                          <Button size="sm" onClick={() => openLoanCreation(a)}>
+                            Create loan
+                          </Button>
+                        )}
+                      {loanNumberFor(a.id) && (
+                        <span className="text-xs text-muted-foreground">
+                          Loan {loanNumberFor(a.id)}
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -300,6 +388,19 @@ export function ApplicationsPage() {
         }}
         onUpdate={async (id, patch) => {
           await updateApplication.mutateAsync({ id, ...patch });
+        }}
+      />
+
+      <CreateLoanDialog
+        open={loanOpen}
+        onOpenChange={setLoanOpen}
+        presetApplicationId={loanApplicationId}
+        onCreate={async (input) => {
+          await createFromApplication.mutateAsync({
+            applicationId: input.applicationId,
+            expectedDisbursementDate: input.expectedDisbursementDate,
+            firstInstallmentDate: input.firstInstallmentDate,
+          });
         }}
       />
 
