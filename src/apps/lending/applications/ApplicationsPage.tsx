@@ -137,6 +137,20 @@ export function ApplicationsPage() {
   const { clients } = useMfClients();
   const { products } = useMfLoanProducts({ status: "all" });
   const { versionsById } = useMfProductVersionIndex();
+  const { assessedIds } = useMfAssessedApplicationIds();
+  // The loan an application has already produced. Loan creation — not a status
+  // flip — is what makes an application ready for disbursement, so the row has
+  // to know whether that event has happened.
+  const { loans, createFromApplication } = useMfLoans({ status: "all" });
+
+  const loanNumberFor = useMemo(() => {
+    const map = new Map(
+      loans
+        .filter((l) => l.application_id)
+        .map((l) => [l.application_id as string, l.loan_number]),
+    );
+    return (applicationId: string) => map.get(applicationId) ?? null;
+  }, [loans]);
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
