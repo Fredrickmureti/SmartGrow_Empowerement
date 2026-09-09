@@ -87,7 +87,7 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
-  const { getUserName, members } = useOrgMembers();
+  const { getUserName, members: orgMembers } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
