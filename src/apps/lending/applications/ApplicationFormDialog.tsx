@@ -300,23 +300,41 @@ export function ApplicationFormDialog({
             </p>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="requested_amount">Requested amount</Label>
+            <Label htmlFor="requested_amount">
+              Requested amount{currentVersion ? ` (${currentVersion.currency_code})` : ""}
+            </Label>
             <Input
               id="requested_amount"
+              type="number"
+              min={0}
+              step="0.01"
               inputMode="decimal"
               value={form.requested_amount}
               onChange={(e) => set("requested_amount", e.target.value)}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="requested_term">Requested term (installments)</Label>
+            <Label htmlFor="requested_term">
+              Requested term
+              {currentVersion ? ` (${currentVersion.repayment_frequency} installments)` : " (installments)"}
+            </Label>
             <Input
               id="requested_term"
+              type="number"
+              min={1}
+              step={1}
               inputMode="numeric"
               value={form.requested_term_installments}
               onChange={(e) => set("requested_term_installments", e.target.value)}
             />
           </div>
+          {outsideBand ? (
+            <p className="text-xs text-amber-600 sm:col-span-2 dark:text-amber-500">
+              The requested {outsideBand}. That can be captured as the applicant's
+              request, but approval must fall inside the product band.
+            </p>
+          ) : null}
+
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="purpose">Purpose</Label>
             <Textarea
