@@ -74,6 +74,19 @@ const STATUS_TONE: Record<
   cancelled: "neutral",
 };
 
+/**
+ * What each loan state means and what happens next, in business terms.
+ * Mirrors the guards in `mf_disburse_loan` and the lifecycle RPCs.
+ */
+const LOAN_STATE_GUIDANCE: Record<MfLoanStatus, string> = {
+  pending_disbursement:
+    "Contract and schedule exist; no money has moved. Next: disburse the loan.",
+  active: "Money paid out and repayments are due. Next: record repayments as they are collected.",
+  closed: "Fully settled. No further lifecycle events apply.",
+  written_off: "Recognised as a loss. Recoveries only.",
+  cancelled: "Cancelled before disbursement. No further events apply.",
+};
+
 const money = (value: number, currency: string) =>
   `${currency} ${Number(value ?? 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
