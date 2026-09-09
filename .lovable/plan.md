@@ -1,94 +1,230 @@
-# Admission fee: individual liability, group collection
+# Loan product configuration & repayment schedule — investigation findings and remediation
 
-## What exists today (verified in code)
+Investigation only so far. No code or database object has been changed.
 
-- `mf_client_fee_policy` — one row per institution: amount, currency, active flag. Nothing hardcoded.
-- `mf_client_charges` — one obligation per client per kind (`admission_fee`), unique index prevents a second live charge. Status is `outstanding | paid | reversed`, and the row itself carries `receipt_number`, `paid_on`, `method`, `reference`, `journal_entry_id`.
-- `mf_raise_client_admission_fee` (creates the obligation from policy), `mf_pay_client_charge` (all-or-nothing settlement: numbers a receipt, posts cash debit / fee income credit through `mf_resolve_account` + `post_journal_entry_atomic`), `mf_reverse_client_charge` (voids the entry via `void_journal_entry_atomic`, marks the charge reversed).
-- Permissions everywhere through `mf_can(business, branch, module, action)`: reading uses `clients/read`, money uses `repayments/create` and `repayments/write`.
-- Group-collection precedent already exists for loans: `mf_repayment_batches` (one per meeting) with per-client receipts and server-written allocations.
-- The receipt already renders through the existing document snapshot engine (`src/services/documents/snapshots/lending.ts`).
-
-Two real gaps: settlement is all-or-nothing (no partial), and there is no collection container, so five members require five separate cash transactions.
-
-## Business interpretation (researched, not assumed)
-
-In ASA-style group lending the admission/registration fee is an **individual** obligation of the member, raised once when the client is admitted to the institution — not per loan, not per group, and never charged again when the member joins a second group. The group meeting is only the **place where cash is handed over**. Group liability is not created, and the group is never the accounting subject. This matches the memory rule already recorded for this institution (individual liability in a group setting, no joint liability).
-
-Consequences that follow from that, and which the design enforces:
-
-- The obligation stays on `mf_client_charges`. No group fee table, no invoice.
-- A collective hand-over is one cash receipt with per-member allocations, exactly like the existing loan repayment batch.
-- Partial collection is normal: the operator states who is being settled and for how much; the system never silently spreads money.
-- Membership and fee are separate: adding a member never moves money and never blocks on an unpaid fee.
-- Changing the configured amount affects obligations raised afterwards only; existing rows are frozen at their raised amount.
-
-## Chosen architecture
-
-Additive. The individual flow keeps working unchanged.
+## A. How the chain actually works today
 
 ```text
-mf_fee_collections (group, date, collector, total, method, reference)
-  └── mf_client_charge_payments (charge_id, amount)   -- also used by individual payments
-        └── mf_client_charges (the client's obligation)
+Loan product (mf_loan_products)
+  └─ Version (mf_loan_product_versions)      immutable once is_published
+        └─ Application (mf_loan_applications) stores product_version_id
+              └─ mf_create_loan_from_application()
+                    copies version terms onto mf_loans (frozen contract)
+                    └─ mf_generate_schedule()   ← the only schedule engine
+                          └─ mf_loan_schedule rows (principal/interest/fees/total per installment)
+                                └─ mf_record_repayment() allocates against them
 ```
 
-### Schema changes (one migration per object group)
+Everything financial is server-side. The React screens read and display only —
+`LoanScheduleDialog` merely sums the stored rows. That part of the design is sound.
 
-1. `mf_client_charge_payments` — the settlement ledger: `charge_id`, `collection_id` (nullable for individual payments), `business_id`, `branch_id`, `client_id`, `amount > 0`, `paid_on`, `method`, `reference`, `receipt_number`, `status ('posted'|'reversed')`, `journal_entry_id`, reversal columns, `created_by`. Grants, RLS via `mf_can` (read `clients/read`, insert `repayments/create`, update `repayments/write`), touch trigger.
-2. `mf_client_charges` gains `paid_amount numeric(18,2) NOT NULL DEFAULT 0`, maintained **only** by a trigger over `mf_client_charge_payments`; `status` becomes derived: `paid_amount = 0 → outstanding`, `0 < paid_amount < amount → part_paid`, `= amount → paid`, plus `reversed`. Existing paid rows are backfilled into one payment row each so no history is lost and the existing receipt keeps resolving.
-3. `mf_fee_collections` — collection header: `business_id`, `branch_id`, `group_id`, `collection_number`, `collected_on`, `collected_by`, `total_amount`, `method`, `reference`, `status`, `journal_entry_id`, reversal columns, `client_request_id` with a partial unique index on `(business_id, client_request_id)` for retry safety.
-4. View `mf_client_fee_positions` — client, group, amount, paid, outstanding, last collection. Single read model for screens and reports.
+Key objects: `mf_generate_schedule`, `mf_add_period`, `mf_periods_per_year`,
+`mf_compute_loan_fees`, `mf_loan_fee_total`, `mf_accrue_penalties`,
+`mf_create_loan_from_application`, `mf_disburse_loan`, `mf_record_repayment`,
+triggers `_mf_lpv_freeze_guard`, `mf_loans_freeze_terms`.
 
-### Server routines
+## B. The interest formula as implemented
 
-- `mf_collect_group_admission_fees(p_group_id, p_collected_on, p_method, p_reference, p_notes, p_lines jsonb, p_client_request_id)` where each line is `{client_id, amount}`. It: authorises via `mf_can(... 'repayments','create')`; locks each charge `FOR UPDATE`; rejects a client appearing twice, an amount above that client's outstanding, a client not in the group, and a non-live charge; requires `sum(lines) = total`; raises the obligation from policy first if a member has none yet (so a new member can be collected in the same run); numbers the collection and one receipt per allocation; posts **one** journal entry — a single cash/bank/mobile-money debit for the total against `fee_income`, with one credit-side description per member — through `mf_resolve_account` + `post_journal_entry_atomic`; returns the collection id. Replays return the existing collection on a repeated `client_request_id`.
-- `mf_reverse_fee_collection(p_collection_id, p_reason, p_effective_on)` — `repayments/write`; voids the collection entry with `void_journal_entry_atomic`, marks every payment row reversed (which restores each client's outstanding through the trigger), keeps the original rows. Nothing is deleted.
-- `mf_pay_client_charge` is rewritten to insert a payment row (partial amount now allowed, defaulting to the full outstanding) and keep posting its own single-client entry, so the current individual dialog behaves identically.
-- `mf_reverse_client_charge` keeps working, delegating to payment-row reversal.
+```text
+ppy          = 365 daily / 52 weekly / 26 biweekly / 12 monthly / 4 quarterly
+period_rate  = rate/100 ÷ ppy          -- for ANY rate basis except 'per_month'
+             = rate/100 × 12 ÷ ppy     -- for 'per_month'
+flat:      total interest = principal × period_rate × term_installments
+           per installment = total ÷ (term − grace); grace installments carry 0 interest
+declining: annuity instalment on (term − grace); interest = balance × period_rate
+```
 
-### Screens
+## C. Defect 1 (critical) — the rate basis vocabulary does not match the engine
 
-- **Client record** — unchanged dialog, now showing paid/outstanding split and, where the settlement came from a group collection, the collection reference.
-- **Group → Collect admission fees** (new dialog on the groups page): lists every member with fee due, paid, outstanding; include tick plus editable amount defaulting to the full outstanding; live total; submit disabled unless the entered lines sum to the stated total. Members with nothing outstanding are shown as settled and cannot be ticked.
-- **Add member to group** — shows "this client has an outstanding admission fee of X" as information only, with a link into the collection workflow. Adding a member never posts money.
-- **Collection history** on the group, with the reverse action gated on `repayments/write`.
-- Receipt: extend the existing lending snapshot with a group-collection receipt listing group, reference, date, collector, total, and each member with amount allocated and amount still outstanding. No new renderer.
+The database allows four rate bases:
+`per_annum`, `per_month`, `per_installment`, `flat_on_principal`.
+`mf_generate_schedule` only recognises `per_month` and a value `per_period`
+that the database **cannot store**. Everything else falls into the `ELSE`
+branch and is silently treated as *per annum*.
 
-### Permissions
+| Stored basis | Intended meaning | What the engine does | Verdict |
+| --- | --- | --- | --- |
+| `per_annum` | annual rate, pro-rated | rate ÷ ppy per period | correct |
+| `per_month` | monthly rate | rate × 12 ÷ ppy | correct |
+| `per_installment` | rate per installment | **rate ÷ 52** (weekly) | wrong by 52× |
+| `flat_on_principal` | rate × principal for the whole loan | **rate ÷ 52 × term** | wrong |
+| `per_period` (engine) | — | dead branch, unreachable | dead code |
 
-Existing groups only. View fee status → `clients/read`. Individual payment and group collection → `repayments/create`. Reverse → `repayments/write`. Fee configuration → `accounting/write`. All enforced inside the SECURITY DEFINER routines and in RLS, not in the browser.
+The live product "Business Loan" v1 is configured `flat / 20% / flat_on_principal /
+weekly / 8–12 installments`. The operator means "20% of principal = KES 2,000 on a
+10,000 loan". The engine would charge, for 12 weekly installments,
+`10,000 × 0.20 ÷ 52 × 12 = KES 461.54`. That is a live mispricing risk, not a
+theoretical one.
 
-## Tests (run against this database, then reported here)
+Also: `mf_create_loan_from_application` defaults a null basis to the string
+`'per_year'`, a fifth spelling no constraint allows on `mf_loans`.
 
-Realistic group with five members: 1 individual payment, 2 collective collection of the unpaid members, 3 mixed state, 4 partial collection, 5 new member added then included in the next collection, 6 duplicate attempts (same client twice, resubmitted request key, already settled), 7 reversal restoring each outstanding balance, 8 re-collection after reversal. After each: charge status, client outstanding, group outstanding, collection + allocation rows, journal balance and mapped accounts, receipt, audit trail. Then typecheck and a browser pass over the client and group screens.
+## D. The KES 10,000 → ~10,600 case
 
-## Continuation point
+`mf_loans` and `mf_loan_schedule` are currently **empty** — the transactional
+data was reset, so I cannot point at the original row. Arithmetically the number
+reproduces exactly on the other published version, "V1 Proof Product"
+(`flat`, `12%`, `per_annum`, `monthly`):
 
-Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid_amount + status + backfill) → 3 (collections header) → 4 (view) → routines → hooks → group dialog + membership notice → receipt snapshot → tests → results appended here.
+```text
+period_rate = 0.12 ÷ 12 = 0.01
+6 monthly installments:
+Principal:      10,000.00
+Interest:       10,000 × 0.01 × 6 =   600.00
+Fees:                                   0.00   (that version has no fees)
+Penalties:                              0.00   (never in the origination schedule)
+-----------------------------------------------
+Total:                              10,600.00   → 6 × 1,766.67
+```
+
+So ~10,600 is *consistent with the engine* for 6 monthly installments at 12% p.a.
+flat. It is **not** consistent with the "Business Loan" product (20% weekly),
+which would produce a much smaller interest figure. Before I treat this as
+"correct", I need you to confirm which product and how many installments that
+loan used — I will re-derive against the real row if one can be restored.
+
+## E. Fees
+
+`deducted_from_disbursement` fees are computed at disbursement, netted out of
+the cash paid, and never touch the schedule: the client receives 9,500 and owes
+10,000 (**model A**). `added_to_first_installment` fees are added to installment 1
+only (**model B**). Both models coexist per fee row; fees never capitalise into
+principal. Only the second kind appears in the schedule total.
+
+## F. Penalties
+
+`penalty_rate` / `penalty_basis` are never part of the origination schedule.
+`mf_accrue_penalties(business, as_of)` runs after delinquency and writes
+`mf_loan_charges` rows: `base × rate/100`, where base is the overdue installment
+total, overdue principal, or whole outstanding balance. It is a **flat charge per
+run keyed by date**, applied to every overdue installment each time it is run —
+there is no schedule/cron wiring visible, so accrual frequency is operator-driven.
+With `penalty_rate = 0` the basis field is inert.
+
+## G. Grace installments
+
+Implemented as: the first N installments have zero principal; interest is zero for
+flat and accrued-but-unpaid-in-the-installment for declining balance; the loan's
+principal and (for flat) total interest are compressed into the remaining
+`term − grace` installments. Nothing is capitalised, nothing is waived, dates do
+not move. This is a defensible definition but it is **nowhere documented or
+validated**, and for flat interest it means interest is charged over the grace
+period yet collected later.
+
+## H. Versioning
+
+Enforced well: `_mf_lpv_freeze_guard` blocks any edit or delete of a published
+version, `mf_loans_freeze_terms` blocks term changes after disbursement, and loan
+terms are copied onto `mf_loans` at creation. Two gaps:
+- `effective_from` is stored but **never used**. The UI picks the first published
+  version by creation date (`useMfLoanProducts.ts:340`), so a future-dated version
+  becomes the live price immediately.
+- Nothing prevents two versions with the same or overlapping `effective_from`.
+- Branch scoping: product versions are business-level only. That matches the
+  single-business/multi-branch model; no change proposed.
+
+## I. Form audit summary (defects only)
+
+| Field | Problem |
+| --- | --- |
+| Interest rate basis | vocabulary mismatch with engine (section C); UI default `per_annum` while a live version uses `flat_on_principal` |
+| Interest rate | no upper bound, no requirement rule per method |
+| Grace installments | not validated against `min_term_installments`; grace ≥ term silently divides by 1 |
+| Min/max installments | no check that the band is sane for the frequency |
+| Penalty basis | shown and stored even when rate = 0 |
+| Fees | no cap on total percentage fees vs principal; the two collection models are not explained in the form |
+| Effective from | collected but unused by the version resolver |
+| Currency | free-text input on a KES-only institution |
+| Activate with this version | activates the product, unrelated to which version is in force |
+
+## J. Decisions I need from you before touching the engine
+
+1. **`flat_on_principal`** — confirm it means `interest = principal × rate`, for the
+   whole loan, independent of term and frequency.
+2. **`per_installment`** — confirm it means `interest per installment = rate` applied
+   per period, no annualisation.
+3. **Flat + grace** — should total flat interest be based on the full term or only
+   the paying installments?
+4. **Existing loans** — none exist right now, so a fix cannot reprice anything;
+   confirm no historical schedules must be preserved.
+
+## K. Remediation plan (after your answers)
+
+**Wave 1 — engine correctness (migration, one function).**
+Rewrite `mf_generate_schedule`'s rate resolution to handle all four stored bases
+explicitly and to `RAISE EXCEPTION` on an unknown basis instead of falling through
+to per-annum. Fix `mf_create_loan_from_application`'s `'per_year'` default to
+`'per_annum'` (separate migration).
+
+**Wave 2 — backend invariants (migrations, one object each).**
+Add a `CHECK` on `mf_loans.interest_rate_period`; add version-level checks:
+`grace_period_installments < min_term_installments`, `penalty_basis` only
+meaningful with a positive rate, total percentage fees < 100, and a unique
+`(product_id, effective_from)`.
+
+**Wave 3 — version resolution.**
+Resolve the version in force by `effective_from <= today` and highest
+`version_no`, in one place, used by the application form and by product display.
+
+**Wave 4 — context-aware form.**
+Hide/disable rate basis options invalid for the chosen method, hide penalty basis
+until penalty rate > 0, explain the two fee collection models inline, fix the
+currency field to KES, and mirror every rule added in wave 2 as a client-side
+message. No formula ever runs in React.
+
+**Wave 5 — deterministic tests.**
+A SQL test file under `supabase/tests/` covering the 20 cases you listed:
+10,000 principal across flat and declining, each rate basis, weekly and monthly,
+grace and no grace, fees of both collection types, penalty on and off, band
+violations, and a reconciliation assertion that
+`sum(principal_due) = principal` and
+`sum(total_due) = principal + interest + scheduled fees` exactly, with no residual.
+
+**Rollback:** each wave is a single-object migration; the previous function body
+is restored by re-applying it. No data is rewritten, so rollback is code-only.
+
+## Acceptance
+
+Changing a rate basis on a new product version measurably and predictably changes
+the generated schedule; an unknown or contradictory configuration is rejected by
+the database, not silently reinterpreted; every schedule reconciles to the stated
+contractual obligation with zero unexplained residual.
+
+======================IMPLEMENTATION PROGRESS=====================
+
+Verified as genuinely done (checked directly in the database, not from notes): the schedule engine prices "flat on principal" once on the loan amount, converts per-annum/per-month rates by repayment frequency, and now refuses an unrecognised rate basis instead of quietly pricing it; loan creation rejects amounts and terms outside the product version's bands; and the safeguards on grace installments, flat-on-principal, duplicate start dates and rate basis are all in place.
+
+Finished this session — the Publish New Version form is now dependency-aware:
+
+Rate basis only offers the choices valid for the chosen interest method, each with a plain explanation of what it charges (this also fixed a bug that would have crashed the form when the rate basis list opened).
+Penalty basis is hidden until you enter a penalty rate above zero, with a note that late charges are never part of the schedule at origination.
+The two fee models are now spelled out inline: deducted from disbursement (client receives 9,500, owes 10,000) versus added to the first installment (receives 10,000, owes 10,500).
+Grace installments explained; the form seeds from the version in force today rather than the newest row.
+The application and decision screens were already using the "version in force today" rule, so that item was complete.
+
+Still open (credits ran out mid-task): the deterministic schedule tests and the sweep of loan products exercising every field and dropdown option end-to-end. I had just collected the business, client and product identifiers needed to run them. The KES 10,000 → 10,600 question also remains open — the original loan and schedule rows were cleared before they could be read, so it must be reproduced against the corrected engine once those tests run.
 
 
-====================IMPLEMENTATION STATUS/PROGRESS===========
 
+KINDLY NOTE
+==============
+**Important:** Do not ask me any questions after completing the remediation work in the plan file.
 
-Group fee collection receipts are now in place: in a group's collection history, each collection has a Receipt option that previews or downloads a printable receipt showing the total collected and exactly how much was allocated to each member. It uses the existing receipt engine, so it looks and behaves like the individual admission-fee receipt.
+Once all remediations in the plan have been implemented, **fully test the Loan Product creation/configuration functionality**.
 
-One small item remains: when a bank account has no currency recorded, the collection banking routine quietly assumes KES instead of stopping — that needs a short database change I couldn't apply in this session, and it only affects bank accounts with a missing currency.
-## Session close — 2026-09-09 08:1x UTC
+Create multiple loan products specifically designed to exercise **every configurable setting, field, input, and dropdown option** available during loan product creation.
 
-Verified in the live database that every claimed object exists:
-`mf_client_charge_payments`, `mf_fee_collections`, `mf_client_fee_positions`,
-`mf_collect_group_admission_fees`, `mf_reverse_fee_collection`,
-`mf_pay_client_charge`, `mf_reverse_client_charge`,
-`mf_raise_client_admission_fee`. UI wired: `GroupFeeCollectionDialog`
-(mounted from `GroupsPage`, includes collection history + receipt),
-`GroupMembersDialog` outstanding-fee notice, `useMfFeeCollections`.
-Build is green.
+The testing must verify that:
 
-Last open item is now closed: `mf_bank_collection_batch` no longer falls back
-to `'KES'` — it raises when the bank account has no currency configured
-(no existing bank account is affected; zero rows have a null currency).
+* Every field accepts and correctly processes valid input.
+* Every dropdown/select option can actually be selected and produces the intended behavior.
+* Every configurable setting is persisted correctly.
+* The selected configuration is actually respected when the loan product is used.
+* Different combinations of settings work correctly, not just individual fields in isolation.
+* No field or option is merely present in the UI but disconnected from the underlying logic.
+* Invalid or incompatible combinations are handled correctly where validation is expected.
+* The resulting loan products can be used successfully to create loans and generate the expected repayment/payment schedules.
 
-Remaining (pre-existing, unrelated): 879 Supabase security-linter warnings
-about SECURITY DEFINER execute grants, public extensions and leaked-password
-protection. Not introduced by this work.
+**Do not stop after confirming that the UI accepts the values.** Trace each configuration through the actual backend/database/business logic and verify that it affects the resulting loan behavior as intended.
+
+The objective is to establish that **every part of the loan product configurability is functional end-to-end**, with no dead fields, non-functional dropdown options, ignored settings, or configuration values that are saved but never applied.
