@@ -87,7 +87,7 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
-  const { getUserName } = useOrgMembers();
+  const { getUserName, members } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -98,7 +98,6 @@ export function MeetingWorkspaceDialog({
   const [heldBy, setHeldBy] = useState<string>(
     meeting.held_by ?? meeting.loan_officer_id ?? "",
   );
-  const { members } = useOrgMembers();
   const timesError = meetingTimesError(startedAt, endedAt);
 
   const clientLabel = useMemo(() => {
