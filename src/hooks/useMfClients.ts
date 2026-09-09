@@ -105,15 +105,20 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
   const createClient = useMutation({
     mutationFn: async (input: MfClientInput) => {
       if (!businessId) throw new Error("No institution selected");
-      const { data: auth } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("mf_clients")
-        // Cast until the generated Database types pick up the KYC path columns.
-        .insert({ ...input, business_id: businessId, created_by: auth.user?.id ?? null } as never)
-        .select(SELECT)
-        .single();
+      const { group_id, ...client } = input;
+      // One server operation owns both the client and the group membership, so
+      // a failure leaves nothing behind. Cast until the generated Database
+      // types pick up the function.
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: unknown }>)("mf_register_client", {
+        p_business_id: businessId,
+        p_client: client,
+        p_group_id: group_id ?? null,
+      });
       if (error) throw error;
-      return data as unknown as MfClient;
+      return (Array.isArray(data) ? data[0] : data) as MfClient;
     },
     onSuccess: () => {
       invalidate();
