@@ -44,9 +44,16 @@ import {
   MF_APPLICATION_STATUSES,
   MF_APPLICATION_STATUS_LABELS,
   useMfApplications,
+  useMfAssessedApplicationIds,
   type MfApplicationStatus,
   type MfLoanApplication,
 } from "@/hooks/useMfApplications";
+import { useMfLoans } from "@/hooks/useMfLoans";
+import {
+  decisionBlockedReason,
+  describeApplicationWorkflow,
+} from "@/lib/lending/applicationWorkflow";
+import { CreateLoanDialog } from "../loans/CreateLoanDialog";
 import { ApplicationFormDialog } from "./ApplicationFormDialog";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
@@ -60,9 +67,48 @@ const STATUS_TONE: Record<
   under_review: "warning",
   approved: "success",
   rejected: "danger",
-  ready_for_disbursement: "success",
+  ready_for_disbursement: "info",
+  disbursed: "success",
   cancelled: "neutral",
 };
+
+/** Completed events and the next legitimate one, for one application row. */
+function WorkflowTrail({
+  status,
+  hasAssessment,
+  loanNumber,
+}: {
+  status: MfApplicationStatus;
+  hasAssessment: boolean;
+  loanNumber: string | null;
+}) {
+  const { meaning, nextStep, steps } = describeApplicationWorkflow(
+    status,
+    hasAssessment,
+    loanNumber,
+  );
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+        {steps.map((step) => (
+          <span
+            key={step.label}
+            className={
+              step.done
+                ? "inline-flex items-center gap-0.5 text-muted-foreground"
+                : "inline-flex items-center gap-0.5 text-muted-foreground/50"
+            }
+          >
+            {step.done ? <Check className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            {step.label}
+          </span>
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">{meaning}</p>
+      {nextStep && <p className="text-xs font-medium text-foreground">Next: {nextStep}</p>}
+    </div>
+  );
+}
 
 export function ApplicationsPage() {
   const { can } = usePermissions();
