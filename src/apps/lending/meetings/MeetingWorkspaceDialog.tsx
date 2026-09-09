@@ -95,6 +95,11 @@ export function MeetingWorkspaceDialog({
     hhmm(meeting.started_at_time ?? meeting.scheduled_time),
   );
   const [endedAt, setEndedAt] = useState(hhmm(meeting.ended_at_time));
+  const [heldBy, setHeldBy] = useState<string>(
+    meeting.held_by ?? meeting.loan_officer_id ?? "",
+  );
+  const { members } = useOrgMembers();
+  const timesError = meetingTimesError(startedAt, endedAt);
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
