@@ -17,6 +17,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -139,14 +143,13 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
           ) : null}
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="disbDate">Value date</Label>
-              <Input
-                id="disbDate"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
+            <BranchDayDateField
+              id="disbDate"
+              label="Value date"
+              value={date}
+              onChange={setDate}
+            />
+            <div className="hidden">
             </div>
             <div className="space-y-1.5">
               <Label>Method</Label>
@@ -201,7 +204,7 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={saving || !date}>
+          <Button onClick={submit} disabled={saving || !date || dayGate.blocked}>
             {saving ? "Disbursing…" : "Confirm disbursement"}
           </Button>
         </DialogFooter>

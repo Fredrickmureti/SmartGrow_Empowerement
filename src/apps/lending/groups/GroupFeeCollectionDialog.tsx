@@ -19,6 +19,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -218,13 +222,13 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
             {canCollect ? (
               <Section title="Collection">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-                  <div>
-                    <Label className="text-xs">Date</Label>
-                    <Input
-                      type="date"
-                      value={collectedOn}
-                      onChange={(e) => setCollectedOn(e.target.value)}
-                    />
+                  <BranchDayDateField
+                    label="Date"
+                    value={collectedOn}
+                    onChange={setCollectedOn}
+                    className="space-y-1"
+                  />
+                  <div className="hidden">
                   </div>
                   <div>
                     <Label className="text-xs">Method</Label>
@@ -342,7 +346,12 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
           {canCollect ? (
             <Button
               onClick={submit}
-              disabled={lines.length === 0 || overAny || collect.isPending}
+              disabled={
+                lines.length === 0 ||
+                overAny ||
+                collect.isPending ||
+                dayGate.blocked
+              }
             >
               {collect.isPending ? "Recording…" : `Record ${money(total)}`}
             </Button>

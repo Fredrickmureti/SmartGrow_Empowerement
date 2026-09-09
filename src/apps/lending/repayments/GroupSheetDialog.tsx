@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  BranchDayDateField,
+  useBranchDayGate,
+} from "@/components/lending/BranchDayDateField";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -315,7 +319,10 @@ export function GroupSheetDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={saving || lines.length === 0}>
+            <Button
+              onClick={submit}
+              disabled={saving || lines.length === 0 || dayGate.blocked}
+            >
               {saving ? "Posting…" : "Post collection sheet"}
             </Button>
           </div>
