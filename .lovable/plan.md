@@ -105,3 +105,18 @@ data: VERIFIED PRESERVED. End-to-end test: PASSED.
   by the function body, the role table and the signed-out HTTP rejection, not by a UI attempt.
 - The reset is organisation-wide across all businesses in the organisation (there is one).
 - Clients and groups survive by default; tick the checkbox to remove them too.
+
+## 10. Follow-up (2026-09-09): loan products included as an opt-in
+
+Loan products survived the reset by design; the owner asked to be able to clear them too.
+- `reset_module__microfinance(org_id, include_clients, include_products)` now deletes
+  `mf_loan_product_versions` then `mf_loan_products` (scoped by the organisation's businesses),
+  last of all, after every application/loan referencing them is gone.
+- `_mf_lpv_freeze_guard` stands aside for published-version deletes only while
+  `app.reset_in_progress` is set, so the immutability rule still holds in normal use.
+- `reset_transactional_data(..., include_products)` passes the flag through and records it in
+  the `admin_audit_log` row. `preview_transactional_reset` returns
+  `mf_loan_products_optional` / `mf_loan_product_versions_optional`.
+- Old 3-arg/2-arg overloads dropped so there is one unambiguous entry point.
+- UI: second opt-in checkbox "Also remove loan products", off by default, with live counts.
+- Unauthenticated call to the preview RPC still fails `42501` — authorization unchanged.
