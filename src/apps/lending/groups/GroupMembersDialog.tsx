@@ -57,6 +57,14 @@ export function GroupMembersDialog({
   const { members, isLoading, error, addMember, setRole, exitMember } =
     useMfGroupMembers(open && group ? group.id : null);
   const [selectedClient, setSelectedClient] = useState<string>("");
+  const { data: feePositions = [] } = useMfGroupFeePositions(
+    open && group ? group.id : null,
+  );
+  const { data: selectedFee } = useMfClientFeePosition(selectedClient || null);
+  const feeByClient = useMemo(
+    () => new Map(feePositions.map((p) => [p.client_id, p])),
+    [feePositions],
+  );
 
   const clientById = useMemo(() => {
     const map = new Map<string, MfClient>();
