@@ -71,17 +71,8 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 ====================IMPLEMENTATION STATUS/PROGRESS===========
 
 
-I got the group-collection engine in place before credits ran out. Here's exactly where things stand.
+Here's where the admission-fee work stands.
 
-Done and applied to your database
+Finished this session: the group collection screen is now reachable — every group row has an "Admission fees" button that opens the collection sheet listing each member with fee due, paid and outstanding, tick boxes with editable amounts, a live total, and the collection history with a reverse action. The membership screen now shows each member's admission-fee state (outstanding amount or "settled"), and when you pick a client to add it warns that they still owe a fee and makes clear that adding them does not collect any money. A method-list bug in the collection screen was fixed and the whole app type-checks cleanly. The individual client payment flow is untouched.
 
-The routine that records one group collection of admission fees: it checks each selected member's real outstanding amount from authoritative records (never a "paid" flag), refuses a member listed twice, refuses an amount above what that member owes, refuses anyone who isn't an active member, raises a missing fee for a newly added member, issues one receipt per member, and posts a single cash entry for the total against fee income. A repeated submission with the same members, amounts, date and reference replays instead of taking money twice.
-The matching reversal routine: it voids the one accounting entry, marks every member's payment reversed so each person's outstanding fee comes back, and deletes nothing.
-App side: a data layer for fee positions and collections, and the "Collect admission fees" screen for a group — every member with fee due, paid, outstanding, tick plus editable amount, live total, and collection history with a reverse action. Members with nothing outstanding show as settled and cannot be ticked. The individual client payment flow is untouched.
-Remaining
-
-Wiring the new screen into the Groups page (a button on each group row) and adding the information-only "this client has an outstanding admission fee" note when adding a member — the screen file exists but isn't reachable yet.
-The group receipt listing each member and their allocation.
-The eight test scenarios end to end, and the typecheck.
-Updating the plan file with results.
-Nothing is half-applied in the database, so it's safe to stop here and resume from the two UI wiring items.
+Still outstanding: the eight end-to-end scenarios (individual payment, group collection, mixed state, partial, new member, duplicate attempt, reversal, re-collection) were prepared as a single rollback-protected database test but never run; the group receipt listing each member's allocation is not built yet; and the plan file still needs the results appended. The database routines themselves were verified present and correct by reading them, so the remaining work is verification, the receipt, and the plan update.
