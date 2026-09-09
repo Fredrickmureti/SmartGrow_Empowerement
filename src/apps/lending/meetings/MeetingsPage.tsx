@@ -44,14 +44,13 @@ import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useMfGroups, meetingDayLabel, type MfGroup } from "@/hooks/useMfGroups";
 import {
   useMfGroupMeetings,
-  useMfRepaymentsBridge,
   MEETING_STATUS_LABEL,
   isoWeekday,
   todayIso,
   type MfGroupMeeting,
   type MfMeetingStatus,
 } from "@/hooks/useMfMeetings";
-import { useMfRepayments } from "@/hooks/useMfRepayments";
+import { useMfRepayments, useMfRepaymentBatches } from "@/hooks/useMfRepayments";
 import { MeetingWorkspaceDialog } from "./MeetingWorkspaceDialog";
 import { GroupSheetDialog } from "../repayments/GroupSheetDialog";
 
@@ -88,7 +87,8 @@ export function MeetingsPage() {
     openMeeting,
   } = useMfGroupMeetings({ from: date, to: date });
 
-  const { openBatch, record } = useMfRepayments();
+  const { record } = useMfRepayments();
+  const { openBatch } = useMfRepaymentBatches();
 
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
