@@ -65,7 +65,14 @@ interface ClientFormDialogProps {
   client: MfClient | null;
   onCreate: (input: MfClientInput) => Promise<MfClient>;
   onUpdate: (id: string, patch: Partial<MfClientInput>) => Promise<void>;
+  /**
+   * Set when the officer is registering this client during a group meeting in
+   * the field. The group is fixed to the meeting's group and the client is
+   * stamped with the meeting, so the meeting record shows who joined at it.
+   */
+  meetingContext?: { meetingId: string; groupId: string } | null;
 }
+
 
 interface FormState {
   client_number: string;

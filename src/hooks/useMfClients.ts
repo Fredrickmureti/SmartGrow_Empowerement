@@ -68,7 +68,14 @@ export type MfClientInput = Partial<Omit<MfClient, "id" | "business_id" | "creat
    * the same transaction as the client, so a client is never left half-assigned.
    */
   group_id?: string | null;
+  /**
+   * The group meeting this client was registered at, when onboarding happened
+   * in the field. Stamped by `mf_register_client`, which refuses a meeting from
+   * another institution, another group, or one already closed.
+   */
+  onboarded_meeting_id?: string | null;
 };
+
 
 const SELECT =
   "id,business_id,branch_id,client_number,full_name,national_id,date_of_birth,gender,phone,email,physical_address,occupation,business_type,business_location,next_of_kin_name,next_of_kin_relationship,next_of_kin_phone,photo_path,id_front_path,id_back_path,kin_id_front_path,kin_id_back_path,loan_officer_id,joined_on,status,completed_cycles,notes,created_at,updated_at";
@@ -105,7 +112,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
   const createClient = useMutation({
     mutationFn: async (input: MfClientInput) => {
       if (!businessId) throw new Error("No institution selected");
-      const { group_id, ...client } = input;
+      const { group_id, onboarded_meeting_id, ...client } = input;
       // One server operation owns both the client and the group membership, so
       // a failure leaves nothing behind. Cast until the generated Database
       // types pick up the function.
@@ -116,7 +123,9 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
         p_business_id: businessId,
         p_client: client,
         p_group_id: group_id ?? null,
+        p_meeting_id: onboarded_meeting_id ?? null,
       });
+
       if (error) throw error;
       return (Array.isArray(data) ? data[0] : data) as MfClient;
     },
