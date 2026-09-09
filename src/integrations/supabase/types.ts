@@ -12416,6 +12416,7 @@ export type Database = {
           next_of_kin_relationship: string | null
           notes: string | null
           occupation: string | null
+          onboarded_meeting_id: string | null
           phone: string | null
           photo_path: string | null
           photo_url: string | null
@@ -12449,6 +12450,7 @@ export type Database = {
           next_of_kin_relationship?: string | null
           notes?: string | null
           occupation?: string | null
+          onboarded_meeting_id?: string | null
           phone?: string | null
           photo_path?: string | null
           photo_url?: string | null
@@ -12482,6 +12484,7 @@ export type Database = {
           next_of_kin_relationship?: string | null
           notes?: string | null
           occupation?: string | null
+          onboarded_meeting_id?: string | null
           phone?: string | null
           photo_path?: string | null
           photo_url?: string | null
@@ -12502,6 +12505,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_onboarded_meeting_id_fkey"
+            columns: ["onboarded_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -13161,6 +13171,7 @@ export type Database = {
           group_id: string | null
           id: string
           loan_officer_id: string | null
+          meeting_id: string | null
           product_id: string
           product_version_id: string | null
           purpose: string | null
@@ -13188,6 +13199,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           loan_officer_id?: string | null
+          meeting_id?: string | null
           product_id: string
           product_version_id?: string | null
           purpose?: string | null
@@ -13215,6 +13227,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           loan_officer_id?: string | null
+          meeting_id?: string | null
           product_id?: string
           product_version_id?: string | null
           purpose?: string | null
@@ -13261,6 +13274,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
           {
@@ -14017,6 +14037,7 @@ export type Database = {
           created_by: string | null
           group_id: string | null
           id: string
+          meeting_id: string | null
           notes: string | null
           status: string
           updated_at: string
@@ -14031,6 +14052,7 @@ export type Database = {
           created_by?: string | null
           group_id?: string | null
           id?: string
+          meeting_id?: string | null
           notes?: string | null
           status?: string
           updated_at?: string
@@ -14045,6 +14067,7 @@ export type Database = {
           created_by?: string | null
           group_id?: string | null
           id?: string
+          meeting_id?: string | null
           notes?: string | null
           status?: string
           updated_at?: string
@@ -14055,6 +14078,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_repayment_batches_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -26516,6 +26546,7 @@ export type Database = {
           next_of_kin_relationship: string | null
           notes: string | null
           occupation: string | null
+          onboarded_meeting_id: string | null
           phone: string | null
           photo_path: string | null
           photo_url: string | null
