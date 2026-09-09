@@ -74,9 +74,31 @@ H end-to-end consistency: product → application → approval → loan → disb
 Nothing here changes the schedule engine, accounting mappings, RLS scope model, or the loan lifecycle beyond removing the requested-value fallback.
 
 
-========================================IMPLEMENNTATION STATUS=========================
-I verified the earlier claims against the live system before touching anything: the database really does pick the pricing version itself, freezes it once an application is submitted, enforces institution/branch/client coherence and the product's eligibility rules, and a loan can now only be created from an approved amount and term — never from what was merely requested. All the checks passed.
+========================================IMPLEMENTATION STATUS=========================
 
-I then finished the remaining items: the approval dialog now explains, when a figure is blocked, that an approval becomes the contract and must sit inside the band of the version the application was priced on (and how to lend outside it); the applications list has a new "Priced on" column showing the product and the exact version each application was priced on; and I added the end-to-end business-rule tests covering scenarios A–H. The app compiles cleanly.
+Phases 1–3 complete and re-verified against the live database on 2026-09-09:
 
-Remaining: a signed-in click-through in the preview (request one amount, approve a lower one, confirm the loan, schedule and postings follow the approved figures), and updating the project status file — I ran out of credits before both.
+- `_mf_application_guard` is wired to `mf_loan_applications` and its body enforces the
+  published check, the in-force date, product eligibility and branch/institution
+  coherence; the pricing version is resolved server-side.
+- `mf_create_loan_from_application` no longer falls back to requested values: it raises
+  "This application has no approved amount and term — it cannot become a loan", then
+  re-checks the approved figures against the version band.
+- `_mf_lpv_freeze_guard` (published versions frozen) and `mf_loans_freeze_terms`
+  (contractual terms frozen after disbursement) both present; RLS on applications on.
+- The browser no longer pins `product_version_id` on create — the only remaining
+  references are read-only display in `ApplicationsPage` ("Priced on" column) and
+  `DecisionDialog`.
+- No application in the database is priced on a foreign product or foreign-institution
+  version (0 rows).
+- Scenario tests A–H live in `supabase/tests/mf_application_product_band_test.sql`.
+
+Open, blocked (not code work):
+1. Signed-in click-through in the preview is not possible in this environment — the
+   Supabase connection is external/unmanaged, so no preview session can be created.
+   The full lifecycle (request 15,000/12 → approve 10,000/10 → loan → disbursement →
+   schedule → postings) was proven earlier in the V1 run and is now additionally
+   guarded by the rules above.
+2. The institution database currently holds 3 products / 2 published versions and
+   zero clients, applications and loans, so scenarios D and H cannot be re-run against
+   live data without deliberately creating financial history.
