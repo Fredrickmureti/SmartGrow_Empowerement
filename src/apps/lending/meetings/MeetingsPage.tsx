@@ -283,6 +283,21 @@ export function MeetingsPage() {
         />
       )}
 
+      <RecordMeetingDialog
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        groups={groups}
+        defaultDate={date}
+        isSaving={openMeeting.isPending}
+        onRecord={async (input) => {
+          await openMeeting.mutateAsync(input);
+          setDate(input.meetingOn);
+          setActiveGroupId(input.groupId);
+          setRecordOpen(false);
+          setWorkspaceOpen(true);
+        }}
+      />
+
       <GroupSheetDialog
         open={sheetOpen}
         onOpenChange={setSheetOpen}
