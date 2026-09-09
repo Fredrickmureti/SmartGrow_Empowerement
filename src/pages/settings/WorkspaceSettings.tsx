@@ -65,6 +65,7 @@ import AccessGroups from "@/pages/settings/AccessGroups";
 import EmailProviderSettings from "@/pages/settings/EmailProviderSettings";
 import { ScopeChip } from "@/components/settings/ScopeChip";
 import { OwnershipCard } from "@/components/settings/OwnershipCard";
+import { ResetTransactionalDataCard } from "@/components/settings/ResetTransactionalDataCard";
 import { Link } from "react-router-dom";
 
 export default function WorkspaceSettings() {
@@ -374,6 +375,8 @@ export default function WorkspaceSettings() {
             </Card>
 
             {!isPortalUser && <OwnershipCard />}
+
+            {!isPortalUser && canEditOrg && <ResetTransactionalDataCard />}
           </TabsContent>
 
           <TabsContent value="notifications">
