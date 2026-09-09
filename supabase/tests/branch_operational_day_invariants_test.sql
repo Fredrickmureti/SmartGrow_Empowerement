@@ -46,26 +46,32 @@ BEGIN
   END IF;
 
   ------------------------------------------------------- 2. no client writes
-  SELECT string_agg(table_name || '/' || privilege_type, ', ')
+  -- Read privileges straight from the catalog: information_schema views are
+  -- filtered by the querying role and silently return nothing when the test
+  -- runs as a role that neither granted nor holds the privilege.
+  SELECT string_agg(c.relname || '/' || g.role || '/' || g.priv, ', ')
     INTO v_missing
-    FROM information_schema.role_table_grants
-   WHERE table_schema = 'public'
-     AND table_name IN ('branch_operational_days', 'branch_day_events')
-     AND grantee IN ('authenticated', 'anon')
-     AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE');
+    FROM pg_class c
+    CROSS JOIN (VALUES ('anon'),('authenticated')) r(role)
+    CROSS JOIN (VALUES ('INSERT'),('UPDATE'),('DELETE'),('TRUNCATE')) p(priv)
+    CROSS JOIN LATERAL (SELECT r.role AS role, p.priv AS priv) g
+   WHERE c.relname IN ('branch_operational_days', 'branch_day_events')
+     AND c.relnamespace = 'public'::regnamespace
+     AND has_table_privilege(g.role, c.oid, g.priv);
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'Day state must only change through the RPCs, but direct write grants exist: %', v_missing;
   END IF;
 
   --------------------------------------------------------- 3. read is gated
   FOREACH v_op IN ARRAY ARRAY['branch_operational_days', 'branch_day_events'] LOOP
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.role_table_grants
-       WHERE table_schema = 'public' AND table_name = v_op
-         AND grantee = 'authenticated' AND privilege_type = 'SELECT'
-    ) THEN
+    IF NOT has_table_privilege('authenticated', ('public.' || v_op)::regclass, 'SELECT') THEN
       RAISE EXCEPTION '% is unreadable through the Data API — GRANT SELECT TO authenticated is missing', v_op;
     END IF;
+
+    IF has_table_privilege('anon', ('public.' || v_op)::regclass, 'SELECT') THEN
+      RAISE EXCEPTION '% is readable by signed-out visitors', v_op;
+    END IF;
+
 
     IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid = ('public.' || v_op)::regclass) THEN
       RAISE EXCEPTION 'RLS is not enabled on %', v_op;
