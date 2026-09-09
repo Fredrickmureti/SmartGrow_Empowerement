@@ -17,6 +17,7 @@ import { ProductsPage } from "./products/ProductsPage";
 import { ApplicationsPage } from "./applications/ApplicationsPage";
 import { LoansPage } from "./loans/LoansPage";
 import { RepaymentsPage } from "./repayments/RepaymentsPage";
+import { MeetingsPage } from "./meetings/MeetingsPage";
 import { CollectionsPage } from "./collections/CollectionsPage";
 import { PortfolioReport } from "./reports/PortfolioReport";
 import { ArrearsReport } from "./reports/ArrearsReport";
@@ -77,6 +78,16 @@ export function LendingApp() {
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLoans">
               <LoansPage />
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="meetings"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewClients">
+              <MeetingsPage />
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }

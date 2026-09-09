@@ -13,6 +13,7 @@ import {
   Wallet,
   Target,
   Settings,
+  CalendarDays,
   BarChart3,
   AlertTriangle,
   Landmark,
@@ -40,6 +41,7 @@ export const LENDING_NAV: WorkspaceNav = {
     {
       label: "Servicing",
       items: [
+        { to: "/lending/meetings", label: "Meetings", icon: CalendarDays, permission: "viewClients" },
         { to: "/lending/repayments", label: "Repayments", icon: Wallet, permission: "recordRepayments" },
         { to: "/lending/collections", label: "Collections", icon: Target, permission: "viewCollections" },
       ],
