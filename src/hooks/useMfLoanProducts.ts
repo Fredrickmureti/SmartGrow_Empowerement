@@ -62,6 +62,49 @@ export const MF_PENALTY_BASES: MfPenaltyBasis[] = [
   "outstanding_balance",
 ];
 
+export const MF_INTEREST_METHOD_LABELS: Record<MfInterestMethod, string> = {
+  flat: "Flat",
+  declining_balance: "Declining balance",
+  declining_balance_equal_installments: "Declining balance (equal installments)",
+};
+
+export const MF_RATE_PERIOD_LABELS: Record<MfInterestRatePeriod, string> = {
+  per_annum: "Per annum",
+  per_month: "Per month",
+  per_installment: "Per installment",
+  flat_on_principal: "Flat on principal (whole loan)",
+};
+
+/**
+ * How the schedule engine reads each basis. Shown next to the choice so the
+ * operator prices deliberately instead of guessing.
+ */
+export const MF_RATE_PERIOD_HELP: Record<MfInterestRatePeriod, string> = {
+  per_annum: "Annual rate, spread across the year by repayment frequency.",
+  per_month: "Monthly rate, converted to the repayment frequency.",
+  per_installment: "The rate is charged once per installment, with no conversion.",
+  flat_on_principal:
+    "The rate is charged once on the principal for the whole loan, whatever the term.",
+};
+
+/**
+ * Mirrors the database constraint `mf_lpv_flat_basis_chk`: charging a single
+ * whole-loan percentage only has a meaning for flat interest, because a
+ * declining-balance schedule prices each period off the outstanding balance.
+ */
+export const MF_VALID_RATE_PERIODS: Record<MfInterestMethod, MfInterestRatePeriod[]> = {
+  flat: ["per_annum", "per_month", "per_installment", "flat_on_principal"],
+  declining_balance: ["per_annum", "per_month", "per_installment"],
+  declining_balance_equal_installments: ["per_annum", "per_month", "per_installment"],
+};
+
+export const MF_PENALTY_BASIS_LABELS: Record<MfPenaltyBasis, string> = {
+  overdue_installment: "Overdue installment total",
+  overdue_principal: "Overdue principal",
+  outstanding_balance: "Whole outstanding balance",
+};
+
+
 /**
  * A product fee as configured on a version. Field names mirror exactly what
  * `mf_compute_loan_fees` reads, so the server resolves the amounts and the
@@ -337,14 +380,30 @@ export function useMfLoanProductVersions(productId: string | null) {
 
   return {
     versions: query.data ?? [],
-    currentVersion: (query.data ?? []).find((v) => v.is_published) ?? null,
+    currentVersion: resolveVersionInForce(query.data ?? []),
     isLoading: query.isLoading,
     error: query.error as Error | null,
     publishVersion,
   };
 }
 
+/**
+ * The version in force today: the published version whose effective date has
+ * arrived, highest version number first. A version dated in the future is
+ * scheduled, not live — it must never price a loan written before its date.
+ */
+export function resolveVersionInForce(
+  versions: MfLoanProductVersion[],
+): MfLoanProductVersion | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const live = versions
+    .filter((v) => v.is_published && (v.effective_from ?? "") <= today)
+    .sort((a, b) => b.version_no - a.version_no);
+  return live[0] ?? null;
+}
+
 /** Next sequential product code, e.g. LP-0004. */
+
 export function nextProductCode(existing: Array<{ code: string }>): string {
   let max = 0;
   for (const row of existing) {
