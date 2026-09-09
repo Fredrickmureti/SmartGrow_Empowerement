@@ -26903,6 +26903,15 @@ export type Database = {
         Args: { _app_id: string }
         Returns: string
       }
+      open_branch_day: {
+        Args: {
+          p_branch_id: string
+          p_business_date?: string
+          p_notes?: string
+          p_opening_cash?: number
+        }
+        Returns: string
+      }
       pack_required_employee_fields: {
         Args: { p_business_id: string; p_module?: string }
         Returns: {
