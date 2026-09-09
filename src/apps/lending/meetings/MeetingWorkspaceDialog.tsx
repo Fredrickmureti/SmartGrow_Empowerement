@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState, LoadingState, StatusBadge } from "@/design-system";
 import { useMfClients } from "@/hooks/useMfClients";
+import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
 import { ClientFormDialog } from "../clients/ClientFormDialog";
 import {
@@ -45,6 +46,11 @@ const ATTENDANCE_OPTIONS: { value: MfAttendanceStatus; label: string }[] = [
   { value: "absent", label: "Absent" },
   { value: "excused", label: "Excused" },
 ];
+
+/** "09:00:00" → "09:00"; null → "". */
+function hhmm(value: string | null | undefined): string {
+  return value ? value.slice(0, 5) : "";
+}
 
 interface Props {
   open: boolean;
@@ -73,9 +79,14 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
+  const { getUserName } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
+  const [startedAt, setStartedAt] = useState(
+    hhmm(meeting.started_at_time ?? meeting.scheduled_time),
+  );
+  const [endedAt, setEndedAt] = useState(hhmm(meeting.ended_at_time));
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
