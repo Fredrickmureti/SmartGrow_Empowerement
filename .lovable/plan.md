@@ -74,3 +74,21 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 Group fee collection receipts are now in place: in a group's collection history, each collection has a Receipt option that previews or downloads a printable receipt showing the total collected and exactly how much was allocated to each member. It uses the existing receipt engine, so it looks and behaves like the individual admission-fee receipt.
 
 One small item remains: when a bank account has no currency recorded, the collection banking routine quietly assumes KES instead of stopping — that needs a short database change I couldn't apply in this session, and it only affects bank accounts with a missing currency.
+## Session close — 2026-09-09 08:1x UTC
+
+Verified in the live database that every claimed object exists:
+`mf_client_charge_payments`, `mf_fee_collections`, `mf_client_fee_positions`,
+`mf_collect_group_admission_fees`, `mf_reverse_fee_collection`,
+`mf_pay_client_charge`, `mf_reverse_client_charge`,
+`mf_raise_client_admission_fee`. UI wired: `GroupFeeCollectionDialog`
+(mounted from `GroupsPage`, includes collection history + receipt),
+`GroupMembersDialog` outstanding-fee notice, `useMfFeeCollections`.
+Build is green.
+
+Last open item is now closed: `mf_bank_collection_batch` no longer falls back
+to `'KES'` — it raises when the bank account has no currency configured
+(no existing bank account is affected; zero rows have a null currency).
+
+Remaining (pre-existing, unrelated): 879 Supabase security-linter warnings
+about SECURITY DEFINER execute grants, public extensions and leaked-password
+protection. Not introduced by this work.
