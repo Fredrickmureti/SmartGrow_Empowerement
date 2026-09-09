@@ -12052,6 +12052,167 @@ export type Database = {
           },
         ]
       }
+      mf_client_charge_payments: {
+        Row: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charge_id: string
+          client_id: string
+          collection_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          journal_entry_id: string | null
+          method: string
+          notes: string | null
+          paid_on: string
+          receipt_number: string | null
+          reference: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          branch_id: string
+          business_id: string
+          charge_id: string
+          client_id: string
+          collection_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string
+          business_id?: string
+          charge_id?: string
+          client_id?: string
+          collection_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          journal_entry_id?: string | null
+          method?: string
+          notes?: string | null
+          paid_on?: string
+          receipt_number?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_ccp_collection_fk"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "mf_fee_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_charge_id_fkey"
+            columns: ["charge_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["charge_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charge_payments_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_client_charges: {
         Row: {
           amount: number
@@ -12067,6 +12228,7 @@ export type Database = {
           kind: string
           method: string | null
           notes: string | null
+          paid_amount: number
           paid_on: string | null
           receipt_number: string | null
           reference: string | null
@@ -12090,6 +12252,7 @@ export type Database = {
           kind?: string
           method?: string | null
           notes?: string | null
+          paid_amount?: number
           paid_on?: string | null
           receipt_number?: string | null
           reference?: string | null
@@ -12113,6 +12276,7 @@ export type Database = {
           kind?: string
           method?: string | null
           notes?: string | null
+          paid_amount?: number
           paid_on?: string | null
           receipt_number?: string | null
           reference?: string | null
@@ -12135,6 +12299,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -12425,6 +12596,13 @@ export type Database = {
             foreignKeyName: "mf_collection_activities_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -12614,6 +12792,141 @@ export type Database = {
           },
         ]
       }
+      mf_fee_collections: {
+        Row: {
+          branch_id: string
+          business_id: string
+          client_request_id: string | null
+          collected_by: string | null
+          collected_on: string
+          collection_number: string
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          group_id: string
+          id: string
+          journal_entry_id: string | null
+          kind: string
+          method: string
+          notes: string | null
+          reference: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          client_request_id?: string | null
+          collected_by?: string | null
+          collected_on?: string
+          collection_number: string
+          created_at?: string
+          created_by?: string | null
+          currency_code: string
+          group_id: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string
+          notes?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          client_request_id?: string | null
+          collected_by?: string | null
+          collected_on?: string
+          collection_number?: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          group_id?: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string
+          notes?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_fee_collections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_group_members: {
         Row: {
           business_id: string
@@ -12664,6 +12977,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -12846,6 +13166,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -13424,6 +13751,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -13666,6 +14000,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_repayments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -13969,6 +14310,13 @@ export type Database = {
             columns: ["matched_client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -20311,6 +20659,56 @@ export type Database = {
           },
         ]
       }
+      mf_client_fee_positions: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          charge_id: string | null
+          charge_status: string | null
+          charged_on: string | null
+          client_id: string | null
+          client_number: string | null
+          currency_code: string | null
+          fee_amount: number | null
+          full_name: string | null
+          group_id: string | null
+          kind: string | null
+          last_collection_id: string | null
+          last_paid_on: string | null
+          outstanding_amount: number | null
+          paid_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_ccp_collection_fk"
+            columns: ["last_collection_id"]
+            isOneToOne: false
+            referencedRelation: "mf_fee_collections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_client_statement: {
         Row: {
           amount_in: number | null
@@ -20404,6 +20802,13 @@ export type Database = {
             foreignKeyName: "mf_loans_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
@@ -20435,6 +20840,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
             referencedColumns: ["client_id"]
           },
           {
@@ -25875,6 +26287,14 @@ export type Database = {
       }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
+      mf_next_fee_collection_number: {
+        Args: { p_attempt?: number; p_business_id: string; p_on: string }
+        Returns: string
+      }
+      mf_next_fee_receipt_number: {
+        Args: { p_attempt?: number; p_business_id: string; p_on: string }
+        Returns: string
+      }
       mf_next_number: {
         Args: {
           p_branch_id: string
@@ -25890,6 +26310,7 @@ export type Database = {
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_pay_client_charge: {
         Args: {
+          p_amount?: number
           p_charge_id: string
           p_method?: string
           p_notes?: string
@@ -25937,6 +26358,14 @@ export type Database = {
         Args: {
           p_charge_id: string
           p_effective_on?: string
+          p_reason?: string
+        }
+        Returns: string
+      }
+      mf_reverse_client_charge_payment: {
+        Args: {
+          p_effective_on?: string
+          p_payment_id: string
           p_reason?: string
         }
         Returns: string
