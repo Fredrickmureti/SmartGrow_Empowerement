@@ -113,6 +113,7 @@ export function useMfGroupMeetings(options?: {
     queryClient.invalidateQueries({ queryKey: ["mf-group-meetings"] });
     queryClient.invalidateQueries({ queryKey: ["mf-meeting-attendance"] });
     queryClient.invalidateQueries({ queryKey: ["mf-repayment-batches"] });
+    queryClient.invalidateQueries({ queryKey: ["mf-meeting-summary"] });
   };
 
   const openMeeting = useMutation({
