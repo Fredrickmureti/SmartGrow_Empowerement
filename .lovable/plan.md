@@ -131,19 +131,11 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-Verified in the database (present and live):
-- `branch_operational_days` and the append-only `branch_day_events` history.
-- RPCs `open_branch_day`, `close_branch_day`, `reopen_branch_day`, `branch_day_expected_cash`.
-- Guards: `trg_enforce_branch_day_lock` on `journal_entries`, `trg_enforce_batch_branch_day` on `mf_repayment_batches`, `trg_branch_day_events_append_only`.
-- Accounting-month closed/open marker inconsistency fixed; existing months corrected.
+Where things stand: Branch day (Lending → Branch day) is live and enforced by the database — opening with a cash count, closing against a physical count with an over/short reason, and reopening a past day.
 
-Completed this session:
-- Fixed the two component mismatches on the Branch day screen (status pill, error state).
-- Added **Lending → Servicing → Branch day** to the menu and the `/lending/day` route (permission `recordRepayments`).
-- Typecheck passes.
+Still to do when you're ready:
 
-Still outstanding:
-- Phase 3 remainder: bound the date field in the other money dialogs to the open day and show the day they post to.
-- Phase 4: stale-day alert, daily branch cash report, late-entry visibility.
-- Automated tests for the lifecycle, branch isolation and concurrency.
-- Open business questions 1–5 above are still unanswered by the client.
+Lock the date on the other money forms (record payment, group sheet, bank deposit, disbursement, group fees) to the branch's open day, with a clear "posting to Wednesday" hint and a block when no day is open.
+A stale-day reminder, a daily branch cash report, and visibility of late entries.
+Automated checks for the open/close/reopen rules and branch separation.
+Your answers to the five open questions: who may close a day, who may reopen it, the acceptable over/short tolerance, whether unbanked cash may carry to the next day, and the start date per branch.
