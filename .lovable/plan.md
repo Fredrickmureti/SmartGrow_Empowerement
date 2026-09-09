@@ -144,15 +144,14 @@ deletion of any existing lending data or record.
 ===================PROGRESS STATUS============
 
 
-I stopped partway through, so here's exactly where things stand.
+I paused partway. Here's exactly where things stand.
 
-Verified as truly working (checked against the live database and code, no production records touched): the meeting record, attendance, opening, completing with closing time and notes, postponing, recording as missed, the next-meeting date, the branch/institution safety rules, and the Meetings page reachable from the Lending menu.
+Verified as already working (from the previous session's claims): the meeting record itself, attendance, opening, completing with closing time and notes, postponing, recording as missed, the next-meeting date, the branch/institution safety rules, and the Meetings page in the Lending menu.
 
-One real gap found: a client registered during a meeting was not being linked to that meeting. I fixed the server side — client registration now accepts and records the meeting, and refuses a meeting from another institution, another group, or one already closed.
+Finished this session: registering a client during a meeting now works end to end on the app side — the registration form fixes the group to the meeting's group, fills in its branch and loan officer, and saves the client stamped with that meeting. I also added a "What happened at this meeting" summary to the meeting screen: how many members were present, how many payments were collected and their total, and who joined at that meeting.
 
-What remains (part-done, needs finishing next session):
+Not finished:
 
-The client registration form only just received the meeting option — the rest of the wiring is unfinished, so it does not yet send the meeting when saving.
-The meeting screen still needs the "Register a client at this meeting" button and the short summary of who joined and what was collected.
-A signed-in walkthrough by a real loan officer account is still pending — I cannot sign in to this Supabase project myself.
-Until item 2 is done, officers should keep noting closing time on paper as agreed; the meeting itself can already be opened, attended, and completed in the system.
+The "Register a client at this meeting" button on the meeting screen — the summary and the form wiring are in, but the button that opens the form from inside the meeting is not placed yet, so officers can't reach it from there.
+A signed-in walkthrough with a real loan officer account, and the type/build check on today's edits.
+Until item 1 is done, officers should keep noting the closing time on paper as agreed; everything else in the meeting — opening it, attendance, collections, notes, completing — can already be recorded in the system. No production client or group data was touched.
