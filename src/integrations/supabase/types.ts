@@ -12416,6 +12416,7 @@ export type Database = {
           next_of_kin_relationship: string | null
           notes: string | null
           occupation: string | null
+          onboarded_meeting_id: string | null
           phone: string | null
           photo_path: string | null
           photo_url: string | null
@@ -12449,6 +12450,7 @@ export type Database = {
           next_of_kin_relationship?: string | null
           notes?: string | null
           occupation?: string | null
+          onboarded_meeting_id?: string | null
           phone?: string | null
           photo_path?: string | null
           photo_url?: string | null
@@ -12482,6 +12484,7 @@ export type Database = {
           next_of_kin_relationship?: string | null
           notes?: string | null
           occupation?: string | null
+          onboarded_meeting_id?: string | null
           phone?: string | null
           photo_path?: string | null
           photo_url?: string | null
@@ -12502,6 +12505,13 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_clients_onboarded_meeting_id_fkey"
+            columns: ["onboarded_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -12927,6 +12937,80 @@ export type Database = {
           },
         ]
       }
+      mf_group_meetings: {
+        Row: {
+          branch_id: string | null
+          business_id: string
+          closed_at: string | null
+          closed_by: string | null
+          created_at: string
+          created_by: string | null
+          group_id: string
+          id: string
+          loan_officer_id: string | null
+          meeting_place: string | null
+          next_scheduled_on: string | null
+          notes: string | null
+          opened_at: string | null
+          opened_by: string | null
+          postponed_to: string | null
+          scheduled_on: string
+          scheduled_time: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_id: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_place?: string | null
+          next_scheduled_on?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          postponed_to?: string | null
+          scheduled_on: string
+          scheduled_time?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          group_id?: string
+          id?: string
+          loan_officer_id?: string | null
+          meeting_place?: string | null
+          next_scheduled_on?: string | null
+          notes?: string | null
+          opened_at?: string | null
+          opened_by?: string | null
+          postponed_to?: string | null
+          scheduled_on?: string
+          scheduled_time?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_group_meetings_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_group_members: {
         Row: {
           business_id: string
@@ -13087,6 +13171,7 @@ export type Database = {
           group_id: string | null
           id: string
           loan_officer_id: string | null
+          meeting_id: string | null
           product_id: string
           product_version_id: string | null
           purpose: string | null
@@ -13114,6 +13199,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           loan_officer_id?: string | null
+          meeting_id?: string | null
           product_id: string
           product_version_id?: string | null
           purpose?: string | null
@@ -13141,6 +13227,7 @@ export type Database = {
           group_id?: string | null
           id?: string
           loan_officer_id?: string | null
+          meeting_id?: string | null
           product_id?: string
           product_version_id?: string | null
           purpose?: string | null
@@ -13187,6 +13274,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
           {
@@ -13812,6 +13906,71 @@ export type Database = {
           },
         ]
       }
+      mf_meeting_attendance: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          meeting_id: string
+          note: string | null
+          recorded_at: string
+          recorded_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          meeting_id: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          meeting_id?: string
+          note?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_repayment_allocations: {
         Row: {
           amount: number
@@ -13878,6 +14037,7 @@ export type Database = {
           created_by: string | null
           group_id: string | null
           id: string
+          meeting_id: string | null
           notes: string | null
           status: string
           updated_at: string
@@ -13892,6 +14052,7 @@ export type Database = {
           created_by?: string | null
           group_id?: string | null
           id?: string
+          meeting_id?: string | null
           notes?: string | null
           status?: string
           updated_at?: string
@@ -13906,6 +14067,7 @@ export type Database = {
           created_by?: string | null
           group_id?: string | null
           id?: string
+          meeting_id?: string | null
           notes?: string | null
           status?: string
           updated_at?: string
@@ -13916,6 +14078,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_repayment_batches_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "mf_group_meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -26261,6 +26430,10 @@ export type Database = {
         }
         Returns: string
       }
+      mf_complete_group_meeting: {
+        Args: { p_meeting_id: string; p_notes?: string }
+        Returns: Json
+      }
       mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
       mf_create_loan_from_application: {
         Args: {
@@ -26307,6 +26480,10 @@ export type Database = {
         Args: { p_attempt?: number; p_business_id: string; p_on: string }
         Returns: string
       }
+      mf_next_meeting_date: {
+        Args: { p_after: string; p_group_id: string }
+        Returns: string
+      }
       mf_next_number: {
         Args: {
           p_branch_id: string
@@ -26320,6 +26497,10 @@ export type Database = {
         Returns: string
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
+      mf_open_group_meeting: {
+        Args: { p_group_id: string; p_meeting_on?: string }
+        Returns: string
+      }
       mf_pay_client_charge: {
         Args: {
           p_amount?: number
@@ -26333,6 +26514,10 @@ export type Database = {
       }
       mf_periods_per_year: { Args: { p_freq: string }; Returns: number }
       mf_post_event: { Args: { p_event_id: string }; Returns: string }
+      mf_postpone_group_meeting: {
+        Args: { p_meeting_id: string; p_new_date?: string; p_reason?: string }
+        Returns: Json
+      }
       mf_raise_client_admission_fee: {
         Args: { p_charged_on?: string; p_client_id: string; p_notes?: string }
         Returns: string
@@ -26377,6 +26562,7 @@ export type Database = {
           next_of_kin_relationship: string | null
           notes: string | null
           occupation: string | null
+          onboarded_meeting_id: string | null
           phone: string | null
           photo_path: string | null
           photo_url: string | null
