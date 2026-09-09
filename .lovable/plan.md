@@ -1,116 +1,120 @@
-# Access control report — Smart Grow Empowerment (verified 2026-09-08)
+# Reset Transactional Data (owner/administrator only)
 
-## 1. Architecture as it actually exists
+Goal: the owner can return the institution to a clean testing state — all lending and
+financial activity gone, all setup (people, branches, access groups, products, chart of
+accounts, settings) untouched — in one controlled, all-or-nothing operation.
 
-Chain (single path, no second system):
+## 1. What already exists (verified in the live database)
 
+- A reset framework is already built and in use: `reset_categories(org_id, categories[])`
+  dispatches to `reset_module__*` functions (finance, banking, transactions_ledger,
+  ancillaries, sequences, sales, purchases, inventory, pos, warehouse, fixed_assets,
+  vendor_returns) and returns per-category counts.
+- Authorization already exists and is server-side: every reset calls
+  `_assert_reset_permission(org_id)`, which allows only a platform admin or an active
+  `owner`/`admin` role in that organization, and raises `42501` for everyone else.
+  Loan officers, cashiers, accountants, auditors and ordinary members are rejected even
+  if they call the function directly.
+- Immutability/append-only guards across the database already honour the teardown
+  context (`app.reset_in_progress`), which `reset_categories` sets, so journal, payslip
+  and history guards do not abort a reset.
+- **Gap:** there is no microfinance category. None of the 34 `mf_*` tables are cleared by
+  any existing module. There is also no screen anywhere in the app that invokes a reset.
+
+## 2. Reset boundary
+
+Removed (transactional):
+
+- Lending: `mf_loan_applications`, `mf_application_assessments`, `mf_loans`,
+  `mf_loan_schedule`, `mf_loan_disbursements`, `mf_loan_charges`, `mf_client_charges`,
+  `mf_loan_events`, `mf_repayments`, `mf_repayment_allocations`, `mf_repayment_batches`,
+  `mf_collection_activities`, `mf_collection_bankings`, `mf_event_postings`,
+  plus `loan_lifecycle_events` and `loan_skip_override_events` for the affected loans.
+- Accounting produced by that activity, through the existing `finance`,
+  `transactions_ledger` and `banking` modules: journal entries and lines, payments and
+  allocations, bank transactions, reconciliation sessions/matches/write-offs, accounting
+  events, fx revaluation runs.
+- Document numbering counters reset via the existing `sequences` module, so the next test
+  cycle starts numbering from one.
+
+Preserved (master/configuration): auth users, `user_roles`, `member_permission_groups`,
+`permission_groups` and their rules, branch assignments, organizations, businesses,
+branches, `mf_loan_products` and `mf_loan_product_versions`, `mf_account_mappings`,
+`mf_allocation_policy`, `mf_client_fee_policy`, chart of accounts, journal books, default
+account settings, fiscal periods, currencies, bank *accounts* (the account record, not its
+transactions), email/document templates, and all settings tables.
+
+Clients and groups (`mf_clients`, `mf_groups`, `mf_group_members`): these sit on the
+boundary — they are master data in the domain model but they are also the test data the
+owner recreates each cycle. They are therefore **opt-in**: a separate checkbox on the
+screen, off by default. When off, clients survive with zero loans; when on, they are
+removed after all lending rows that reference them.
+
+## 3. Deletion order
+
+Children before parents, inside one transaction, all scoped by `business_id` for the
+organization's businesses:
+
+```text
+event_postings -> repayment_allocations -> repayments -> repayment_batches
+  -> collection_bankings -> collection_activities
+  -> loan_charges / client_charges -> loan_schedule -> loan_disbursements
+  -> loan_events / loan_lifecycle_events / loan_skip_override_events
+  -> loans -> application_assessments -> loan_applications
+  -> (optional) group_members -> groups -> clients
+then existing modules: banking -> transactions_ledger -> finance -> ancillaries -> sequences
 ```
-auth user
-  -> user_roles (organization_id, role, user_type, is_active)      membership
-  -> member_permission_groups -> permission_groups                 access groups (many per user)
-       -> permission_group_rules (module, can_read/create/write/delete/approve/post)
-  -> user_has_module_permission(user, org, module, op)             one authority
-  -> user_has_module_permission_in_branch(...)                     + branch grant
-  -> mf_can(business, branch, module, op)                          used by all lending RLS
-  -> mf_can_scoped(..., loan_officer_id)                           + portfolio scope
-  -> user_branch_scope(user, org) = all | assigned | own_portfolio  data scope
-```
 
-- Roles and access groups are separate. The role gives membership level; the
-  access group gives module operations. A user may hold several groups; grants
-  are the union.
-- Blanket authority is held by (a) the recorded organization owner
-  (`organizations.owner_user_id`) and (b) the `owner`/`admin` role labels.
-  There is **no email/name-based privilege anywhere** (grepped; only comments
-  mention the addresses).
-- Frontend gating (`usePermissions` → `resolveEffectivePermissions`) mirrors
-  the same rule set: role literals + the same access-group rules loaded into
-  the session, with the same owner/admin blanket rule. App menu, pages and
-  actions all read that one hook; RLS re-checks server-side.
-- Legacy ERP groups (Accountant, Auditor, Credit Analyst, Cashier/Teller) are
-  present but scoped to modules that still exist; they do not interfere.
-  Left in place deliberately.
+The derived reporting objects (`mf_loan_balances`, `mf_par_aging`, `mf_client_exposure`,
+`mf_collections_by_branch`, …) are views, not tables — they empty themselves.
 
-## 2. Root causes
+## 4. Server/database implementation
 
-- **Administrator inconsistency**: `user_has_module_permission` previously
-  granted nothing to a member whose access group was missing, and
-  `user_branch_scope` derived reach only from an access group. `devmuret` had
-  the `admin` role but no group → empty dashboard while the owner passed via
-  recorded ownership. Fixed by granting blanket module access to recorded
-  ownership *and* the `owner`/`admin` role, and by backfilling groups
-  (administrators → Institution Admin, other staff → Internal Users).
-- **Access-group failures**: hollow invitations produced members with no group.
-  Now blocked in the database.
+- New `reset_module__microfinance(org_id uuid) returns jsonb`, security definer, same
+  shape and conventions as the sibling modules, returning a count per table.
+- Register `'microfinance'` in `reset_categories`, and add a
+  `reset_transactional_data(org_id uuid, confirmation text, include_clients boolean)`
+  wrapper that: asserts permission, requires the confirmation phrase
+  `RESET TRANSACTIONAL DATA`, runs microfinance + banking + transactions_ledger +
+  finance + ancillaries + sequences in one call (one transaction — any error rolls the
+  whole thing back), runs an integrity check (no lending rows left, no orphaned journal
+  lines), writes an `admin_audit_log` row with actor, organization, counts and result,
+  and returns the counts.
+- New `preview_transactional_reset(org_id uuid)` returning per-category counts for the
+  confirmation screen, read-only, same permission assertion.
+- Audit rows are written *after* the deletes and are never removed by the reset.
+- The frontend calls one server function; it never issues deletes.
 
-## 3. Changes made (this and the previous run)
+## 5. UI
 
-Database: blanket-authority rules in `user_has_module_permission`;
-`mf_can_scoped` (portfolio-aware) on all `mf_clients` / `mf_groups` /
-`mf_group_members` policies; invitation guard in
-`upsert_organization_invitation`; `mf_clients_national_id_unique`;
-`mf_group_members_limit` trigger (max two active groups, advisory-locked);
-`mf_group_members_active_unique`; private `mf-kyc` bucket with
-`mf_can_scoped`-based select/insert/update/delete policies.
+New "Reset transactional data" panel in the administrator area of Settings → Workspace,
+rendered only for owner/admin (server still enforces it):
 
-Frontend: invite screen requires an access group (and a branch for scoped
-invitations) and hides the Administrator option from non-owners; personal
-Security screen gained Change password for every signed-in member; client
-registration locks the loan officer for own-portfolio users, limits branches to
-allowed ones, offers the selected officer's groups inline, caps selection at
-two, and reuses the already-created client on retry.
+1. Red danger card with an explicit explanation of what is removed and what is kept.
+2. Click → dialog showing live counts pulled from the preview function, the preserved
+   list, and the optional "also remove clients and groups" checkbox.
+3. Requires typing `RESET TRANSACTIONAL DATA` before the confirm button enables.
+4. On success, shows the counts actually deleted.
 
-## 4. Verified by live database probes (all rolled back)
+## 6. Testing (to be run and reported, not assumed)
 
-Permission/RLS matrix — `visible_clients` and insert attempts run under each
-user's own JWT:
+- Seed a full cycle (client → group → application → approval → loan → disbursement →
+  repayments → allocations → journal entries → collection banking), run the reset,
+  and verify: lending tables empty, users/roles/groups/permissions/branches/products/
+  chart of accounts intact, no orphaned journal lines, no broken foreign keys.
+- Call the function under a loan officer, cashier, accountant and plain member JWT —
+  each must fail with `42501`; then as the owner — must succeed.
+- Run the reset twice: the second run on an already-clean database must succeed with
+  zero counts and change no configuration.
+- Typecheck.
 
-| user | scope | clients read/create/delete | settings.write | visible clients | insert own | insert for another officer |
-|---|---|---|---|---|---|---|
-| owner fredrickmureti612 | all | true/true/true | true | 8 | ALLOW | ALLOW |
-| admin devmuret | all | true/true/true | true | 8 | ALLOW | ALLOW |
-| internal (Internal Users) | assigned | true/false/false | false | 8 | DENY | DENY |
-| loan officer (own_portfolio) | own_portfolio | true/true/false | false | 0 (none assigned) | ALLOW | **DENY** |
-| auditor | all | true/false/false | false | all | DENY | DENY |
+Final verdict (architecture / authorization / cleanup / integrity / protected data /
+end-to-end) will be reported against these tests, with exact reasons for any failure.
 
-Owner and administrator are now provably equivalent, and denial is enforced by
-the database, not the screen.
+## 7. Risks
 
-Integrity probes: duplicate national ID (case/space-insensitive) REJECTED;
-group 1 allowed, group 2 allowed, group 3 REJECTED, duplicate membership
-REJECTED, re-add after exit ALLOWED.
-
-Invitation probes (as an administrator): staff invitation with no access group
-REJECTED; branch-scoped invitation with no branch REJECTED; administrator
-invitation by a non-owner REJECTED.
-
-KYC photos: private `mf-kyc` bucket, path `business/client/...`, read through
-one-hour signed URLs, storage policies gated by `mf_can_scoped('clients','read')`
-— an officer authorized for the client sees the photo, nobody else does, and
-nothing is public.
-
-Typecheck: clean.
-
-## 5. Loan Officer scope model
-
-`own_portfolio`: clients read/create/write, applications read/create/write,
-collections read/create/write, loan products/loans/repayments/reports read.
-Records are visible and writable only where `loan_officer_id = auth.uid()`
-(group rolls only for their own groups). Officers cannot assign work to another
-officer — proven above.
-
-## 6. Remaining defects / limitations
-
-- Browser click-through as `devmuret` and as a loan officer was **not** run:
-  this project uses an external (BYO) Supabase, so no preview session can be
-  minted. Everything above was verified at the data/authorization layer.
-- `Internal Users` has no `default_branch_scope`, so it falls back to
-  `assigned`; it is read-only, so reach is harmless but should be set
-  explicitly if that group is ever given write rules.
-- Roadmap items M5a–M10 (legacy table drops, orphan function purge, report and
-  document gaps) remain open and untouched.
-
-## 7. Deliberately untouched
-
-Loan accounting, schedules, repayment allocation, disbursement posting,
-governance/segregation-of-duties functions, and orphaned ERP access groups.
+- The reset is organization-wide across all businesses in the organization; there is one
+  institution here, so that matches intent.
+- Browser sign-in as the non-admin test users cannot be exercised (external Supabase, no
+  preview session can be minted); authorization will be proven at the database layer with
+  each user's own token, as in the previous access-control work.
