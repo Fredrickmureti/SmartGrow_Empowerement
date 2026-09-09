@@ -112,7 +112,7 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
   const createClient = useMutation({
     mutationFn: async (input: MfClientInput) => {
       if (!businessId) throw new Error("No institution selected");
-      const { group_id, ...client } = input;
+      const { group_id, onboarded_meeting_id, ...client } = input;
       // One server operation owns both the client and the group membership, so
       // a failure leaves nothing behind. Cast until the generated Database
       // types pick up the function.
@@ -123,7 +123,9 @@ export function useMfClients(options?: { branchId?: string | null; status?: MfCl
         p_business_id: businessId,
         p_client: client,
         p_group_id: group_id ?? null,
+        p_meeting_id: onboarded_meeting_id ?? null,
       });
+
       if (error) throw error;
       return (Array.isArray(data) ? data[0] : data) as MfClient;
     },
