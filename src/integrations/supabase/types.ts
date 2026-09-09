@@ -12945,7 +12945,9 @@ export type Database = {
           closed_by: string | null
           created_at: string
           created_by: string | null
+          ended_at_time: string | null
           group_id: string
+          held_by: string | null
           id: string
           loan_officer_id: string | null
           meeting_place: string | null
@@ -12954,8 +12956,10 @@ export type Database = {
           opened_at: string | null
           opened_by: string | null
           postponed_to: string | null
+          recorded_by: string | null
           scheduled_on: string
           scheduled_time: string | null
+          started_at_time: string | null
           status: string
           updated_at: string
         }
@@ -12966,7 +12970,9 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          ended_at_time?: string | null
           group_id: string
+          held_by?: string | null
           id?: string
           loan_officer_id?: string | null
           meeting_place?: string | null
@@ -12975,8 +12981,10 @@ export type Database = {
           opened_at?: string | null
           opened_by?: string | null
           postponed_to?: string | null
+          recorded_by?: string | null
           scheduled_on: string
           scheduled_time?: string | null
+          started_at_time?: string | null
           status?: string
           updated_at?: string
         }
@@ -12987,7 +12995,9 @@ export type Database = {
           closed_by?: string | null
           created_at?: string
           created_by?: string | null
+          ended_at_time?: string | null
           group_id?: string
+          held_by?: string | null
           id?: string
           loan_officer_id?: string | null
           meeting_place?: string | null
@@ -12996,8 +13006,10 @@ export type Database = {
           opened_at?: string | null
           opened_by?: string | null
           postponed_to?: string | null
+          recorded_by?: string | null
           scheduled_on?: string
           scheduled_time?: string | null
+          started_at_time?: string | null
           status?: string
           updated_at?: string
         }
