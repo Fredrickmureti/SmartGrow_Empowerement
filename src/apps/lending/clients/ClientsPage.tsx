@@ -43,6 +43,7 @@ import {
   type MfClientStatus,
 } from "@/hooks/useMfClients";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { ClientDetailSheet } from "./ClientDetailSheet";
 import { ClientChargesDialog } from "./ClientChargesDialog";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import {
@@ -196,8 +197,11 @@ export function ClientsPage() {
                 {filtered.map((c) => (
                   <TableRow
                     key={c.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(c) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      setEditing(false);
+                    }}
                   >
                     <TableCell className="font-mono text-xs">{c.client_number}</TableCell>
                     <TableCell className="font-medium">{c.full_name}</TableCell>
@@ -255,10 +259,29 @@ export function ClientsPage() {
         </Section>
       </PageBody>
 
+      {/* Read-only first. Editing only happens after the explicit action. */}
+      <ClientDetailSheet
+        client={selected}
+        open={selected !== null && !editing}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        canManage={canManage}
+        onEdit={() => setEditing(true)}
+        onUpdate={async (id, patch) => {
+          await updateClient.mutateAsync({ id, ...patch });
+        }}
+      />
+
       <ClientFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        client={editing}
+        open={creating || (selected !== null && editing)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCreating(false);
+          // Saving or cancelling an edit returns to the read-only sheet.
+          setEditing(false);
+        }}
+        client={creating ? null : selected}
         onCreate={async (input) => createClient.mutateAsync(input)}
         onUpdate={async (id, patch) => {
           await updateClient.mutateAsync({ id, ...patch });

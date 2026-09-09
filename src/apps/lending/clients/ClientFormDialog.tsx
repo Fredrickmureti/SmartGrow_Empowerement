@@ -14,6 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +127,10 @@ export function ClientFormDialog({
   const [images, setImages] = useState<Partial<Record<MfKycKind, KycPending>>>({});
   const [groupId, setGroupId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Snapshot of the values the dialog opened with, so Cancel can tell an
+  // untouched form from one with unsaved edits.
+  const baselineRef = useRef<string>("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   // Identity of a client already created in a previous, partially failed save.
   // Retrying after a photo upload error must patch this client, never insert a
   // second one.
@@ -218,8 +232,13 @@ export function ClientFormDialog({
     setImages({});
     setGroupId(null);
     createdRef.current = null;
+    setConfirmDiscard(false);
+    const snapshot = (next: FormState) => {
+      baselineRef.current = JSON.stringify(next);
+      return next;
+    };
     if (client) {
-      setForm({
+      setForm(snapshot({
         client_number: client.client_number,
         full_name: client.full_name,
         national_id: client.national_id ?? "",
@@ -238,15 +257,15 @@ export function ClientFormDialog({
         loan_officer_id: client.loan_officer_id ?? UNASSIGNED,
         status: client.status,
         notes: client.notes ?? "",
-      });
+      }));
     } else {
-      setForm({
+      setForm(snapshot({
         ...EMPTY,
         branch_id:
           branchScope.defaultBranchId ?? allowedBranches[0]?.id ?? "",
         loan_officer_id:
           branchScope.isOwnPortfolioOnly && user?.id ? user.id : UNASSIGNED,
-      });
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client]);
@@ -254,6 +273,20 @@ export function ClientFormDialog({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+
+  const isDirty =
+    JSON.stringify(form) !== baselineRef.current ||
+    Object.keys(images).length > 0;
+
+  // Cancel discards; it only asks first when there is something to lose.
+  const requestClose = () => {
+    if (saving) return;
+    if (isDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    onOpenChange(false);
+  };
 
   const canSave =
     form.full_name.trim() !== "" &&
@@ -288,6 +321,12 @@ export function ClientFormDialog({
         status: form.status,
         notes: orNull(form.notes),
       };
+      // Branch, loan officer and status are controlled changes made one at a
+      // time from the detail sheet — a generic profile edit never sends them.
+      const editPatch: Partial<MfClientInput> = { ...payload };
+      delete (editPatch as Record<string, unknown>).branch_id;
+      delete (editPatch as Record<string, unknown>).loan_officer_id;
+      delete (editPatch as Record<string, unknown>).status;
       // Existing client: upload images first, then one update with everything.
       // New client: insert once (we need the id), then patch image paths. If a
       // photo upload fails we keep the created identity so a retry updates that
@@ -320,7 +359,7 @@ export function ClientFormDialog({
       }
 
       if (client) {
-        await onUpdate(client.id, { ...payload, ...pathPatch });
+        await onUpdate(client.id, { ...editPatch, ...pathPatch });
       } else if (Object.keys(pathPatch).length > 0) {
         await onUpdate(saved.id, pathPatch);
       }
@@ -337,7 +376,13 @@ export function ClientFormDialog({
 
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) return;
+        requestClose();
+      }}
+    >
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{client ? "Edit client" : "Register client"}</DialogTitle>
@@ -527,99 +572,104 @@ export function ClientFormDialog({
               onChange={setImage("kin_id_back")}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>Loan officer</Label>
-            <Select
-              value={form.loan_officer_id}
-              onValueChange={chooseOfficer}
-              disabled={officerLocked}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {officerOptions.map((o) => (
-                  <SelectItem key={o.user_id} value={o.user_id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {officerOptions.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No staff are assigned to a branch yet.
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Branch</Label>
-            <Select value={form.branch_id} onValueChange={chooseBranch}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branchOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedOfficer && branchOptions.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                This loan officer is not assigned to a branch.
-              </p>
-            )}
-            {selectedOfficer && selectedOfficer.branchIds.length === 1 && form.branch_id && (
-              <p className="text-xs text-muted-foreground">
-                Taken from this loan officer's branch.
-              </p>
-            )}
-          </div>
+          {/* Branch, loan officer, status and group are set at registration and
+              changed afterwards only through their own deliberate actions on
+              the client detail sheet. */}
           {!client && (
-            <div className="space-y-1.5">
-              <Label>Group</Label>
-              <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
-                <SelectTrigger>
-                  <SelectValue placeholder="No group" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>No group</SelectItem>
-                  {availableGroups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {!form.branch_id
-                  ? "Choose a loan officer or branch to see their groups."
-                  : availableGroups.length === 0
-                    ? "No groups for this loan officer in this branch."
-                    : "Optional. A client can belong to one group at a time."}
-              </p>
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label>Loan officer</Label>
+                <Select
+                  value={form.loan_officer_id}
+                  onValueChange={chooseOfficer}
+                  disabled={officerLocked}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                    {officerOptions.map((o) => (
+                      <SelectItem key={o.user_id} value={o.user_id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {officerOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No staff are assigned to a branch yet.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Branch</Label>
+                <Select value={form.branch_id} onValueChange={chooseBranch}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchOptions.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedOfficer && branchOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    This loan officer is not assigned to a branch.
+                  </p>
+                )}
+                {selectedOfficer && selectedOfficer.branchIds.length === 1 && form.branch_id && (
+                  <p className="text-xs text-muted-foreground">
+                    Taken from this loan officer's branch.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Group</Label>
+                <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>No group</SelectItem>
+                    {availableGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {!form.branch_id
+                    ? "Choose a loan officer or branch to see their groups."
+                    : availableGroups.length === 0
+                      ? "No groups for this loan officer in this branch."
+                      : "Optional. A client can belong to one group at a time."}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => set("status", v as MfClientStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MF_CLIENT_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
-          <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select
-              value={form.status}
-              onValueChange={(v) => set("status", v as MfClientStatus)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MF_CLIENT_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
@@ -632,13 +682,35 @@ export function ClientFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={requestClose} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!canSave || saving}>
             {client ? "Save changes" : "Register client"}
           </Button>
         </DialogFooter>
+
+        <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The changes you made to this client have not been saved yet.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmDiscard(false);
+                  onOpenChange(false);
+                }}
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
