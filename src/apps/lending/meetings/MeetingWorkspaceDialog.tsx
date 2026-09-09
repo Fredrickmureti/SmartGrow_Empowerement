@@ -352,7 +352,7 @@ export function MeetingWorkspaceDialog({
             </Button>
             {isOpenForWork && canManage && (
               <Button
-                disabled={completeMeeting.isPending || !endedAt}
+                disabled={completeMeeting.isPending || !!timesError}
                 onClick={() =>
                   completeMeeting.mutate(
                     {
@@ -360,6 +360,7 @@ export function MeetingWorkspaceDialog({
                       notes: notes || null,
                       startedAtTime: startedAt || null,
                       endedAtTime: endedAt || null,
+                      heldBy: heldBy || null,
                     },
                     { onSuccess: () => onOpenChange(false) },
                   )
