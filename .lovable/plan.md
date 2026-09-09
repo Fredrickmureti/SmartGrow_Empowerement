@@ -71,8 +71,13 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 ====================IMPLEMENTATION STATUS/PROGRESS===========
 
 
-Here's where the admission-fee work stands.
+I picked up from the saved continuation point and verified the claims before testing — the fee configuration, individual payment, group collection, allocation and reversal routines all exist as recorded.
 
-Finished this session: the group collection screen is now reachable — every group row has an "Admission fees" button that opens the collection sheet listing each member with fee due, paid and outstanding, tick boxes with editable amounts, a live total, and the collection history with a reverse action. The membership screen now shows each member's admission-fee state (outstanding amount or "settled"), and when you pick a client to add it warns that they still owe a fee and makes clear that adding them does not collect any money. A method-list bug in the collection screen was fixed and the whole app type-checks cleanly. The individual client payment flow is untouched.
+Running the real end-to-end rehearsal immediately exposed a genuine blocker: both the individual fee payment and the group collection failed at the accounting step, because the shared posting routine now has several versions and the fee routines didn't say clearly which one to use. Nothing could be posted at all. I fixed both routines so the posting call is unambiguous.
 
-Still outstanding: the eight end-to-end scenarios (individual payment, group collection, mixed state, partial, new member, duplicate attempt, reversal, re-collection) were prepared as a single rollback-protected database test but never run; the group receipt listing each member's allocation is not built yet; and the plan file still needs the results appended. The database routines themselves were verified present and correct by reading them, so the remaining work is verification, the receipt, and the plan update.
+What still remains (paused for credits):
+
+Re-run the eight scenarios (individual payment, group collection, mixed state, partial collection, new member, duplicate/replay protection, reversal, re-collection) in a self-undoing rehearsal and confirm balances, allocations and journals.
+Check the same ambiguity in the collection-banking routine (mf_bank_collection_batch), which very likely has the identical defect.
+Group collection receipt rendering.
+Write the results and continuation point into the plan file.
