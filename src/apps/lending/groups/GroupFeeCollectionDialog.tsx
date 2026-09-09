@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState, LoadingState, StatusBadge, Section } from "@/design-system";
+import { LendingDocumentsMenu } from "@/apps/lending/documents/LendingDocumentsMenu";
 import { MF_REPAYMENT_METHODS } from "@/hooks/useMfRepayments";
 import type { MfGroup } from "@/hooks/useMfGroups";
 import {
@@ -296,21 +297,34 @@ export function GroupFeeCollectionDialog({ open, onOpenChange, group, canCollect
                           </StatusBadge>
                         </TableCell>
                         <TableCell className="text-right">
-                          {c.status === "posted" && canCollect ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={reverse.isPending}
-                              onClick={() =>
-                                reverse.mutate({
-                                  collectionId: c.id,
-                                  reason: "Reversed from group collection history",
-                                })
-                              }
-                            >
-                              Reverse
-                            </Button>
-                          ) : null}
+                          <div className="flex items-center justify-end gap-2">
+                            <LendingDocumentsMenu
+                              label="Receipt"
+                              documents={[
+                                {
+                                  documentType: "fee_collection_receipt",
+                                  documentId: c.id,
+                                  title: "Group fee collection receipt",
+                                  filename: `fee-collection-${c.collection_number}`,
+                                },
+                              ]}
+                            />
+                            {c.status === "posted" && canCollect ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={reverse.isPending}
+                                onClick={() =>
+                                  reverse.mutate({
+                                    collectionId: c.id,
+                                    reason: "Reversed from group collection history",
+                                  })
+                                }
+                              >
+                                Reverse
+                              </Button>
+                            ) : null}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
