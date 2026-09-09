@@ -26493,6 +26493,10 @@ export type Database = {
         Returns: string
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
+      mf_open_group_meeting: {
+        Args: { p_group_id: string; p_meeting_on?: string }
+        Returns: string
+      }
       mf_pay_client_charge: {
         Args: {
           p_amount?: number
