@@ -14,6 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +127,10 @@ export function ClientFormDialog({
   const [images, setImages] = useState<Partial<Record<MfKycKind, KycPending>>>({});
   const [groupId, setGroupId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Snapshot of the values the dialog opened with, so Cancel can tell an
+  // untouched form from one with unsaved edits.
+  const baselineRef = useRef<string>("");
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   // Identity of a client already created in a previous, partially failed save.
   // Retrying after a photo upload error must patch this client, never insert a
   // second one.
