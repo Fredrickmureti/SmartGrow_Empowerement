@@ -360,7 +360,11 @@ export function ClientFormDialog({
       // same client instead of registering a duplicate.
       const saved = client
         ? { id: client.id, business_id: client.business_id }
-        : (createdRef.current ??= await onCreate({ ...payload, group_id: groupId }));
+        : (createdRef.current ??= await onCreate({
+            ...payload,
+            group_id: meetingContext ? meetingContext.groupId : groupId,
+            onboarded_meeting_id: meetingContext?.meetingId ?? null,
+          }));
 
       if (!client && createdRef.current) {
         // Retry path: keep the stored record in step with the edited form.
