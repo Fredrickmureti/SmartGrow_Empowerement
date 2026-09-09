@@ -232,8 +232,13 @@ export function ClientFormDialog({
     setImages({});
     setGroupId(null);
     createdRef.current = null;
+    setConfirmDiscard(false);
+    const snapshot = (next: FormState) => {
+      baselineRef.current = JSON.stringify(next);
+      return next;
+    };
     if (client) {
-      setForm({
+      setForm(snapshot({
         client_number: client.client_number,
         full_name: client.full_name,
         national_id: client.national_id ?? "",
