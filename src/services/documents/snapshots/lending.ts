@@ -748,3 +748,147 @@ export async function fetchAndBuildClientStatementSnapshot(
     sourceDocId: clientId,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Group fee collection receipt                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `lending.payment_receipt` for one group admission-fee collection.
+ *
+ * The group is only the cash hand-over context: the receipt therefore shows
+ * the collection total once and lists the individual members it settled, with
+ * the amount allocated to each. All figures are server-owned rows from
+ * `mf_fee_collections` and `mf_client_charge_payments`.
+ */
+export async function fetchAndBuildFeeCollectionReceiptSnapshot(
+  supabase: SupabaseClient,
+  collectionId: string,
+): Promise<BuildLendingSnapshotResult> {
+  const db = supabase as unknown as AnyClient;
+
+  const { data: collection, error } = await db
+    .from("mf_fee_collections")
+    .select("*")
+    .eq("id", collectionId)
+    .single();
+  if (error || !collection) {
+    throw new Error(
+      `lending snapshot: fee collection ${collectionId} not found: ${error?.message ?? "no row"}`,
+    );
+  }
+  const col = collection as Row;
+
+  const [payRes, groupRes, businessRes, branchRes, collectorRes] = await Promise.all([
+    db
+      .from("mf_client_charge_payments")
+      .select("client_id, amount, receipt_number, status, paid_on")
+      .eq("collection_id", collectionId),
+    db.from("mf_groups").select("id, name, group_number").eq("id", col["group_id"] as string).maybeSingle(),
+    db
+      .from("businesses")
+      .select(
+        "id, organization_id, name, legal_name, base_currency, address, city, country, phone, email, logo_url, tax_id, registration_number",
+      )
+      .eq("id", col["business_id"] as string)
+      .maybeSingle(),
+    col["branch_id"]
+      ? db.from("branches").select("id, name").eq("id", col["branch_id"] as string).maybeSingle()
+      : Promise.resolve({ data: null }),
+    col["collected_by"]
+      ? db
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .eq("user_id", col["collected_by"] as string)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const payments = ((payRes?.data ?? []) as Row[]).filter((p) => p["status"] !== "reversed");
+  const clientIds = payments.map((p) => String(p["client_id"]));
+  const clientsRes = clientIds.length
+    ? await db.from("mf_clients").select("id, full_name, client_number").in("id", clientIds)
+    : { data: [] };
+  const clientById = new Map<string, Row>(
+    ((clientsRes?.data ?? []) as Row[]).map((c) => [String(c["id"]), c]),
+  );
+
+  const business = (businessRes?.data ?? null) as Row | null;
+  const group = (groupRes?.data ?? null) as Row | null;
+  const collector = (collectorRes?.data ?? null) as Row | null;
+  const organizationId = str(business?.["organization_id"]);
+  if (!organizationId) {
+    throw new Error("lending snapshot: business has no organization_id");
+  }
+
+  const currency = str(col["currency_code"]) ?? str(business?.["base_currency"]) ?? "KES";
+  const number = str(col["collection_number"]) ?? collectionId.slice(0, 8);
+  const date = str(col["collected_on"]) ?? today();
+
+  const allocations = payments.map((p) => {
+    const c = clientById.get(String(p["client_id"])) ?? null;
+    const label = c
+      ? `${str(c["full_name"]) ?? ""}${c["client_number"] ? ` (${String(c["client_number"])})` : ""}`
+      : String(p["client_id"]);
+    return {
+      installment_no: null,
+      component: `Admission fee - ${label}`,
+      amount: num(p["amount"]),
+    };
+  });
+
+  const snapshot: SnapshotBlob = {
+    document_type: "loan_payment_receipt",
+    document_type_label: "GROUP FEE COLLECTION RECEIPT",
+    document_number: number,
+    issue_date: date,
+    currency,
+    business_id: str(col["business_id"]),
+    organization_id: organizationId,
+    branch_id: str(col["branch_id"]),
+    business_name: str(business?.["name"]),
+    business_legal_name: str(business?.["legal_name"]),
+    business_address:
+      [str(business?.["address"]), str(business?.["city"]), str(business?.["country"])]
+        .filter(Boolean)
+        .join(", ") || null,
+    business_phone: str(business?.["phone"]),
+    business_email: str(business?.["email"]),
+    business_registration: str(business?.["registration_number"]),
+    business_tax_id: str(business?.["tax_id"]),
+    branch_name: str((branchRes?.data as Row | null)?.["name"]),
+    officer_name: collector ? (str(collector["full_name"]) ?? str(collector["email"])) : null,
+    client_name: str(group?.["name"]) ?? "Group collection",
+    client_number: str(group?.["group_number"]),
+    client_national_id: null,
+    client_phone: null,
+    client_address: null,
+    loan_number: null,
+    product_name: "Admission fee",
+    receipt_number: number,
+    paid_on: date,
+    amount: num(col["total_amount"]),
+    method: str(col["method"]),
+    payment_reference: str(col["reference"]),
+    receipt_status: str(col["status"]),
+    reversal_reason: str(col["reversal_reason"]),
+    received_by_name: collector ? (str(collector["full_name"]) ?? str(collector["email"])) : null,
+    notes: str(col["notes"]),
+    allocations,
+    principal_outstanding: 0,
+    interest_outstanding: 0,
+    total_outstanding: 0,
+    next_due_date: null,
+  };
+
+  return {
+    snapshot,
+    documentNumber: number,
+    documentDate: date,
+    organizationId,
+    businessId: str(col["business_id"]),
+    branchId: str(col["branch_id"]),
+    currency,
+    sourceDocId: collectionId,
+  };
+}
