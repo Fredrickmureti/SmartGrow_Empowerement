@@ -391,6 +391,19 @@ export function ApplicationsPage() {
         }}
       />
 
+      <CreateLoanDialog
+        open={loanOpen}
+        onOpenChange={setLoanOpen}
+        presetApplicationId={loanApplicationId}
+        onCreate={async (input) => {
+          await createFromApplication.mutateAsync({
+            applicationId: input.applicationId,
+            expectedDisbursementDate: input.expectedDisbursementDate,
+            firstInstallmentDate: input.firstInstallmentDate,
+          });
+        }}
+      />
+
       <AssessmentDialog
         open={assessmentOpen}
         onOpenChange={setAssessmentOpen}
