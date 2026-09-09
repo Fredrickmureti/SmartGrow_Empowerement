@@ -26362,6 +26362,14 @@ export type Database = {
         }
         Returns: string
       }
+      mf_reverse_client_charge_payment: {
+        Args: {
+          p_effective_on?: string
+          p_payment_id: string
+          p_reason?: string
+        }
+        Returns: string
+      }
       mf_reverse_disbursement: {
         Args: { p_disbursement_id: string; p_reason: string }
         Returns: string
