@@ -182,6 +182,10 @@ export function ClientFormDialog({
   // Open groups of this officer in this branch. No silent fallback to
   // unrelated groups.
   const availableGroups = useMemo(() => {
+    // Inside a meeting the group is the meeting's group, full stop.
+    if (meetingContext) {
+      return groups.filter((g) => g.id === meetingContext.groupId);
+    }
     if (!form.branch_id) return [];
     return groups.filter(
       (g) =>
@@ -189,7 +193,7 @@ export function ClientFormDialog({
         g.branch_id === form.branch_id &&
         (!selectedOfficer || g.loan_officer_id === selectedOfficer.user_id),
     );
-  }, [groups, form.branch_id, selectedOfficer]);
+  }, [groups, form.branch_id, selectedOfficer, meetingContext]);
 
   const chooseOfficer = (value: string) => {
     setForm((prev) => {
