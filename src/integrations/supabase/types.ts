@@ -26287,6 +26287,14 @@ export type Database = {
       }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
+      mf_next_fee_collection_number: {
+        Args: { p_attempt?: number; p_business_id: string; p_on: string }
+        Returns: string
+      }
+      mf_next_fee_receipt_number: {
+        Args: { p_attempt?: number; p_business_id: string; p_on: string }
+        Returns: string
+      }
       mf_next_number: {
         Args: {
           p_branch_id: string
