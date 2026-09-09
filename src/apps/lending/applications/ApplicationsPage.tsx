@@ -197,6 +197,11 @@ export function ApplicationsPage() {
     transition.mutate({ id, to });
   };
 
+  const openLoanCreation = (application: MfLoanApplication) => {
+    setLoanApplicationId(application.id);
+    setLoanOpen(true);
+  };
+
   return (
     <>
       <PageHeader
