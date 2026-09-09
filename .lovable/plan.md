@@ -131,35 +131,24 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-### Verified against the live database on 2026-09-09 (re-checked, not taken on trust)
+Here is what remains open:
 
-Confirmed present and correct:
+Branch Operational Day (current focus)
 
-- `branch_operational_days` and `branch_day_events` exist, RLS on, `SELECT` granted to signed-in staff only, **no** insert/update/delete grants to `anon` or `authenticated` — day state can only change through the RPCs.
-- Unique index on (branch, business date) and a partial unique index allowing **one open day per branch**.
-- `open_branch_day`, `close_branch_day`, `reopen_branch_day` — all `SECURITY DEFINER`, all consult `mf_can_scoped`, all take a per-branch advisory lock.
-- Capabilities used (`write`, `close`, `admin_override`) all resolve in `user_has_module_permission`; no new permission engine, no hard-coded job titles.
-- Triggers live: `trg_enforce_branch_day_lock` on `journal_entries`, `trg_enforce_batch_branch_day` on `mf_repayment_batches`, `trg_branch_day_events_append_only` on the event log.
-- `enforce_branch_day_lock` is inert until a branch has `day_control_from` set and only for entries on/after that date — activation is per branch, no back-fill.
-- Branch config columns exist: `branches.day_control_from`, `branches.day_variance_tolerance`.
-- Frontend surface present and type-clean: `useBranchDay.ts`, `BranchDayPage.tsx`, `BranchDayDateField.tsx`, wired into Record Payment, Group Sheet, Bank Batch, Disburse and Group Fee Collection dialogs.
+Signed-in walkthrough on the preview: open a day → record a receipt → close → open the next day, including closed-day refusal and branch isolation. Cannot be verified from this side because the project uses your own Supabase; it needs a signed-in user on the preview.
+Stale-open-day alert.
+Daily branch cash report.
+Broader roadmap (from roadmap.md)
 
-### Closed this session — plan item 9 (`close_fiscal_period` / `is_period_open` divergence)
+M1 — Owner verification pass in the signed-in preview.
+M5a — Drop payments/payment_allocations and sweep ERP dashboard widget IDs.
+M5b — Drop contacts and route journal counterparty through mf_clients.
+M7 — Orphan function purge.
+M8 — Linter posture on retained schema.
+M9 — Microfinance report gaps.
+Resource Center — remove the inert demo-video section.
+M10 — Microfinance document gaps.
 
-Verified the defect was still live: `close_fiscal_period` wrote only `status`, while `is_period_open` read only `is_closed`, so closing a month did **not** block postings.
-
-Fixed with three single-purpose migrations:
-
-1. `is_period_open` now treats a period as closed when **either** `is_closed` is true or `status = 'closed'` (and no longer swallows all errors into a permissive `true`).
-2. `close_fiscal_period` now writes `is_closed` and `closed_at` alongside `status`.
-3. `reopen_fiscal_period` now clears `is_closed` and `closed_at`.
-
-Data check: all 13 fiscal periods are `open` / `is_closed = false` — no divergent rows, so no back-fill was required.
-
-### Still outstanding
-
-- **Signed-in walkthrough** (open a day → record a receipt → close → open next day, on a branch with no loans; plus closed-day refusal and branch isolation). Cannot be run from this side: the project uses your own Supabase, so no test session can be minted here. It needs someone signed in on the preview.
-- Phase 4 items: stale-open-day alert and the daily branch cash report.
 
 KINDLY NOTE AND NOTE  CAREFULLY
 ==========================================
