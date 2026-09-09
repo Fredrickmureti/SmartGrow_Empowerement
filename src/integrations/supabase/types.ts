@@ -26476,6 +26476,10 @@ export type Database = {
         Args: { p_attempt?: number; p_business_id: string; p_on: string }
         Returns: string
       }
+      mf_next_meeting_date: {
+        Args: { p_after: string; p_group_id: string }
+        Returns: string
+      }
       mf_next_number: {
         Args: {
           p_branch_id: string
