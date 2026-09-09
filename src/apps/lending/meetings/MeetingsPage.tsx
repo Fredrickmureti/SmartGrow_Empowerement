@@ -190,6 +190,12 @@ export function MeetingsPage() {
                 ))}
               </SelectContent>
             </Select>
+            {canManage && (
+              <Button variant="outline" onClick={() => setRecordOpen(true)}>
+                <ClipboardPen className="mr-1.5 h-4 w-4" />
+                Record a meeting
+              </Button>
+            )}
           </FilterBar>
 
           {error ? (
