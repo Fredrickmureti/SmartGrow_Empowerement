@@ -200,17 +200,31 @@ export function GroupsPage() {
                       <StatusBadge tone={STATUS_TONE[g.status]}>{g.status}</StatusBadge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRoll(g);
-                        }}
-                      >
-                        <Users className="mr-1.5 h-3.5 w-3.5" />
-                        Roll
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRoll(g);
+                          }}
+                        >
+                          <Users className="mr-1.5 h-3.5 w-3.5" />
+                          Roll
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFeeGroup(g);
+                            setFeeOpen(true);
+                          }}
+                        >
+                          <Receipt className="mr-1.5 h-3.5 w-3.5" />
+                          Admission fees
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
