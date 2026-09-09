@@ -143,11 +143,16 @@ deletion of any existing lending data or record.
 
 ===================PROGRESS STATUS============
 
-
 Here's where things stand.
 
-Done and working in your system: the meeting itself is now a real record. A group meeting can be opened for a date, attendance can be recorded for active members only, and the meeting can be completed with closing time, who closed it, notes, and the automatically worked-out next meeting date from the group's regular meeting day. A meeting can also be marked postponed (with a new date) or missed (with a reason). Completing a meeting also closes any still-open collection round attached to it, so the money and the meeting finish together. Repayment rounds, new clients and applications can each be tagged to the meeting they happened at. Everything is locked to the right institution, branch and officer, and completing or postponing twice is refused.
+Already in place and verified in your system: the meeting itself is a real record. A group meeting can be opened for a date, attendance can be recorded for active members only, and the meeting can be completed with the closing time, who closed it, notes, and the next meeting date worked out from the group's regular meeting day. It can also be marked postponed (with a new date) or missed (with a reason). Completing a meeting closes any still-open collection round attached to it. Completing or postponing twice is refused, and everything is locked to the right institution, branch and officer.
 
-Still to do: the screens. There is no Meetings page yet, so the officers can't use any of this from the app — the next steps were a "Today's meetings" list with open/attendance/complete/postpone, a Meetings entry in the lending menu, passing the meeting into the existing group collection sheet, a supervisor view of upcoming and missed meetings, and the business-event tests plus closing the plan file.
+What I added this round: the officer-facing pieces — a meetings data layer (open, attendance, complete, postpone, mark missed) and the meeting workspace screen where an officer marks who attended, writes notes and pending items, completes the meeting and sees the next meeting date.
 
-Owners should keep writing meeting times down by hand until the Meetings screen is in place.
+What still remains:
+
+The "Today's meetings" list page (groups due today plus meetings already opened) and its entry in the lending menu.
+Passing the meeting into the existing group collection sheet so money is tagged to the meeting.
+A supervisor view of upcoming, completed and missed meetings.
+The business-event tests and closing out the plan file.
+Nothing is broken by the pause — the meeting workspace simply isn't reachable from the menu yet. Top up credits and I'll pick up exactly at the meetings list page.
