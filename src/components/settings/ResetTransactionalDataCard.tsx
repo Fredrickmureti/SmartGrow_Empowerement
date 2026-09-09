@@ -89,6 +89,7 @@ export function ResetTransactionalDataCard() {
     setOpen(true);
     setPhrase("");
     setIncludeClients(false);
+    setIncludeProducts(false);
     setCounts(null);
     setLoadingPreview(true);
     try {
@@ -140,6 +141,10 @@ export function ResetTransactionalDataCard() {
 
   const optionalClients = Number(counts?.["mf_clients_optional"] ?? 0);
   const optionalGroups = Number(counts?.["mf_groups_optional"] ?? 0);
+  const optionalProducts = Number(counts?.["mf_loan_products_optional"] ?? 0);
+  const optionalProductVersions = Number(
+    counts?.["mf_loan_product_versions_optional"] ?? 0,
+  );
 
   return (
     <Card className="border-destructive/50">
