@@ -6,6 +6,7 @@
  * collection sheet, now stamped with this meeting.
  */
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,7 @@ export function MeetingWorkspaceDialog({
     to: meeting.scheduled_on,
   });
 
+  const queryClient = useQueryClient();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -292,7 +294,11 @@ export function MeetingWorkspaceDialog({
         }}
         client={null}
         meetingContext={{ meetingId: meeting.id, groupId: meeting.group_id }}
-        onCreate={async (input) => createClient.mutateAsync(input)}
+        onCreate={async (input) => {
+          const created = await createClient.mutateAsync(input);
+          queryClient.invalidateQueries({ queryKey: ["mf-meeting-summary"] });
+          return created;
+        }}
         onUpdate={async (id, patch) => {
           await updateClient.mutateAsync({ id, ...patch });
         }}

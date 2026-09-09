@@ -143,15 +143,25 @@ deletion of any existing lending data or record.
 
 ===================PROGRESS STATUS============
 
+Updated 2026-09-09 14:55 UTC (handover verified by re-checking code + live DB).
 
-I paused partway. Here's exactly where things stand.
+Verified DONE (code and database both checked):
+- Tables `mf_group_meetings`, `mf_meeting_attendance` with RLS policies.
+- RPCs `mf_open_group_meeting`, `mf_complete_group_meeting`, `mf_postpone_group_meeting`
+  and guards `_mf_group_meeting_scope_guard`, `_mf_meeting_attendance_guard`, `_mf_meeting_link_guard`.
+- Meeting stamps: `mf_clients.onboarded_meeting_id`, `mf_loan_applications.meeting_id`,
+  `mf_repayment_batches.meeting_id`.
+- Lending nav "Meetings" -> today's list -> meeting workspace: attendance, notes,
+  Record collections, Postpone, Record as missed, Complete (stores closing time, next date).
+- "What happened at this meeting" summary (present count, payments, clients joined here).
+- "Register a client here" button inside the meeting (added this session): opens the
+  client form fixed to the meeting's group, stamps the client with the meeting, and the
+  summary refreshes.
+- Typecheck clean; meetingSchedule tests pass (9/9). Production rows untouched
+  (1 group, 6 clients, 0 meetings so far).
 
-Verified as already working (from the previous session's claims): the meeting record itself, attendance, opening, completing with closing time and notes, postponing, recording as missed, the next-meeting date, the branch/institution safety rules, and the Meetings page in the Lending menu.
-
-Finished this session: registering a client during a meeting now works end to end on the app side — the registration form fixes the group to the meeting's group, fills in its branch and loan officer, and saves the client stamped with that meeting. I also added a "What happened at this meeting" summary to the meeting screen: how many members were present, how many payments were collected and their total, and who joined at that meeting.
-
-Not finished:
-
-The "Register a client at this meeting" button on the meeting screen — the summary and the form wiring are in, but the button that opens the form from inside the meeting is not placed yet, so officers can't reach it from there.
-A signed-in walkthrough with a real loan officer account, and the type/build check on today's edits.
-Until item 1 is done, officers should keep noting the closing time on paper as agreed; everything else in the meeting — opening it, attendance, collections, notes, completing — can already be recorded in the system. No production client or group data was touched.
+Remaining (owner-side):
+- Sign in as the loan officer in the preview and run one real meeting: Lending -> Meetings ->
+  open today's group -> attendance -> (collections / register client) -> Complete.
+  Once done, the paper closing-time note is no longer needed; enter that meeting's closing
+  time in the notes when recording it.
