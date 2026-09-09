@@ -26310,6 +26310,7 @@ export type Database = {
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
       mf_pay_client_charge: {
         Args: {
+          p_amount?: number
           p_charge_id: string
           p_method?: string
           p_notes?: string
