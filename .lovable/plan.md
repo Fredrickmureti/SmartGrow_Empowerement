@@ -69,20 +69,19 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 
 
 ====================IMPLEMENTATION STATUS/PROGRESS===========
-I've built the foundation of the individual-liability / group-collection fee model in the database, but the work is not finished.
 
-In place now
 
-The fee stays the individual client's obligation. A new settlement ledger records every payment against a client's fee, so a fee can now be partly paid, and each client's paid/outstanding amount is maintained automatically from real payment records — never a hand-set "paid" flag.
-A group collection record exists: one cash hand-over at a group meeting, with a retry key so a double-click or network retry can't take the money twice.
-Individual payment still works exactly as before (it now also accepts a part amount).
-Reversals restore each client's outstanding balance instead of deleting anything; a payment taken in a group collection must be reversed through that collection so the single cash entry stays intact.
-A single read view answers "who owes, who paid, how much remains, and which collection settled them" for both client and group questions.
-Existing settled fees were migrated into the new settlement records, so no receipt or history was lost.
-Still to do (exact continuation point)
+I got the group-collection engine in place before credits ran out. Here's exactly where things stand.
 
-The group collection routine itself (mf_collect_group_admission_fees): validate the selected members and amounts against each client's real outstanding, raise a missing obligation for a new member, number the collection and one receipt per member, and post one journal entry for the total.
-The matching reversal routine for a whole collection.
-The app side: read hooks, the "Collect admission fees" screen on the group (members, due/paid/outstanding, tick + amount, live total), an information-only outstanding-fee notice when adding a member, collection history with reverse, and the group receipt listing each member and their allocation.
-The eight test scenarios end to end against the real records, then a typecheck.
-Nothing in the individual flow was broken by these changes, and the plan file archived at .lovable/plan/admission-fee-individual-liability-group-collection-2026-09-09.md holds the full reasoning and this continuation list.
+Done and applied to your database
+
+The routine that records one group collection of admission fees: it checks each selected member's real outstanding amount from authoritative records (never a "paid" flag), refuses a member listed twice, refuses an amount above what that member owes, refuses anyone who isn't an active member, raises a missing fee for a newly added member, issues one receipt per member, and posts a single cash entry for the total against fee income. A repeated submission with the same members, amounts, date and reference replays instead of taking money twice.
+The matching reversal routine: it voids the one accounting entry, marks every member's payment reversed so each person's outstanding fee comes back, and deletes nothing.
+App side: a data layer for fee positions and collections, and the "Collect admission fees" screen for a group — every member with fee due, paid, outstanding, tick plus editable amount, live total, and collection history with a reverse action. Members with nothing outstanding show as settled and cannot be ticked. The individual client payment flow is untouched.
+Remaining
+
+Wiring the new screen into the Groups page (a button on each group row) and adding the information-only "this client has an outstanding admission fee" note when adding a member — the screen file exists but isn't reachable yet.
+The group receipt listing each member and their allocation.
+The eight test scenarios end to end, and the typecheck.
+Updating the plan file with results.
+Nothing is half-applied in the database, so it's safe to stop here and resume from the two UI wiring items.
