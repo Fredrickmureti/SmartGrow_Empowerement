@@ -43,6 +43,7 @@ import {
   type MfClientStatus,
 } from "@/hooks/useMfClients";
 import { ClientFormDialog } from "./ClientFormDialog";
+import { ClientDetailSheet } from "./ClientDetailSheet";
 import { ClientChargesDialog } from "./ClientChargesDialog";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import {
@@ -196,8 +197,11 @@ export function ClientsPage() {
                 {filtered.map((c) => (
                   <TableRow
                     key={c.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(c) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      setEditing(false);
+                    }}
                   >
                     <TableCell className="font-mono text-xs">{c.client_number}</TableCell>
                     <TableCell className="font-medium">{c.full_name}</TableCell>
