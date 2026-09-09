@@ -189,6 +189,24 @@ export function GroupMembersDialog({
                         {m.is_active ? "active" : `exited ${m.exited_on ?? ""}`}
                       </StatusBadge>
                     </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const fee = feeByClient.get(m.client_id);
+                        if (!fee || !fee.charge_id) return <span className="text-muted-foreground">—</span>;
+                        const out = Number(fee.outstanding_amount);
+                        return out > 0 ? (
+                          <StatusBadge tone="warning">
+                            {out.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{" "}
+                            outstanding
+                          </StatusBadge>
+                        ) : (
+                          <StatusBadge tone="success">settled</StatusBadge>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right">
                       {m.is_active ? (
                         <Button
