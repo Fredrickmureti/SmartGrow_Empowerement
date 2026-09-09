@@ -112,6 +112,13 @@ interface Invitation {
   accepted_at: string | null;
 }
 
+/**
+ * Retired role names kept only so historical records still read correctly.
+ * They all mean "Internal User", so offering them in the picker showed the
+ * same choice five times.
+ */
+const LEGACY_ROLES: AppRole[] = ["accountant", "staff", "cashier", "viewer"];
+
 const roleColors: Record<AppRole, string> = {
   super_admin: "bg-purple-500/10 text-purple-500",
   owner: "bg-primary/10 text-primary",
