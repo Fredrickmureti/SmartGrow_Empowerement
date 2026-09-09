@@ -259,10 +259,29 @@ export function ClientsPage() {
         </Section>
       </PageBody>
 
+      {/* Read-only first. Editing only happens after the explicit action. */}
+      <ClientDetailSheet
+        client={selected}
+        open={selected !== null && !editing}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        canManage={canManage}
+        onEdit={() => setEditing(true)}
+        onUpdate={async (id, patch) => {
+          await updateClient.mutateAsync({ id, ...patch });
+        }}
+      />
+
       <ClientFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        client={editing}
+        open={creating || (selected !== null && editing)}
+        onOpenChange={(open) => {
+          if (open) return;
+          setCreating(false);
+          // Saving or cancelling an edit returns to the read-only sheet.
+          setEditing(false);
+        }}
+        client={creating ? null : selected}
         onCreate={async (input) => createClient.mutateAsync(input)}
         onUpdate={async (id, patch) => {
           await updateClient.mutateAsync({ id, ...patch });
