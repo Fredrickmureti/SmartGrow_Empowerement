@@ -120,10 +120,12 @@ export function RecordPaymentDialog({ open, onOpenChange, loans, batchId, onReco
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Paid on</Label>
-              <Input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} />
-            </div>
+            <BranchDayDateField
+              label="Paid on"
+              value={paidOn}
+              onChange={setPaidOn}
+              className="grid gap-1.5"
+            />
             <div className="grid gap-1.5">
               <Label>Amount</Label>
               <Input
