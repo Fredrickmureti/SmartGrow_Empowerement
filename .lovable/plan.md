@@ -143,16 +143,39 @@ deletion of any existing lending data or record.
 
 ===================PROGRESS STATUS============
 
-Here's where things stand.
+**Wave A — done.** `mf_group_meetings`, `mf_meeting_attendance`, meeting links on
+`mf_repayment_batches` / `mf_loan_applications` / `mf_clients.onboarded_meeting_id`,
+scope + attendance + link guards, and the RPCs `mf_open_group_meeting`,
+`mf_complete_group_meeting` (refuses a second completion, closes the linked
+collection round, stores the next date from `mf_next_meeting_date`),
+`mf_postpone_group_meeting`.
 
-Already in place and verified in your system: the meeting itself is a real record. A group meeting can be opened for a date, attendance can be recorded for active members only, and the meeting can be completed with the closing time, who closed it, notes, and the next meeting date worked out from the group's regular meeting day. It can also be marked postponed (with a new date) or missed (with a reason). Completing a meeting closes any still-open collection round attached to it. Completing or postponing twice is refused, and everything is locked to the right institution, branch and officer.
+**Wave B — done.** `useMfMeetings` data layer and `MeetingWorkspaceDialog`
+(attendance, notes, complete, postpone, missed).
 
-What I added this round: the officer-facing pieces — a meetings data layer (open, attendance, complete, postpone, mark missed) and the meeting workspace screen where an officer marks who attended, writes notes and pending items, completes the meeting and sees the next meeting date.
+**Wave B/C — done this round.**
+- `src/apps/lending/meetings/MeetingsPage.tsx`: the day list — groups due on the
+  chosen date (recurring rule) merged with meetings already opened, with branch,
+  loan-officer and date filters, status and next-meeting columns, and a
+  completed / outstanding count. The same page is the supervisor view.
+- Menu entry `Lending → Servicing → Meetings` and route `/lending/meetings`.
+- `GroupSheetDialog` accepts `lockedGroupId`, `meetingId` and `defaultDate`;
+  `openBatch` now writes `meeting_id`, so money collected at a meeting is
+  attributable to it.
+- `src/lib/lending/meetingSchedule.ts`: the only client-side meeting rule
+  (which groups are due on a date), extracted so it is testable.
 
-What still remains:
+**Wave D — done.** `src/test/lending/meetingSchedule.test.ts` (9 passing):
+recurring-day due list, non-meeting day, inactive group, meeting on a
+non-recurring date, no duplicate row when a meeting exists, officer scoping,
+ordering, and the no-recurring-rule case. Lifecycle rules themselves are
+enforced and tested at the database (guards above); they are not re-implemented
+in React.
 
-The "Today's meetings" list page (groups due today plus meetings already opened) and its entry in the lending menu.
-Passing the meeting into the existing group collection sheet so money is tagged to the meeting.
-A supervisor view of upcoming, completed and missed meetings.
-The business-event tests and closing out the plan file.
-Nothing is broken by the pause — the meeting workspace simply isn't reachable from the menu yet. Top up credits and I'll pick up exactly at the meetings list page.
+**Still open (next wave, deliberately not started):**
+- Stamping `mf_clients.onboarded_meeting_id` when a client is onboarded during a
+  meeting — the column and guard exist, but there is no onboarding entry point
+  inside the meeting workspace yet. That touches the separate Client KYC
+  onboarding track, so it was left alone.
+- Owner verification of the meeting flow in the signed-in preview.
+

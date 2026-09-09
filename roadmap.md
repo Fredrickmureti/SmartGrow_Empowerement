@@ -5,6 +5,8 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [x] ERP strip — code side closed; DB down to `contacts`, `payments`, `payment_allocations`.
 - [x] Microfinance domain end-to-end (clients → … → closure).
 - [x] Report catalogue, money-in/out, finance config retargeted; FX purged.
+- [x] Field/group meeting lifecycle — meeting event, workspace, day list, meeting-stamped collections, tests.
+- [ ] Meeting wave follow-up — stamp `mf_clients.onboarded_meeting_id` from an in-meeting onboarding entry point.
 - [ ] M1 — Owner verification pass in the signed-in preview.
 - [ ] M5a — Drop `payments`/`payment_allocations`; sweep ERP dashboard widget ids.
 - [ ] M5b — Drop `contacts` (journal counterparty → `mf_clients`).
