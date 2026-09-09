@@ -204,7 +204,7 @@ export function GroupFormDialog({
                 <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
                 {members.map((m) => (
                   <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.email || m.user_id}
+                    {m.full_name || m.email || "Unnamed member"}
                   </SelectItem>
                 ))}
               </SelectContent>
