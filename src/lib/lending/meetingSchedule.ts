@@ -57,3 +57,18 @@ export function meetingRowsForDate<
       return at.localeCompare(bt) || a.group.name.localeCompare(b.group.name);
     });
 }
+
+/**
+ * The times the officer typed, checked before the record is sent. The database
+ * refuses the same combinations; this only turns the refusal into a message the
+ * officer sees while typing.
+ */
+export function meetingTimesError(
+  startedAt: string | null | undefined,
+  endedAt: string | null | undefined,
+): string | null {
+  if (!endedAt) return "Enter the time the meeting ended.";
+  if (!startedAt) return "Enter the time the meeting started.";
+  if (endedAt <= startedAt) return "The end time must be after the start time.";
+  return null;
+}
