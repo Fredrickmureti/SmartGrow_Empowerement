@@ -131,19 +131,18 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-I picked up from the progress log and confirmed the earlier work is genuinely in place: the branch day table, its append-only history, the open/close/reopen routines, the expected-cash calculation and the two database locks (on journal entries and on collection batches) all exist live, and the Branch day page and hook are wired into Lending.
+Here's where things stand on the branch operational day.
 
-I then started the next item on the list — tying the date on the money forms to the branch's open day. I added one shared date control and wired it into record payment, group collection sheet, bank deposit, disbursement and group fees: once a branch is under day control the date stops being typeable, shows "Posting to Wednesday 9 September 2026 — the open day at <branch>", and the save button is blocked with a clear message when no day is open. Before a branch's start date, the forms behave exactly as before.
+Verified as genuinely done (I checked the live database, not just the log): the branch day records and their history, the open/close/reopen actions with their rules, the lock that refuses money dated a closed or unopened day, the collection-round check, the fiscal-period flag fix, the branch day page with the reopen dialog, the date fields in the payment, group sheet, fee, disbursement and banking dialogs, and the "Branch day" menu entry.
 
-What still remains:
+Three real defects I found and fixed:
 
-A typecheck/build pass over those five edited forms — I hadn't run it when work stopped, so please expect to re-run it.
-Stale-day reminder, daily branch cash report, and visibility of late entries.
-Automated checks for open/close/reopen and branch separation.
-Your answers to the five open questions: who may close a day, who may reopen it, the acceptable over/short tolerance, whether unbanked cash may carry into the next day, and each branch's start date for day control.
+The "admin override" switch on an access group was being ignored by the permission engine, so only owners and admins could approve a cash difference or reopen a day. Configured roles now work as intended — no new roles were invented.
+The day records had no read access granted, so the branch day screen would have failed to load in a deployed environment.
+"Only one day open per branch" was only guarded inside the actions; it is now a hard database rule, so two people acting at the same moment cannot both open a day.
+What remains: I wrote a database invariants test file (supabase/tests/branch_operational_day_invariants_test.sql) covering uniqueness, no direct client writes, gated reads, append-only history, the guard triggers, the action posture and the capability check — it is saved but has not been executed yet. Also still open: running it, a signed-in walkthrough of open → record → close → open next day on a branch with no loans, and recording this progress in the plan file and roadmap.
 
-
-
+Nothing is half-applied in the database; the fixes above are live.
 
 
 KINDLY NOTE AND NOTE  CAREFULLY
