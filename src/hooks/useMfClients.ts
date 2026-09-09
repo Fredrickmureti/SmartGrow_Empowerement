@@ -63,6 +63,11 @@ export type MfClientInput = Partial<Omit<MfClient, "id" | "business_id" | "creat
   /** Assigned server-side by the numbering trigger; never sent on create. */
   client_number?: string;
   full_name: string;
+  /**
+   * Optional group to join at registration. Handled by `mf_register_client` in
+   * the same transaction as the client, so a client is never left half-assigned.
+   */
+  group_id?: string | null;
 };
 
 const SELECT =
