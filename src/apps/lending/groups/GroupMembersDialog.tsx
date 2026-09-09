@@ -148,6 +148,7 @@ export function GroupMembersDialog({
                 <TableHead>Role</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Admission fee</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
