@@ -109,13 +109,13 @@ export function ClientFormDialog({
   onUpdate,
 }: ClientFormDialogProps) {
   const { branches } = useBranches();
-  const { members } = useOrgMembers();
+  const { officers } = useBranchOfficers();
   const { user } = useAuth();
   const branchScope = useBranchScope();
   const { groups } = useMfGroups({ status: "all" });
   const [form, setForm] = useState<FormState>(EMPTY);
   const [images, setImages] = useState<Partial<Record<MfKycKind, KycPending>>>({});
-  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [groupId, setGroupId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Identity of a client already created in a previous, partially failed save.
   // Retrying after a photo upload error must patch this client, never insert a
@@ -133,15 +133,82 @@ export function ClientFormDialog({
   // fixed to themselves and not editable.
   const officerLocked = branchScope.isOwnPortfolioOnly && !!user?.id;
 
-  const officerGroups = useMemo(() => {
-    const officer = form.loan_officer_id === UNASSIGNED ? null : form.loan_officer_id;
-    const inBranch = groups.filter(
-      (g) => g.status !== "closed" && (!form.branch_id || g.branch_id === form.branch_id),
+  // Only staff with a branch assignment inside a branch this user may operate
+  // in; `mf_register_client` refuses anything else.
+  const officerOptions = useMemo(
+    () =>
+      officers.filter((o) =>
+        o.branchIds.some((id) => allowedBranches.some((b) => b.id === id)),
+      ),
+    [officers, allowedBranches],
+  );
+
+  const selectedOfficer = useMemo(
+    () =>
+      form.loan_officer_id === UNASSIGNED
+        ? null
+        : (officers.find((o) => o.user_id === form.loan_officer_id) ?? null),
+    [officers, form.loan_officer_id],
+  );
+
+  // With an officer chosen, only their branches are offered.
+  const branchOptions = useMemo(() => {
+    if (!selectedOfficer) return allowedBranches;
+    return allowedBranches.filter((b) => selectedOfficer.branchIds.includes(b.id));
+  }, [allowedBranches, selectedOfficer]);
+
+  // Open groups of this officer in this branch. No silent fallback to
+  // unrelated groups.
+  const availableGroups = useMemo(() => {
+    if (!form.branch_id) return [];
+    return groups.filter(
+      (g) =>
+        g.status !== "closed" &&
+        g.branch_id === form.branch_id &&
+        (!selectedOfficer || g.loan_officer_id === selectedOfficer.user_id),
     );
-    if (!officer) return inBranch;
-    const mine = inBranch.filter((g) => g.loan_officer_id === officer);
-    return mine.length > 0 ? mine : inBranch;
-  }, [groups, form.branch_id, form.loan_officer_id]);
+  }, [groups, form.branch_id, selectedOfficer]);
+
+  const chooseOfficer = (value: string) => {
+    setForm((prev) => {
+      const officer = value === UNASSIGNED ? null : officers.find((o) => o.user_id === value);
+      const usable = officer
+        ? allowedBranches.filter((b) => officer.branchIds.includes(b.id))
+        : allowedBranches;
+      const branch_id =
+        officer && usable.length === 1
+          ? usable[0]!.id
+          : usable.some((b) => b.id === prev.branch_id)
+            ? prev.branch_id
+            : "";
+      return { ...prev, loan_officer_id: value, branch_id };
+    });
+    setGroupId(null);
+  };
+
+  const chooseBranch = (value: string) => {
+    set("branch_id", value);
+    setGroupId(null);
+  };
+
+  // Selecting a group first fills in its branch and officer.
+  const chooseGroup = (value: string) => {
+    if (value === UNASSIGNED) {
+      setGroupId(null);
+      return;
+    }
+    setGroupId(value);
+    const group = groups.find((g) => g.id === value);
+    if (!group) return;
+    setForm((prev) => ({
+      ...prev,
+      branch_id: group.branch_id ?? prev.branch_id,
+      loan_officer_id:
+        prev.loan_officer_id === UNASSIGNED && group.loan_officer_id
+          ? group.loan_officer_id
+          : prev.loan_officer_id,
+    }));
+  };
 
   const setImage = (kind: MfKycKind) => (next: KycPending) =>
     setImages((prev) => ({ ...prev, [kind]: next }));
