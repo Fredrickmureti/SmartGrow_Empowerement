@@ -533,99 +533,104 @@ export function ClientFormDialog({
               onChange={setImage("kin_id_back")}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label>Loan officer</Label>
-            <Select
-              value={form.loan_officer_id}
-              onValueChange={chooseOfficer}
-              disabled={officerLocked}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
-                {officerOptions.map((o) => (
-                  <SelectItem key={o.user_id} value={o.user_id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {officerOptions.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No staff are assigned to a branch yet.
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Branch</Label>
-            <Select value={form.branch_id} onValueChange={chooseBranch}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branchOptions.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedOfficer && branchOptions.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                This loan officer is not assigned to a branch.
-              </p>
-            )}
-            {selectedOfficer && selectedOfficer.branchIds.length === 1 && form.branch_id && (
-              <p className="text-xs text-muted-foreground">
-                Taken from this loan officer's branch.
-              </p>
-            )}
-          </div>
+          {/* Branch, loan officer, status and group are set at registration and
+              changed afterwards only through their own deliberate actions on
+              the client detail sheet. */}
           {!client && (
-            <div className="space-y-1.5">
-              <Label>Group</Label>
-              <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
-                <SelectTrigger>
-                  <SelectValue placeholder="No group" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>No group</SelectItem>
-                  {availableGroups.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {!form.branch_id
-                  ? "Choose a loan officer or branch to see their groups."
-                  : availableGroups.length === 0
-                    ? "No groups for this loan officer in this branch."
-                    : "Optional. A client can belong to one group at a time."}
-              </p>
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label>Loan officer</Label>
+                <Select
+                  value={form.loan_officer_id}
+                  onValueChange={chooseOfficer}
+                  disabled={officerLocked}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Unassigned" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                    {officerOptions.map((o) => (
+                      <SelectItem key={o.user_id} value={o.user_id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {officerOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    No staff are assigned to a branch yet.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Branch</Label>
+                <Select value={form.branch_id} onValueChange={chooseBranch}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchOptions.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedOfficer && branchOptions.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    This loan officer is not assigned to a branch.
+                  </p>
+                )}
+                {selectedOfficer && selectedOfficer.branchIds.length === 1 && form.branch_id && (
+                  <p className="text-xs text-muted-foreground">
+                    Taken from this loan officer's branch.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Group</Label>
+                <Select value={groupId ?? UNASSIGNED} onValueChange={chooseGroup}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="No group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>No group</SelectItem>
+                    {availableGroups.map((g) => (
+                      <SelectItem key={g.id} value={g.id}>
+                        {g.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {!form.branch_id
+                    ? "Choose a loan officer or branch to see their groups."
+                    : availableGroups.length === 0
+                      ? "No groups for this loan officer in this branch."
+                      : "Optional. A client can belong to one group at a time."}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select
+                  value={form.status}
+                  onValueChange={(v) => set("status", v as MfClientStatus)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MF_CLIENT_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
-          <div className="space-y-1.5">
-            <Label>Status</Label>
-            <Select
-              value={form.status}
-              onValueChange={(v) => set("status", v as MfClientStatus)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MF_CLIENT_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
