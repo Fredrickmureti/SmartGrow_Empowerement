@@ -682,13 +682,35 @@ export function ClientFormDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={requestClose} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={!canSave || saving}>
             {client ? "Save changes" : "Register client"}
           </Button>
         </DialogFooter>
+
+        <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The changes you made to this client have not been saved yet.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  setConfirmDiscard(false);
+                  onOpenChange(false);
+                }}
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
