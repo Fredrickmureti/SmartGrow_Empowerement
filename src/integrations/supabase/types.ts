@@ -3716,6 +3716,163 @@ export type Database = {
           },
         ]
       }
+      branch_day_events: {
+        Row: {
+          actor_id: string | null
+          branch_id: string
+          business_date: string
+          business_id: string
+          counted_cash: number | null
+          event_at: string
+          event_type: string
+          expected_cash: number | null
+          id: string
+          opening_cash: number | null
+          operational_day_id: string
+          organization_id: string
+          reason: string | null
+          variance: number | null
+        }
+        Insert: {
+          actor_id?: string | null
+          branch_id: string
+          business_date: string
+          business_id: string
+          counted_cash?: number | null
+          event_at?: string
+          event_type: string
+          expected_cash?: number | null
+          id?: string
+          opening_cash?: number | null
+          operational_day_id: string
+          organization_id: string
+          reason?: string | null
+          variance?: number | null
+        }
+        Update: {
+          actor_id?: string | null
+          branch_id?: string
+          business_date?: string
+          business_id?: string
+          counted_cash?: number | null
+          event_at?: string
+          event_type?: string
+          expected_cash?: number | null
+          id?: string
+          opening_cash?: number | null
+          operational_day_id?: string
+          organization_id?: string
+          reason?: string | null
+          variance?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_day_events_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_day_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_day_events_operational_day_id_fkey"
+            columns: ["operational_day_id"]
+            isOneToOne: false
+            referencedRelation: "branch_operational_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branch_operational_days: {
+        Row: {
+          branch_id: string
+          business_date: string
+          business_id: string
+          closed_at: string | null
+          closed_by: string | null
+          counted_cash: number | null
+          created_at: string
+          expected_cash: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          opened_by: string | null
+          opening_cash: number
+          organization_id: string
+          reopened_count: number
+          status: string
+          updated_at: string
+          variance: number | null
+          variance_journal_entry_id: string | null
+          variance_reason: string | null
+        }
+        Insert: {
+          branch_id: string
+          business_date: string
+          business_id: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_cash?: number
+          organization_id: string
+          reopened_count?: number
+          status?: string
+          updated_at?: string
+          variance?: number | null
+          variance_journal_entry_id?: string | null
+          variance_reason?: string | null
+        }
+        Update: {
+          branch_id?: string
+          business_date?: string
+          business_id?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          counted_cash?: number | null
+          created_at?: string
+          expected_cash?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          opening_cash?: number
+          organization_id?: string
+          reopened_count?: number
+          status?: string
+          updated_at?: string
+          variance?: number | null
+          variance_journal_entry_id?: string | null
+          variance_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_operational_days_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_operational_days_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_overridable_settings: {
         Row: {
           category: string
@@ -3833,6 +3990,8 @@ export type Database = {
           code: string | null
           country: string | null
           created_at: string
+          day_control_from: string | null
+          day_variance_tolerance: number
           email: string | null
           id: string
           is_active: boolean | null
@@ -3854,6 +4013,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
+          day_control_from?: string | null
+          day_variance_tolerance?: number
           email?: string | null
           id?: string
           is_active?: boolean | null
@@ -3875,6 +4036,8 @@ export type Database = {
           code?: string | null
           country?: string | null
           created_at?: string
+          day_control_from?: string | null
+          day_variance_tolerance?: number
           email?: string | null
           id?: string
           is_active?: boolean | null
@@ -23516,6 +23679,7 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      branch_day_expected_cash: { Args: { p_day_id: string }; Returns: number }
       budget_fiscal_months: {
         Args: { _business_id: string; _fiscal_year: number }
         Returns: {
@@ -23875,6 +24039,15 @@ export type Database = {
       clear_settings_audit_log: {
         Args: { p_older_than_days?: number; p_org_id: string }
         Returns: number
+      }
+      close_branch_day: {
+        Args: {
+          p_counted_cash: number
+          p_day_id: string
+          p_notes?: string
+          p_variance_reason?: string
+        }
+        Returns: string
       }
       close_department: {
         Args: { p_department_id: string }
@@ -26740,6 +26913,15 @@ export type Database = {
         Args: { _app_id: string }
         Returns: string
       }
+      open_branch_day: {
+        Args: {
+          p_branch_id: string
+          p_business_date?: string
+          p_notes?: string
+          p_opening_cash?: number
+        }
+        Returns: string
+      }
       pack_required_employee_fields: {
         Args: { p_business_id: string; p_module?: string }
         Returns: {
@@ -27394,6 +27576,10 @@ export type Database = {
           p_new_end_date: string
         }
         Returns: Json
+      }
+      reopen_branch_day: {
+        Args: { p_day_id: string; p_reason: string }
+        Returns: string
       }
       reopen_fiscal_period: {
         Args: { _period_id: string }
