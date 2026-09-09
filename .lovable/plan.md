@@ -71,13 +71,15 @@ Nothing implemented yet. Order: migration 1 (payments table) → 2 (charges paid
 ====================IMPLEMENTATION STATUS/PROGRESS===========
 
 
-I picked up from the saved continuation point and verified the claims before testing — the fee configuration, individual payment, group collection, allocation and reversal routines all exist as recorded.
+I stopped here since credits ran out mid-run. Here's where things stand.
 
-Running the real end-to-end rehearsal immediately exposed a genuine blocker: both the individual fee payment and the group collection failed at the accounting step, because the shared posting routine now has several versions and the fee routines didn't say clearly which one to use. Nothing could be posted at all. I fixed both routines so the posting call is unambiguous.
+Verified: the fee configuration, individual payment, group collection, allocation, reversal routines and the fee-positions read model all exist in the database as the previous agent claimed.
 
-What still remains (paused for credits):
+Fixed this session: the real blocker found by the rehearsal — both the individual fee payment and the group collection failed at the accounting step because the entry was created without a currency, so nothing could be saved at all. Both routines now carry the fee's currency (and a proper conversion rate when the fee currency isn't the institution's own).
 
-Re-run the eight scenarios (individual payment, group collection, mixed state, partial collection, new member, duplicate/replay protection, reversal, re-collection) in a self-undoing rehearsal and confirm balances, allocations and journals.
-Check the same ambiguity in the collection-banking routine (mf_bank_collection_batch), which very likely has the identical defect.
+What still remains:
+
+Re-run the rehearsal (it's written and ready — a self-undoing script covering individual payment, group collection, mixed state, partial collection, new member, duplicate/double-submit protection, reversal and re-collection) and confirm balances, allocations and journal entries.
+Check the same missing-currency defect in the collection-banking routine, which likely has it too.
 Group collection receipt rendering.
-Write the results and continuation point into the plan file.
+Write the results and continuation point into the plan file — note that the two currency fixes above are already applied, so don't redo them.
