@@ -141,3 +141,64 @@ A typecheck/build pass over those five edited forms — I hadn't run it when wor
 Stale-day reminder, daily branch cash report, and visibility of late entries.
 Automated checks for open/close/reopen and branch separation.
 Your answers to the five open questions: who may close a day, who may reopen it, the acceptable over/short tolerance, whether unbanked cash may carry into the next day, and each branch's start date for day control.
+
+
+
+
+
+KINDLY NOTE AND NOTE  CAREFULLY
+==========================================
+### Important Implementation Directive — Authorization, Roles & Business Policy
+
+Before proceeding with implementation or asking for architectural/business-policy decisions, **do not assume or hard-code job titles, organizational roles, approval structures, limits, or workflow policies that are not fundamental to the accounting/transaction model.**
+
+The ERP already has an **access-control / permissions / access-role framework**. Use that existing framework rather than baking roles such as `Branch Manager`, `Head Office`, `Cashier`, etc. directly into the Branch Operational Day engine.
+
+For example, the engine should expose capabilities/permissions such as:
+
+* View branch day
+* Open branch day
+* Close branch day
+* Reopen branch day
+* Approve/authorize exceptional variance
+* Manage branch-day configuration
+
+Those capabilities can then be assigned to configurable access roles, and users can receive those capabilities through the existing role/permission system. **Do not create hard-coded “Branch Manager can close” or “Head Office can reopen” rules unless the existing architecture and established business requirements explicitly require them.**
+
+The same principle applies to the other questions raised during planning:
+
+* Who closes the day?
+* Who reopens the day?
+* Whether a second person must approve a close
+* What variance threshold is permitted
+* Whether unbanked cash can carry forward
+* Whether an exceptional transaction requires another authorization level
+
+Do **not** simply present these as arbitrary multiple-choice questions for the user to choose from when the answer can be determined through:
+
+1. Inspection of the existing ERP architecture and authorization model.
+2. Existing accounting and transaction behaviour in this codebase.
+3. Established accounting principles and established enterprise ERP / branch-operation practices.
+4. A configurable permission or policy mechanism where the matter is genuinely organizational policy rather than an accounting invariant.
+
+The goal is to distinguish between:
+
+**Accounting/transaction invariants**
+These must be enforced by the engine and should not be configurable merely because a user prefers another behaviour.
+
+**Authorization policy**
+This should use the existing configurable access-role/permission framework rather than hard-coded job titles.
+
+**Organizational configuration**
+Where appropriate, expose it as controlled configuration rather than embedding a policy into application logic.
+
+**Genuinely unresolved organization-specific policy**
+Only in this case should the implementation surface a decision for the business owner.
+
+Do not push architectural decisions back to me merely because multiple implementation options are technically possible. **The engineer is expected to investigate, reason from the existing system and accounting/business principles, and recommend the correct design.**
+
+If uncertainty remains, document the uncertainty, the alternatives considered, the evidence found, and the recommended approach before asking for a decision.
+
+Most importantly, **do not redesign the Branch Operational Day feature around assumed roles such as “Branch Manager” or “Head Office.”** The day engine should enforce *capabilities and controls*; the existing access-control system should determine *which configured roles/users possess those capabilities*.
+
+Also do not introduce a second authorization system specifically for Branch Operational Day if the existing ERP authorization framework can express the required controls. **Reuse existing mechanisms; no duplicated permission/role logic.**
