@@ -32,6 +32,10 @@ import {
 import { EmptyState, LoadingState, ErrorState, StatusBadge } from "@/design-system";
 import { useMfClients, type MfClient } from "@/hooks/useMfClients";
 import { useMfGroupMembers, type MfGroup } from "@/hooks/useMfGroups";
+import {
+  useMfClientFeePosition,
+  useMfGroupFeePositions,
+} from "@/hooks/useMfFeeCollections";
 
 const ROLES = ["member", "leader", "secretary", "treasurer"] as const;
 
