@@ -37,6 +37,10 @@ import {
 } from "@/components/ui/table";
 import { useMfClients } from "@/hooks/useMfClients";
 import {
+  useMfLoanProducts,
+  useMfProductVersionIndex,
+} from "@/hooks/useMfLoanProducts";
+import {
   MF_APPLICATION_STATUSES,
   MF_APPLICATION_STATUS_LABELS,
   useMfApplications,
@@ -83,11 +87,28 @@ export function ApplicationsPage() {
     transition,
   } = useMfApplications({ status });
   const { clients } = useMfClients();
+  const { products } = useMfLoanProducts({ status: "all" });
+  const { versionsById } = useMfProductVersionIndex();
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
     return (id: string) => map.get(id) ?? "—";
   }, [clients]);
+
+  // The version an application was pinned to at capture time. Repricing the
+  // product afterwards must never appear to move an existing application.
+  const productLabel = useMemo(() => {
+    const map = new Map(products.map((p) => [p.id, p.code]));
+    return (id: string) => map.get(id) ?? "—";
+  }, [products]);
+
+  const pricedOn = (a: MfLoanApplication) => {
+    const version = a.product_version_id ? versionsById.get(a.product_version_id) : undefined;
+    return version
+      ? `${productLabel(a.product_id)} v${version.version_no}`
+      : productLabel(a.product_id);
+  };
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -171,6 +192,7 @@ export function ApplicationsPage() {
                 <TableRow>
                   <TableHead>Reference</TableHead>
                   <TableHead>Client</TableHead>
+                  <TableHead>Priced on</TableHead>
                   <TableHead className="text-right">Requested</TableHead>
                   <TableHead className="text-right">Approved</TableHead>
                   <TableHead>Status</TableHead>
@@ -191,6 +213,9 @@ export function ApplicationsPage() {
                       {a.application_number}
                     </TableCell>
                     <TableCell className="font-medium">{clientName(a.client_id)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {pricedOn(a)}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {a.requested_amount} / {a.requested_term_installments}
                     </TableCell>

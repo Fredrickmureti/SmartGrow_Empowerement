@@ -151,9 +151,20 @@ export function DecisionDialog({
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
                 />
-
               </div>
             </div>
+            {pricingVersion && !inBand && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
+                A client may request any figure, but an approval becomes the loan
+                contract, so it must sit inside the band of the version this
+                application was priced on: {pricingVersion.currency_code}{" "}
+                {pricingVersion.min_amount}–{pricingVersion.max_amount} over{" "}
+                {pricingVersion.min_term_installments}–
+                {pricingVersion.max_term_installments} installments. To lend
+                outside it, publish a new product version and capture a fresh
+                application.
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="decision_notes">Decision notes</Label>
               <Textarea

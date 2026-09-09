@@ -9,6 +9,7 @@
  * No pricing maths happens here: the schedule engine (C6) derives money
  * server-side from the version a loan snapshots.
  */
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -308,7 +309,38 @@ export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }
   };
 }
 
+/**
+ * Lookup of every product version in the institution by id, so a list can show
+ * which version an application was actually priced on without loading each
+ * product's history separately.
+ */
+export function useMfProductVersionIndex() {
+  const query = useQuery({
+    queryKey: ["mf-loan-product-versions", "index"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mf_loan_product_versions")
+        .select("id,product_id,version_no,currency_code");
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        id: string;
+        product_id: string;
+        version_no: number;
+        currency_code: string;
+      }>;
+    },
+  });
+
+  const byId = useMemo(
+    () => new Map((query.data ?? []).map((v) => [v.id, v])),
+    [query.data],
+  );
+
+  return { versionsById: byId, isLoading: query.isLoading };
+}
+
 /** Version history for one product, newest first. */
+
 export function useMfLoanProductVersions(productId: string | null) {
   const queryClient = useQueryClient();
 
