@@ -19,6 +19,7 @@ export type MfApplicationStatus =
   | "approved"
   | "rejected"
   | "ready_for_disbursement"
+  | "disbursed"
   | "cancelled";
 
 export const MF_APPLICATION_STATUSES: MfApplicationStatus[] = [
@@ -28,6 +29,7 @@ export const MF_APPLICATION_STATUSES: MfApplicationStatus[] = [
   "approved",
   "rejected",
   "ready_for_disbursement",
+  "disbursed",
   "cancelled",
 ];
 
@@ -37,18 +39,25 @@ export const MF_APPLICATION_STATUS_LABELS: Record<MfApplicationStatus, string> =
   under_review: "Under review",
   approved: "Approved",
   rejected: "Rejected",
-  ready_for_disbursement: "Ready for disbursement",
+  ready_for_disbursement: "Loan created — awaiting disbursement",
+  disbursed: "Disbursed",
   cancelled: "Cancelled",
 };
 
-/** Transitions the database guard accepts — mirrored only to shape the UI. */
+/**
+ * Transitions the database guard accepts — mirrored only to shape the UI.
+ *
+ * `ready_for_disbursement` and `disbursed` are set by the loan-creation and
+ * disbursement events, not by an operator flipping a status.
+ */
 export const MF_APPLICATION_TRANSITIONS: Record<MfApplicationStatus, MfApplicationStatus[]> = {
   draft: ["submitted", "cancelled"],
   submitted: ["under_review", "draft", "cancelled"],
   under_review: ["approved", "rejected", "cancelled"],
-  approved: ["ready_for_disbursement", "cancelled"],
+  approved: ["cancelled"],
   rejected: [],
-  ready_for_disbursement: [],
+  ready_for_disbursement: ["cancelled"],
+  disbursed: [],
   cancelled: [],
 };
 
