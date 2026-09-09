@@ -101,14 +101,17 @@ export function ClientsPage() {
 
   const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? "—";
 
-  const openCreate = () => {
-    setEditing(null);
-    setDialogOpen(true);
-  };
+  // The sheet reads from the live list, so a saved edit is reflected the moment
+  // the query refreshes.
+  const selected = useMemo(
+    () => clients.find((c) => c.id === selectedId) ?? null,
+    [clients, selectedId],
+  );
 
-  const openEdit = (client: MfClient) => {
-    setEditing(client);
-    setDialogOpen(true);
+  const openCreate = () => {
+    setSelectedId(null);
+    setEditing(false);
+    setCreating(true);
   };
 
   return (
