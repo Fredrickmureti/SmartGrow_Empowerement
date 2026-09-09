@@ -26386,6 +26386,14 @@ export type Database = {
         Args: { p_disbursement_id: string; p_reason: string }
         Returns: string
       }
+      mf_reverse_fee_collection: {
+        Args: {
+          p_collection_id: string
+          p_effective_on?: string
+          p_reason?: string
+        }
+        Returns: string
+      }
       mf_reverse_repayment: {
         Args: { p_reason: string; p_repayment_id: string }
         Returns: undefined
