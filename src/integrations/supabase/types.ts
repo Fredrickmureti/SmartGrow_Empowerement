@@ -24040,6 +24040,15 @@ export type Database = {
         Args: { p_older_than_days?: number; p_org_id: string }
         Returns: number
       }
+      close_branch_day: {
+        Args: {
+          p_counted_cash: number
+          p_day_id: string
+          p_notes?: string
+          p_variance_reason?: string
+        }
+        Returns: string
+      }
       close_department: {
         Args: { p_department_id: string }
         Returns: {
