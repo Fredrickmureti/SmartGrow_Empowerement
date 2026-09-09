@@ -984,6 +984,7 @@ export default function Team() {
                             </SelectTrigger>
                             <SelectContent>
                               {(Object.keys(ROLE_LABELS) as AppRole[])
+                                .filter((r) => !LEGACY_ROLES.includes(r))
                                 .filter((r) => r !== "portal" && r !== "super_admin" && r !== "owner")
                                 .filter((r) => canManage(r))
                                 .map((r) => (
@@ -992,6 +993,7 @@ export default function Team() {
                                   </SelectItem>
                                 ))}
                             </SelectContent>
+
                           </Select>
                         ) : (
                           <Badge
