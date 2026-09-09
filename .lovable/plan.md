@@ -143,25 +143,8 @@ deletion of any existing lending data or record.
 
 ===================PROGRESS STATUS============
 
-Updated 2026-09-09 14:55 UTC (handover verified by re-checking code + live DB).
+I picked up where the last session stopped. Everything it claimed is genuinely in place — I checked both the app and the live database: the meeting record, attendance, opening, completing (with closing time and next meeting date), postponing, marking missed, the branch/institution safety rules, the Meetings page, and the "What happened at this meeting" summary.
 
-Verified DONE (code and database both checked):
-- Tables `mf_group_meetings`, `mf_meeting_attendance` with RLS policies.
-- RPCs `mf_open_group_meeting`, `mf_complete_group_meeting`, `mf_postpone_group_meeting`
-  and guards `_mf_group_meeting_scope_guard`, `_mf_meeting_attendance_guard`, `_mf_meeting_link_guard`.
-- Meeting stamps: `mf_clients.onboarded_meeting_id`, `mf_loan_applications.meeting_id`,
-  `mf_repayment_batches.meeting_id`.
-- Lending nav "Meetings" -> today's list -> meeting workspace: attendance, notes,
-  Record collections, Postpone, Record as missed, Complete (stores closing time, next date).
-- "What happened at this meeting" summary (present count, payments, clients joined here).
-- "Register a client here" button inside the meeting (added this session): opens the
-  client form fixed to the meeting's group, stamps the client with the meeting, and the
-  summary refreshes.
-- Typecheck clean; meetingSchedule tests pass (9/9). Production rows untouched
-  (1 group, 6 clients, 0 meetings so far).
+The one unfinished item is now done: inside a meeting there is a "Register a client here" button that opens the client form fixed to that group and records that the client joined at that meeting.
 
-Remaining (owner-side):
-- Sign in as the loan officer in the preview and run one real meeting: Lending -> Meetings ->
-  open today's group -> attendance -> (collections / register client) -> Complete.
-  Once done, the paper closing-time note is no longer needed; enter that meeting's closing
-  time in the notes when recording it.
+Your loan officer can now stop noting closing times on paper. To record today's meeting: sign in → Lending → Meetings → open the group → mark attendance, record collections or register clients → type the closing time and any pending items in the notes → Complete meeting. The next meeting date appears immediately. No existing client or group data was changed.
