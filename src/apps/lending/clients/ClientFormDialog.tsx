@@ -257,15 +257,15 @@ export function ClientFormDialog({
         loan_officer_id: client.loan_officer_id ?? UNASSIGNED,
         status: client.status,
         notes: client.notes ?? "",
-      });
+      }));
     } else {
-      setForm({
+      setForm(snapshot({
         ...EMPTY,
         branch_id:
           branchScope.defaultBranchId ?? allowedBranches[0]?.id ?? "",
         loan_officer_id:
           branchScope.isOwnPortfolioOnly && user?.id ? user.id : UNASSIGNED,
-      });
+      }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, client]);
