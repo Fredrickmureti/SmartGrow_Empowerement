@@ -26443,7 +26443,13 @@ export type Database = {
         Returns: string
       }
       mf_complete_group_meeting: {
-        Args: { p_meeting_id: string; p_notes?: string }
+        Args: {
+          p_ended_at_time?: string
+          p_held_by?: string
+          p_meeting_id: string
+          p_notes?: string
+          p_started_at_time?: string
+        }
         Returns: Json
       }
       mf_compute_loan_fees: { Args: { p_loan_id: string }; Returns: Json }
