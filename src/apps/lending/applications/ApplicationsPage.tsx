@@ -83,6 +83,8 @@ export function ApplicationsPage() {
     transition,
   } = useMfApplications({ status });
   const { clients } = useMfClients();
+  const { products } = useMfLoanProducts({ status: "all" });
+  const { versionsById } = useMfProductVersionIndex();
 
   const clientName = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
