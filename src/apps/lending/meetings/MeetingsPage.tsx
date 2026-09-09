@@ -53,6 +53,7 @@ import {
 import { useMfRepayments, useMfRepaymentBatches } from "@/hooks/useMfRepayments";
 import { meetingRowsForDate } from "@/lib/lending/meetingSchedule";
 import { MeetingWorkspaceDialog } from "./MeetingWorkspaceDialog";
+import { RecordMeetingDialog } from "./RecordMeetingDialog";
 import { GroupSheetDialog } from "../repayments/GroupSheetDialog";
 
 const STATUS_TONE: Record<MfMeetingStatus, "neutral" | "success" | "warning" | "danger"> = {
