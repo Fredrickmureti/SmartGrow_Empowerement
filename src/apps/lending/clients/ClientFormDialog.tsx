@@ -44,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
 import { KycCaptureField, type KycPending } from "./KycCaptureField";
+import { lendingErrorMessage } from "@/lib/lending/lendingError";
 
 const UNASSIGNED = "__unassigned__";
 const UNSPECIFIED = "__unspecified__";
