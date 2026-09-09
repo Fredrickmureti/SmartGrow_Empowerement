@@ -112,6 +112,13 @@ interface Invitation {
   accepted_at: string | null;
 }
 
+/**
+ * Retired role names kept only so historical records still read correctly.
+ * They all mean "Internal User", so offering them in the picker showed the
+ * same choice five times.
+ */
+const LEGACY_ROLES: AppRole[] = ["accountant", "staff", "cashier", "viewer"];
+
 const roleColors: Record<AppRole, string> = {
   super_admin: "bg-purple-500/10 text-purple-500",
   owner: "bg-primary/10 text-primary",
@@ -984,6 +991,7 @@ export default function Team() {
                             </SelectTrigger>
                             <SelectContent>
                               {(Object.keys(ROLE_LABELS) as AppRole[])
+                                .filter((r) => !LEGACY_ROLES.includes(r))
                                 .filter((r) => r !== "portal" && r !== "super_admin" && r !== "owner")
                                 .filter((r) => canManage(r))
                                 .map((r) => (
@@ -992,6 +1000,7 @@ export default function Team() {
                                   </SelectItem>
                                 ))}
                             </SelectContent>
+
                           </Select>
                         ) : (
                           <Badge

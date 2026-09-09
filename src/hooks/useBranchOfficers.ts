@@ -20,13 +20,14 @@ export interface BranchOfficer {
 export function useBranchOfficers() {
   const { currentBusiness } = useBusinesses();
   const businessId = currentBusiness?.id;
+  const organizationId = currentBusiness?.organization_id;
 
   const query = useQuery({
-    queryKey: ["branch-officers", businessId],
-    enabled: !!businessId,
+    queryKey: ["branch-officers", businessId, organizationId],
+    enabled: !!businessId && !!organizationId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<BranchOfficer[]> => {
-      if (!businessId) return [];
+      if (!businessId || !organizationId) return [];
 
       const { data: rows, error } = await supabase
         .from("user_branch_assignments")
@@ -34,8 +35,21 @@ export function useBranchOfficers() {
         .eq("business_id", businessId);
       if (error) throw error;
 
+      // Only people who are still active members of this institution may own
+      // clients. Removed/deactivated team members keep their historical branch
+      // assignment rows, so the assignment table alone is not enough.
+      const { data: activeRoles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .eq("user_type", "internal");
+      if (rolesError) throw rolesError;
+      const active = new Set((activeRoles ?? []).map((r) => r.user_id));
+
       const byUser = new Map<string, string[]>();
       for (const row of rows ?? []) {
+        if (!active.has(row.user_id)) continue;
         const list = byUser.get(row.user_id) ?? [];
         if (!list.includes(row.branch_id)) list.push(row.branch_id);
         byUser.set(row.user_id, list);
@@ -48,6 +62,7 @@ export function useBranchOfficers() {
         .select("user_id, full_name, email")
         .in("user_id", [...byUser.keys()]);
       if (profileError) throw profileError;
+
 
       const names = new Map<string, string>();
       for (const p of profiles ?? []) {
