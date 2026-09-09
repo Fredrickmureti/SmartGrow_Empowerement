@@ -241,10 +241,15 @@ export function LoansPage() {
                           ? `Expected ${loan.expected_disbursement_date}`
                           : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[240px] space-y-1">
                       <StatusBadge tone={STATUS_TONE[loan.status]}>
                         {MF_LOAN_STATUS_LABELS[loan.status]}
                       </StatusBadge>
+                      {/* What has happened, and the next legitimate event. The
+                          database remains the authority; this only explains it. */}
+                      <p className="text-xs text-muted-foreground">
+                        {LOAN_STATE_GUIDANCE[loan.status]}
+                      </p>
                     </TableCell>
                     <TableCell
                       className="space-x-1.5 text-right"
