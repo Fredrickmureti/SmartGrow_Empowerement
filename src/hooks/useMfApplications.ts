@@ -139,16 +139,6 @@ const APPLICATION_SELECT =
 const ASSESSMENT_SELECT =
   "id,business_id,application_id,assessed_by,assessed_at,visit_date,visit_location,business_verified,monthly_income,monthly_expenses,existing_obligations,collateral_description,character_notes,recommended_amount,recommended_term_installments,recommendation,notes,created_at,updated_at";
 
-function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
-  if (/mf_apps_number_uniq|duplicate key/i.test(msg)) {
-    return "An application with that reference already exists.";
-  }
-  if (/row-level security/i.test(msg)) {
-    return "You do not have permission to change this application.";
-  }
-  return msg || fallback;
-}
 
 /** Applications for the institution, newest first. */
 export function useMfApplications(options?: {
@@ -205,7 +195,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success("Application captured");
     },
-    onError: (e) => toast.error(friendly(e, "Could not create the application")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the application")),
   });
 
   const updateApplication = useMutation({
@@ -223,7 +213,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success("Application updated");
     },
-    onError: (e) => toast.error(friendly(e, "Could not update the application")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the application")),
   });
 
   /**
@@ -253,7 +243,7 @@ export function useMfApplications(options?: {
       invalidate();
       toast.success(`Application moved to ${MF_APPLICATION_STATUS_LABELS[to].toLowerCase()}`);
     },
-    onError: (e) => toast.error(friendly(e, "That transition was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "That transition was refused")),
   });
 
   return {
@@ -307,7 +297,7 @@ export function useMfApplicationAssessments(applicationId?: string) {
       queryClient.invalidateQueries({ queryKey: ["mf-applications"] });
       toast.success("Assessment recorded");
     },
-    onError: (e) => toast.error(friendly(e, "Could not record the assessment")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not record the assessment")),
   });
 
   return {

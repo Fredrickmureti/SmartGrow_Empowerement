@@ -112,14 +112,6 @@ export interface MfLoanEvent {
 const LOAN_SELECT =
   "id,business_id,branch_id,loan_number,application_id,client_id,group_id,product_id,product_version_id,loan_officer_id,currency_code,principal,term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,penalty_rate,penalty_basis,expected_disbursement_date,first_installment_date,status,disbursed_at,closed_at,parent_loan_id,lineage_kind,settled_by_loan_id,created_at,updated_at";
 
-function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
-  if (/already been disbursed|already has a loan/i.test(msg)) return msg;
-  if (/row-level security/i.test(msg)) {
-    return "You do not have permission to perform this action.";
-  }
-  return msg || fallback;
-}
 
 /** Loans for the institution, newest first. */
 export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?: string }) {
@@ -174,7 +166,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       invalidate();
       toast.success("Loan created with its contractual schedule");
     },
-    onError: (e) => toast.error(friendly(e, "Could not create the loan")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the loan")),
   });
 
   /** Guarded, single-shot disbursement event. */
@@ -206,7 +198,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       invalidate();
       toast.success("Loan disbursed");
     },
-    onError: (e) => toast.error(friendly(e, "The disbursement was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The disbursement was refused")),
   });
 
   /**
@@ -238,7 +230,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       invalidate();
       toast.success("Disbursement reversed — the loan is back to pending disbursement");
     },
-    onError: (e) => toast.error(friendly(e, "The reversal was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The reversal was refused")),
   });
 
 
@@ -258,7 +250,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       invalidate();
       toast.success("Loan written off and posted to the ledger");
     },
-    onError: (e) => toast.error(friendly(e, "The write-off was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The write-off was refused")),
   });
 
   /** Lifecycle exception: close a fully repaid loan. */
@@ -276,7 +268,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       invalidate();
       toast.success("Loan closed");
     },
-    onError: (e) => toast.error(friendly(e, "The closure was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The closure was refused")),
   });
 
   /**
@@ -318,7 +310,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
           : "Restructured loan created — disburse it to settle the original",
       );
     },
-    onError: (e) => toast.error(friendly(e, "The reissue was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The reissue was refused")),
   });
 
   return {

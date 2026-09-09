@@ -35,13 +35,6 @@ export interface MfBankableAccount {
   currency: string | null;
 }
 
-function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
-  if (/row-level security/i.test(msg)) {
-    return "You do not have permission to perform this action.";
-  }
-  return msg || fallback;
-}
 
 /** Bank accounts the institution can bank collections into. */
 export function useMfBankAccounts() {
@@ -119,7 +112,7 @@ export function useMfCollectionBankings() {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       toast.success("Collections banked and posted");
     },
-    onError: (e) => toast.error(friendly(e, "The banking was refused")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "The banking was refused")),
   });
 
   return {

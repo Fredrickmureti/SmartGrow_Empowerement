@@ -210,28 +210,6 @@ const PRODUCT_SELECT =
 const VERSION_SELECT =
   "id,business_id,product_id,version_no,currency_code,min_amount,max_amount,min_term_installments,max_term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,fees,penalty_rate,penalty_basis,eligibility,effective_from,is_published,published_at,created_at,updated_at";
 
-function friendly(error: unknown, fallback: string): string {
-  const msg = error instanceof Error ? error.message : String(error ?? "");
-  if (/immutable/i.test(msg)) {
-    return "That version is published and cannot be changed — publish a new version instead.";
-  }
-  if (/cannot be deleted/i.test(msg)) {
-    return "Published versions are part of the loan record and cannot be deleted.";
-  }
-  if (/mf_loan_products_code_uniq|duplicate key/i.test(msg)) {
-    return "A product with that code already exists.";
-  }
-  if (/mf_lpv_amount_chk/i.test(msg)) {
-    return "The maximum amount must be at least the minimum, and both must be above zero.";
-  }
-  if (/mf_lpv_term_chk/i.test(msg)) {
-    return "The maximum term must be at least the minimum, and both must be above zero.";
-  }
-  if (/row-level security/i.test(msg)) {
-    return "You do not have permission to change loan products.";
-  }
-  return msg || fallback;
-}
 
 export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }) {
   const { currentBusiness } = useBusinesses();
@@ -284,7 +262,7 @@ export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }
       invalidate();
       toast.success("Product created");
     },
-    onError: (e) => toast.error(friendly(e, "Could not create the product")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the product")),
   });
 
   const updateProduct = useMutation({
@@ -296,7 +274,7 @@ export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }
       invalidate();
       toast.success("Product updated");
     },
-    onError: (e) => toast.error(friendly(e, "Could not update the product")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the product")),
   });
 
   return {
@@ -407,7 +385,7 @@ export function useMfLoanProductVersions(productId: string | null) {
       invalidate();
       toast.success("Version published");
     },
-    onError: (e) => toast.error(friendly(e, "Could not publish the version")),
+    onError: (e) => toast.error(lendingErrorMessage(e, "Could not publish the version")),
   });
 
   return {
