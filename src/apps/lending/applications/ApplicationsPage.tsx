@@ -334,9 +334,18 @@ export function ApplicationsPage() {
                       )}
                       {canApprove && a.status === "under_review" && (
                         <>
-                          <Button size="sm" onClick={() => openDecision(a, "approve")}>
-                            Approve
-                          </Button>
+                          {/* Visible but refused-with-a-reason: the decision guard
+                              requires an assessment, so say so instead of letting
+                              the operator discover it through a rejection. */}
+                          <span title={decisionBlockedReason(a.status, assessedIds.has(a.id)) ?? ""}>
+                            <Button
+                              size="sm"
+                              disabled={!!decisionBlockedReason(a.status, assessedIds.has(a.id))}
+                              onClick={() => openDecision(a, "approve")}
+                            >
+                              Approve
+                            </Button>
+                          </span>
                           <Button
                             size="sm"
                             variant="destructive"
@@ -346,13 +355,20 @@ export function ApplicationsPage() {
                           </Button>
                         </>
                       )}
-                      {canManage && a.status === "approved" && (
-                        <Button
-                          size="sm"
-                          onClick={() => move(a.id, "ready_for_disbursement")}
-                        >
-                          Mark ready
-                        </Button>
+                      {/* Loan creation is the business event that makes an
+                          application ready for disbursement; there is no operator
+                          status flip for readiness. */}
+                      {canManage &&
+                        (a.status === "approved" || a.status === "ready_for_disbursement") &&
+                        !loanNumberFor(a.id) && (
+                          <Button size="sm" onClick={() => openLoanCreation(a)}>
+                            Create loan
+                          </Button>
+                        )}
+                      {loanNumberFor(a.id) && (
+                        <span className="text-xs text-muted-foreground">
+                          Loan {loanNumberFor(a.id)}
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
