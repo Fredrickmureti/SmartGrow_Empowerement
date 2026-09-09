@@ -288,6 +288,12 @@ export function ClientFormDialog({
         status: form.status,
         notes: orNull(form.notes),
       };
+      // Branch, loan officer and status are controlled changes made one at a
+      // time from the detail sheet — a generic profile edit never sends them.
+      const editPatch: Partial<MfClientInput> = { ...payload };
+      delete (editPatch as Record<string, unknown>).branch_id;
+      delete (editPatch as Record<string, unknown>).loan_officer_id;
+      delete (editPatch as Record<string, unknown>).status;
       // Existing client: upload images first, then one update with everything.
       // New client: insert once (we need the id), then patch image paths. If a
       // photo upload fails we keep the created identity so a retry updates that
