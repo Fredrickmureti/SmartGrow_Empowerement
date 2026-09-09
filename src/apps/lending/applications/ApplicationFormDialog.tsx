@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBranches } from "@/hooks/useBranches";
-import { useOrgMembers } from "@/hooks/useOrgMembers";
+import { useBranchOfficers } from "@/hooks/useBranchOfficers";
 import { useMfClients } from "@/hooks/useMfClients";
-import { useMfGroups } from "@/hooks/useMfGroups";
+import { useMfClientActiveGroup } from "@/hooks/useMfClientActiveGroup";
 import { useMfLoanProducts, useMfLoanProductVersions } from "@/hooks/useMfLoanProducts";
 import {
   type MfLoanApplication,
@@ -53,9 +53,8 @@ export function ApplicationFormDialog({
   onUpdate,
 }: Props) {
   const { branches } = useBranches();
-  const { members } = useOrgMembers();
+  const { officers } = useBranchOfficers();
   const { clients } = useMfClients();
-  const { groups } = useMfGroups();
   const { products } = useMfLoanProducts({ status: "active" });
 
   const [form, setForm] = useState({
@@ -90,7 +89,7 @@ export function ApplicationFormDialog({
     } else {
       setForm({
         application_number: "",
-        branch_id: branches[0]?.id ?? "",
+        branch_id: "",
         client_id: "",
         group_id: NONE,
         product_id: "",
@@ -105,17 +104,47 @@ export function ApplicationFormDialog({
   const set = (key: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  // When a client is chosen, default branch and officer to the client's own —
-  // the portfolio owner is the operational default, not a free choice.
+
+  // The client is the meaningful business entity: the branch it is registered
+  // in, and the group it is a member of, are facts the system already holds.
+  // Neither is a free choice here — the database refuses any other combination.
+  const { group: clientGroup, isLoading: groupLoading } = useMfClientActiveGroup(
+    form.client_id || null,
+  );
+
   const onClientChange = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId);
     setForm((f) => ({
       ...f,
       client_id: clientId,
-      branch_id: client?.branch_id ?? f.branch_id,
-      loan_officer_id: client?.loan_officer_id ?? f.loan_officer_id,
+      branch_id: client?.branch_id ?? "",
+      loan_officer_id: client?.loan_officer_id ?? NONE,
+      group_id: NONE,
     }));
   };
+
+  // The membership arrives a moment after the client is picked.
+  useEffect(() => {
+    if (!form.client_id) return;
+    setForm((f) => {
+      const next = clientGroup?.id ?? NONE;
+      return f.group_id === next ? f : { ...f, group_id: next };
+    });
+  }, [clientGroup, form.client_id]);
+
+  const branchName = useMemo(
+    () => branches.find((b) => b.id === form.branch_id)?.name ?? "",
+    [branches, form.branch_id],
+  );
+
+  /** Only staff actually assigned to the client's branch may own the case. */
+  const branchOfficers = useMemo(
+    () =>
+      form.branch_id
+        ? officers.filter((o) => o.branchIds.includes(form.branch_id))
+        : [],
+    [officers, form.branch_id],
+  );
 
   const bandHint = useMemo(() => {
     if (!currentVersion) return null;
@@ -226,37 +255,54 @@ export function ApplicationFormDialog({
           </div>
           <div className="space-y-1.5">
             <Label>Branch</Label>
-            <Select value={form.branch_id} onValueChange={(v) => set("branch_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={branchName || (form.client_id ? "—" : "")}
+              placeholder="Select a client first"
+              readOnly
+              disabled
+            />
+            <p className="text-xs text-muted-foreground">
+              {form.client_id
+                ? "Taken from the client's branch."
+                : "Select a client first."}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>Loan officer</Label>
             <Select
               value={form.loan_officer_id}
               onValueChange={(v) => set("loan_officer_id", v)}
+              disabled={!form.branch_id}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Unassigned" />
+                <SelectValue
+                  placeholder={form.client_id ? "Unassigned" : "Select a client first"}
+                />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NONE}>Unassigned</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.email || "Unnamed member"}
+                {branchOfficers.map((o) => (
+                  <SelectItem key={o.user_id} value={o.user_id}>
+                    {o.name}
                   </SelectItem>
                 ))}
+                {form.loan_officer_id !== NONE &&
+                !branchOfficers.some((o) => o.user_id === form.loan_officer_id) ? (
+                  <SelectItem value={form.loan_officer_id}>
+                    Currently assigned officer
+                  </SelectItem>
+                ) : null}
               </SelectContent>
             </Select>
+            {form.branch_id && branchOfficers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No staff are assigned to this branch.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Defaults to the client's own officer.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Loan product</Label>
@@ -281,22 +327,29 @@ export function ApplicationFormDialog({
             ) : null}
           </div>
           <div className="space-y-1.5">
-            <Label>Group (optional)</Label>
-            <Select value={form.group_id} onValueChange={(v) => set("group_id", v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Not a group meeting" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>None</SelectItem>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.group_number} — {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Group</Label>
+            <Input
+              value={
+                clientGroup ? `${clientGroup.group_number} — ${clientGroup.name}` : ""
+              }
+              placeholder={
+                !form.client_id
+                  ? "Select a client first"
+                  : groupLoading
+                    ? "Checking membership…"
+                    : "Not in a group"
+              }
+              readOnly
+              disabled
+            />
             <p className="text-xs text-muted-foreground">
-              Membership is context only — liability stays individual.
+              {!form.client_id
+                ? "Select a client first."
+                : groupLoading
+                  ? "Checking this client's membership."
+                  : clientGroup
+                    ? "The client's active group. Membership is context only — liability stays individual."
+                    : "This client is not in a group."}
             </p>
           </div>
           <div className="space-y-1.5">
