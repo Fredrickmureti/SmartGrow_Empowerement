@@ -87,7 +87,7 @@ export function MeetingWorkspaceDialog({
   });
 
   const queryClient = useQueryClient();
-  const { getUserName, members } = useOrgMembers();
+  const { getUserName, members: orgMembers } = useOrgMembers();
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -259,7 +259,7 @@ export function MeetingWorkspaceDialog({
                   <SelectValue placeholder="Who held this meeting" />
                 </SelectTrigger>
                 <SelectContent>
-                  {members.map((m) => (
+                  {orgMembers.map((m) => (
                     <SelectItem key={m.user_id} value={m.user_id}>
                       {m.full_name || m.email}
                     </SelectItem>
