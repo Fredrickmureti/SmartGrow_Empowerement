@@ -73,8 +73,11 @@ export function ClientsPage() {
   const [branchId, setBranchId] = useState<string>("all");
   const [status, setStatus] = useState<MfClientStatus | "all">("all");
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<MfClient | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // Clicking a client opens the read-only detail sheet. Editing is a separate,
+  // deliberate act from inside that sheet — never the first click.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [feeClient, setFeeClient] = useState<MfClient | null>(null);
 
   const { clients, isLoading, error, createClient, updateClient } = useMfClients({
