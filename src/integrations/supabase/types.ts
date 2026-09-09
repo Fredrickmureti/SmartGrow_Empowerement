@@ -26349,6 +26349,48 @@ export type Database = {
         }
         Returns: string
       }
+      mf_register_client: {
+        Args: { p_business_id: string; p_client: Json; p_group_id?: string }
+        Returns: {
+          branch_id: string
+          business_id: string
+          business_location: string | null
+          business_type: string | null
+          client_number: string
+          completed_cycles: number
+          created_at: string
+          created_by: string | null
+          date_of_birth: string | null
+          email: string | null
+          full_name: string
+          gender: string | null
+          id: string
+          id_back_path: string | null
+          id_front_path: string | null
+          joined_on: string
+          kin_id_back_path: string | null
+          kin_id_front_path: string | null
+          loan_officer_id: string | null
+          national_id: string | null
+          next_of_kin_name: string | null
+          next_of_kin_phone: string | null
+          next_of_kin_relationship: string | null
+          notes: string | null
+          occupation: string | null
+          phone: string | null
+          photo_path: string | null
+          photo_url: string | null
+          physical_address: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "mf_clients"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       mf_reissue_loan: {
         Args: {
           p_additional_principal?: number
