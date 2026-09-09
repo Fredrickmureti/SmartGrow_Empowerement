@@ -259,7 +259,7 @@ export function MeetingWorkspaceDialog({
                   <SelectValue placeholder="Who held this meeting" />
                 </SelectTrigger>
                 <SelectContent>
-                  {members.map((m) => (
+                  {orgMembers.map((m) => (
                     <SelectItem key={m.user_id} value={m.user_id}>
                       {m.full_name || m.email}
                     </SelectItem>
