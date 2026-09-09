@@ -252,7 +252,7 @@ export function ApplicationFormDialog({
                 <SelectItem value={NONE}>Unassigned</SelectItem>
                 {members.map((m) => (
                   <SelectItem key={m.user_id} value={m.user_id}>
-                    {m.full_name || m.user_id}
+                    {m.full_name || m.email || "Unnamed member"}
                   </SelectItem>
                 ))}
               </SelectContent>
