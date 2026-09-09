@@ -123,11 +123,18 @@ export function MeetingWorkspaceDialog({
           <span className="text-muted-foreground">
             {presentCount} of {activeMembers.length} member(s) marked present
           </span>
-          {meeting.closed_at && (
+          {meeting.status === "completed" && (
             <span className="text-muted-foreground">
-              Closed at {new Date(meeting.closed_at).toLocaleTimeString()}
+              Ran {hhmm(meeting.started_at_time) || "—"} to{" "}
+              {hhmm(meeting.ended_at_time) || "—"}
             </span>
           )}
+          <span className="text-muted-foreground">
+            Held by {getUserName(meeting.held_by ?? meeting.loan_officer_id ?? "")}
+            {meeting.recorded_by && meeting.recorded_by !== (meeting.held_by ?? meeting.loan_officer_id)
+              ? ` · recorded by ${getUserName(meeting.recorded_by)}`
+              : ""}
+          </span>
           {meeting.next_scheduled_on && (
             <span className="text-muted-foreground">
               Next meeting: {meeting.next_scheduled_on}
@@ -208,8 +215,33 @@ export function MeetingWorkspaceDialog({
           </ul>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="meeting-started">Meeting started at</Label>
+            <Input
+              id="meeting-started"
+              type="time"
+              value={startedAt}
+              onChange={(e) => setStartedAt(e.target.value)}
+              disabled={!canManage || !isOpenForWork}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="meeting-ended">Meeting ended at</Label>
+            <Input
+              id="meeting-ended"
+              type="time"
+              value={endedAt}
+              onChange={(e) => setEndedAt(e.target.value)}
+              disabled={!canManage || !isOpenForWork}
+            />
+            <p className="text-xs text-muted-foreground">
+              Required to complete the meeting. Type the time it actually ended.
+            </p>
+          </div>
+        </div>
 
+        <div className="space-y-1.5">
           <Label>Meeting notes and pending items</Label>
           <Textarea
             value={notes}
