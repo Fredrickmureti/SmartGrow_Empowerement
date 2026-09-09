@@ -285,7 +285,7 @@ export function ClientFormDialog({
       createdRef.current = null;
       onOpenChange(false);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not save the client's photos");
+      toast.error(lendingErrorMessage(e, "Could not save the client's photos"));
     } finally {
       setSaving(false);
     }
