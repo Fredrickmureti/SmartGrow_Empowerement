@@ -252,6 +252,13 @@ export function GroupsPage() {
         onOpenChange={setRollOpen}
         group={rollGroup}
       />
+
+      <GroupFeeCollectionDialog
+        open={feeOpen}
+        onOpenChange={setFeeOpen}
+        group={feeGroup}
+        canCollect={canCollectFees}
+      />
     </>
   );
 }
