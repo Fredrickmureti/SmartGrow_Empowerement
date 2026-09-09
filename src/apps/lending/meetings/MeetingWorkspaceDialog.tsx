@@ -63,8 +63,9 @@ export function MeetingWorkspaceDialog({
   onCollect,
 }: Props) {
   const { members, isLoading } = useMfGroupMembers(open ? meeting.group_id : null);
-  const { clients } = useMfClients();
+  const { clients, createClient, updateClient } = useMfClients();
   const { attendance, setAttendance } = useMfMeetingAttendance(open ? meeting.id : null);
+  const { summary } = useMfMeetingSummary(open ? meeting.id : null);
   const { completeMeeting, postponeMeeting } = useMfGroupMeetings({
     from: meeting.scheduled_on,
     to: meeting.scheduled_on,
@@ -72,6 +73,7 @@ export function MeetingWorkspaceDialog({
 
   const [notes, setNotes] = useState(meeting.notes ?? "");
   const [newDate, setNewDate] = useState("");
+  const [registering, setRegistering] = useState(false);
 
   const clientLabel = useMemo(() => {
     const map = new Map(clients.map((c) => [c.id, `${c.client_number} — ${c.full_name}`]));
