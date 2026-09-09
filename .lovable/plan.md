@@ -143,16 +143,16 @@ deletion of any existing lending data or record.
 
 ===================PROGRESS STATUS============
 
-I picked up exactly where the previous run stopped and finished the officer-facing side.
 
-Verified already in place (checked against your live backend, not just claimed): the meeting record itself, attendance restricted to active members, completion that stores the closing time, who closed it, notes and the next meeting date, postpone/missed, refusal of a second completion, and institution/branch/officer scoping guards.
+I stopped partway through, so here's exactly where things stand.
 
-Done this round:
+Verified as truly working (checked against the live database and code, no production records touched): the meeting record, attendance, opening, completing with closing time and notes, postponing, recording as missed, the next-meeting date, the branch/institution safety rules, and the Meetings page reachable from the Lending menu.
 
-A Meetings page under Lending: every group due on the chosen date (from the group's regular meeting day) plus any meeting already opened, with branch, loan-officer and date filters, status, next-meeting date, and a completed/outstanding count. That same page serves as the supervisor view.
-The menu entry and route, so the meeting workspace is now reachable.
-Money collected at a meeting is now tagged to that meeting, with the group locked and the meeting date pre-filled.
-Nine passing tests for the day-list rules (regular day, off day, inactive group, ad-hoc meeting, officer scoping, ordering, no regular day set).
-Build is clean, types are clean, and no production data was touched.
+One real gap found: a client registered during a meeting was not being linked to that meeting. I fixed the server side — client registration now accepts and records the meeting, and refuses a meeting from another institution, another group, or one already closed.
 
-Still open: recording that a new client was onboarded during a specific meeting — the field and its safeguard exist, but adding a client from inside the meeting screen belongs to the separate client-onboarding track, so I left it alone. And an owner walk-through in the signed-in preview.
+What remains (part-done, needs finishing next session):
+
+The client registration form only just received the meeting option — the rest of the wiring is unfinished, so it does not yet send the meeting when saving.
+The meeting screen still needs the "Register a client at this meeting" button and the short summary of who joined and what was collected.
+A signed-in walkthrough by a real loan officer account is still pending — I cannot sign in to this Supabase project myself.
+Until item 2 is done, officers should keep noting closing time on paper as agreed; the meeting itself can already be opened, attended, and completed in the system.
