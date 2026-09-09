@@ -207,7 +207,7 @@ export function BranchDayPage() {
           {isLoading ? (
             <LoadingState />
           ) : error ? (
-            <ErrorState error={error as Error} />
+            <ErrorState description="We couldn’t load this branch’s days. Try again in a moment." />
           ) : days.length === 0 ? (
             <EmptyState
               icon={CalendarClock}
