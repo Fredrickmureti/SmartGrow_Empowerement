@@ -380,7 +380,7 @@ export function useMfLoanProductVersions(productId: string | null) {
 
   return {
     versions: query.data ?? [],
-    currentVersion: (query.data ?? []).find((v) => v.is_published) ?? null,
+    currentVersion: resolveVersionInForce(query.data ?? []),
     isLoading: query.isLoading,
     error: query.error as Error | null,
     publishVersion,
