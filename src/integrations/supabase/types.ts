@@ -27577,6 +27577,10 @@ export type Database = {
         }
         Returns: Json
       }
+      reopen_branch_day: {
+        Args: { p_day_id: string; p_reason: string }
+        Returns: string
+      }
       reopen_fiscal_period: {
         Args: { _period_id: string }
         Returns: {
