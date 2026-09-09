@@ -37,6 +37,10 @@ import {
 } from "@/components/ui/table";
 import { useMfClients } from "@/hooks/useMfClients";
 import {
+  useMfLoanProducts,
+  useMfProductVersionIndex,
+} from "@/hooks/useMfLoanProducts";
+import {
   MF_APPLICATION_STATUSES,
   MF_APPLICATION_STATUS_LABELS,
   useMfApplications,
