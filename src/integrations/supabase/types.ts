@@ -12121,6 +12121,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "mf_ccp_collection_fk"
+            columns: ["collection_id"]
+            isOneToOne: false
+            referencedRelation: "mf_fee_collections"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mf_client_charge_payments_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
@@ -12753,6 +12760,141 @@ export type Database = {
             columns: ["loan_event_id"]
             isOneToOne: true
             referencedRelation: "mf_loan_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mf_fee_collections: {
+        Row: {
+          branch_id: string
+          business_id: string
+          client_request_id: string | null
+          collected_by: string | null
+          collected_on: string
+          collection_number: string
+          created_at: string
+          created_by: string | null
+          currency_code: string
+          group_id: string
+          id: string
+          journal_entry_id: string | null
+          kind: string
+          method: string
+          notes: string | null
+          reference: string | null
+          reversal_journal_entry_id: string | null
+          reversal_reason: string | null
+          reversed_at: string | null
+          reversed_by: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          business_id: string
+          client_request_id?: string | null
+          collected_by?: string | null
+          collected_on?: string
+          collection_number: string
+          created_at?: string
+          created_by?: string | null
+          currency_code: string
+          group_id: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string
+          notes?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          business_id?: string
+          client_request_id?: string | null
+          collected_by?: string | null
+          collected_on?: string
+          collection_number?: string
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string
+          group_id?: string
+          id?: string
+          journal_entry_id?: string | null
+          kind?: string
+          method?: string
+          notes?: string | null
+          reference?: string | null
+          reversal_journal_entry_id?: string | null
+          reversal_reason?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_fee_collections_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "mf_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "ap_subledger_entries"
+            referencedColumns: ["journal_entry_id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_fee_collections_reversal_journal_entry_id_fkey"
+            columns: ["reversal_journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "v_je_source_consistency"
             referencedColumns: ["id"]
           },
         ]
