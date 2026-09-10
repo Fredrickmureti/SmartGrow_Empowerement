@@ -318,8 +318,8 @@ export function ApplicationsPage() {
                     key={a.id}
                     className="cursor-pointer"
                     onClick={() => {
-                      setEditing(a);
-                      setFormOpen(true);
+                      setViewing(a);
+                      setDetailOpen(true);
                     }}
                   >
                     <TableCell className="font-mono text-xs">
@@ -427,8 +427,8 @@ export function ApplicationsPage() {
                             <DropdownMenuLabel>{a.application_number}</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
-                                setEditing(a);
-                                setFormOpen(true);
+                                setViewing(a);
+                                setDetailOpen(true);
                               }}
                             >
                               Open
