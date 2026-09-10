@@ -399,6 +399,14 @@ export default function ExpensesPage() {
           setVoiding(null);
         }}
       />
+
+      <ExpenseCategoriesDialog
+        open={categoriesOpen}
+        onOpenChange={setCategoriesOpen}
+        categories={categories}
+        onCreate={createCategory}
+        onRetire={deleteCategory}
+      />
     </div>
   );
 }
