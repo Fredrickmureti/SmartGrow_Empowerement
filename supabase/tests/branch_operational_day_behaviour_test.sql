@@ -99,7 +99,7 @@ BEGIN
     SELECT status, expected_cash INTO v_txt, v_num
       FROM public.branch_operational_days WHERE id = b_day;
     IF v_txt = 'closed' AND v_num = 0 THEN
-      r := r || 'PASS zero-activity: branch with no loans/repayments/collections opened and closed cleanly';
+      r := r || 'PASS zero-activity: branch with no loans/repayments/collections opened and closed cleanly'::text;
     ELSE
       r := r || format('FAIL zero-activity: status=%s expected_cash=%s', v_txt, v_num);
     END IF;
@@ -118,21 +118,21 @@ BEGIN
 
   BEGIN
     PERFORM public.open_branch_day(a_branch, CURRENT_DATE - 1, 0, 'zzt second open');
-    r := r || 'FAIL second-open: a second open day was allowed on the same branch';
+    r := r || 'FAIL second-open: a second open day was allowed on the same branch'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS second-open refused: %s', SQLERRM);
   END;
 
   BEGIN
     PERFORM public.open_branch_day(c_branch, CURRENT_DATE + 1, 0, 'zzt future');
-    r := r || 'FAIL future-open: a future day was allowed';
+    r := r || 'FAIL future-open: a future day was allowed'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS future-open refused: %s', SQLERRM);
   END;
 
   BEGIN
     PERFORM public.open_branch_day(c_branch, v_ctrl - 1, 0, 'zzt before control');
-    r := r || 'FAIL pre-control-open: a date before day control started was allowed';
+    r := r || 'FAIL pre-control-open: a date before day control started was allowed'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS pre-control-open refused: %s', SQLERRM);
   END;
@@ -142,7 +142,7 @@ BEGIN
     json_build_object('sub', '00000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
   BEGIN
     PERFORM public.open_branch_day(c_branch, CURRENT_DATE, 0, 'zzt unauthorised');
-    r := r || 'FAIL unauthorised-open: a user without the capability opened a day';
+    r := r || 'FAIL unauthorised-open: a user without the capability opened a day'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS unauthorised-open refused: %s', SQLERRM);
   END;
@@ -152,7 +152,7 @@ BEGIN
   SELECT count(*) INTO v_int FROM public.branch_operational_days
    WHERE branch_id = c_branch;
   IF v_int = 0 THEN
-    r := r || 'PASS isolation-open: opening/refusals on other branches left branch C with no day';
+    r := r || 'PASS isolation-open: opening/refusals on other branches left branch C with no day'::text;
   ELSE
     r := r || format('FAIL isolation-open: branch C unexpectedly has %s day row(s)', v_int);
   END IF;
@@ -177,7 +177,7 @@ BEGIN
     INSERT INTO public.journal_entries (organization_id, business_id, branch_id, entry_number,
       entry_date, status, currency, total_debit, total_credit, description)
     VALUES (v_org, v_biz, a_branch, 'ZZTEST-DAY-NEVER', CURRENT_DATE - 2, 'posted', 'KES', 10, 10, 'zzt never-opened day');
-    r := r || 'FAIL never-opened posting: a posting landed on a day that was never opened';
+    r := r || 'FAIL never-opened posting: a posting landed on a day that was never opened'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS never-opened posting refused: %s', SQLERRM);
   END;
@@ -186,7 +186,7 @@ BEGIN
     INSERT INTO public.journal_entries (organization_id, business_id, branch_id, entry_number,
       entry_date, status, currency, total_debit, total_credit, description)
     VALUES (v_org, v_biz, c_branch, 'ZZTEST-DAY-XBRANCH', CURRENT_DATE, 'posted', 'KES', 10, 10, 'zzt cross-branch');
-    r := r || 'FAIL cross-branch posting: branch C posted while only branch A had an open day';
+    r := r || 'FAIL cross-branch posting: branch C posted while only branch A had an open day'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS cross-branch posting refused: %s', SQLERRM);
   END;
@@ -206,7 +206,7 @@ BEGIN
 
   BEGIN
     PERFORM public.close_branch_day(a_day, v_num - 300, NULL, 'zzt no reason');
-    r := r || 'FAIL variance-reason: a cash difference was accepted without a reason';
+    r := r || 'FAIL variance-reason: a cash difference was accepted without a reason'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS variance-reason enforced: %s', SQLERRM);
   END;
@@ -241,7 +241,7 @@ BEGIN
     INSERT INTO public.journal_entries (organization_id, business_id, branch_id, entry_number,
       entry_date, status, currency, total_debit, total_credit, description)
     VALUES (v_org, v_biz, a_branch, 'ZZTEST-DAY-CLOSED', CURRENT_DATE, 'posted', 'KES', 10, 10, 'zzt closed-day posting');
-    r := r || 'FAIL closed-day posting: a posting landed on a closed day';
+    r := r || 'FAIL closed-day posting: a posting landed on a closed day'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS closed-day posting refused: %s', SQLERRM);
   END;
@@ -249,7 +249,7 @@ BEGIN
   ------------------------------------------------------- 7. REOPENING
   BEGIN
     PERFORM public.reopen_branch_day(a_day, '   ');
-    r := r || 'FAIL reopen-reason: a closed day was reopened without a reason';
+    r := r || 'FAIL reopen-reason: a closed day was reopened without a reason'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS reopen-reason enforced: %s', SQLERRM);
   END;
@@ -258,7 +258,7 @@ BEGIN
     json_build_object('sub', '00000000-0000-4000-8000-000000000001', 'role', 'authenticated')::text, true);
   BEGIN
     PERFORM public.reopen_branch_day(a_day, 'zzt unauthorised reopen');
-    r := r || 'FAIL unauthorised-reopen: a user without the capability reopened a closed day';
+    r := r || 'FAIL unauthorised-reopen: a user without the capability reopened a closed day'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS unauthorised-reopen refused: %s', SQLERRM);
   END;
@@ -279,7 +279,7 @@ BEGIN
     INSERT INTO public.journal_entries (organization_id, business_id, branch_id, entry_number,
       entry_date, status, currency, total_debit, total_credit, description)
     VALUES (v_org, v_biz, a_branch, 'ZZTEST-DAY-REOPENED', CURRENT_DATE, 'posted', 'KES', 10, 10, 'zzt after reopen');
-    r := r || 'PASS post-reopen posting: the workflow works again after an authorised reopen';
+    r := r || 'PASS post-reopen posting: the workflow works again after an authorised reopen'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('FAIL post-reopen posting: %s', SQLERRM);
   END;
@@ -318,7 +318,7 @@ BEGIN
   END LOOP;
 
   IF v_drift = '' THEN
-    r := r || 'PASS integrity: every protected production table digests identically before and after';
+    r := r || 'PASS integrity: every protected production table digests identically before and after'::text;
   ELSE
     r := r || format('FAIL integrity: production rows changed in %s', v_drift);
   END IF;
