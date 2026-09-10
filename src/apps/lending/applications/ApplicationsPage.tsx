@@ -64,6 +64,7 @@ import {
 } from "@/lib/lending/applicationWorkflow";
 import { CreateLoanDialog } from "../loans/CreateLoanDialog";
 import { ApplicationFormDialog } from "./ApplicationFormDialog";
+import { ApplicationDetailSheet } from "./ApplicationDetailSheet";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
 import { WithdrawDialog } from "./WithdrawDialog";
@@ -133,6 +134,9 @@ export function ApplicationsPage() {
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MfLoanApplication | null>(null);
+  // Opening an application is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfLoanApplication | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [assessmentTarget, setAssessmentTarget] = useState<MfLoanApplication | null>(null);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [decisionTarget, setDecisionTarget] = useState<MfLoanApplication | null>(null);
