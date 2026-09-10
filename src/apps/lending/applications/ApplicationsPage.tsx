@@ -144,6 +144,8 @@ export function ApplicationsPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MfLoanApplication | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [declinedTarget, setDeclinedTarget] = useState<MfLoanApplication | null>(null);
+  const [declinedOpen, setDeclinedOpen] = useState(false);
 
   const {
     applications,
