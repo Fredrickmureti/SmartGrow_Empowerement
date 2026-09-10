@@ -44,6 +44,7 @@ import {
   type MfGroupStatus,
 } from "@/hooks/useMfGroups";
 import { GroupFormDialog } from "./GroupFormDialog";
+import { GroupDetailSheet } from "./GroupDetailSheet";
 import { GroupMembersDialog } from "./GroupMembersDialog";
 import { GroupFeeCollectionDialog } from "./GroupFeeCollectionDialog";
 
@@ -64,6 +65,9 @@ export function GroupsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfGroup | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Opening a group is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfGroup | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [rollGroup, setRollGroup] = useState<MfGroup | null>(null);
   const [rollOpen, setRollOpen] = useState(false);
   const [feeGroup, setFeeGroup] = useState<MfGroup | null>(null);
@@ -95,6 +99,11 @@ export function GroupsPage() {
   const openEdit = (group: MfGroup) => {
     setEditing(group);
     setFormOpen(true);
+  };
+
+  const openView = (group: MfGroup) => {
+    setViewing(group);
+    setDetailOpen(true);
   };
 
   const openRoll = (group: MfGroup) => {
@@ -182,8 +191,8 @@ export function GroupsPage() {
                 {filtered.map((g) => (
                   <TableRow
                     key={g.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(g) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => openView(g)}
                   >
                     <TableCell className="font-mono text-xs">{g.group_number}</TableCell>
                     <TableCell className="font-medium">{g.name}</TableCell>
@@ -233,6 +242,28 @@ export function GroupsPage() {
           )}
         </Section>
       </PageBody>
+
+      <GroupDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        group={viewing}
+        canManage={canManage}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) openEdit(viewing);
+        }}
+        onOpenRoll={() => {
+          setDetailOpen(false);
+          if (viewing) openRoll(viewing);
+        }}
+        onOpenFees={() => {
+          setDetailOpen(false);
+          if (viewing) {
+            setFeeGroup(viewing);
+            setFeeOpen(true);
+          }
+        }}
+      />
 
       <GroupFormDialog
         open={formOpen}

@@ -53,6 +53,7 @@ import {
 } from "@/hooks/useMfLoanProducts";
 import { ProductFormDialog } from "./ProductFormDialog";
 import { ProductVersionDialog } from "./ProductVersionDialog";
+import { ProductDetailSheet } from "./ProductDetailSheet";
 
 const STATUS_TONE: Record<MfProductStatus, "neutral" | "success" | "warning" | "danger"> = {
   draft: "warning",
@@ -67,6 +68,9 @@ export function ProductsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfLoanProduct | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Opening a product is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfLoanProduct | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [versionProduct, setVersionProduct] = useState<MfLoanProduct | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MfLoanProduct | null>(null);
@@ -113,6 +117,11 @@ export function ProductsPage() {
   const openEdit = (product: MfLoanProduct) => {
     setEditing(product);
     setFormOpen(true);
+  };
+
+  const openView = (product: MfLoanProduct) => {
+    setViewing(product);
+    setDetailOpen(true);
   };
 
   const openVersions = (product: MfLoanProduct) => {
@@ -186,8 +195,8 @@ export function ProductsPage() {
                 {filtered.map((p) => (
                   <TableRow
                     key={p.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(p) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => openView(p)}
                   >
                     <TableCell className="font-mono text-xs">{p.code}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
@@ -262,6 +271,21 @@ export function ProductsPage() {
           )}
         </Section>
       </PageBody>
+
+      <ProductDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        product={viewing}
+        canManage={canManage}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) openEdit(viewing);
+        }}
+        onOpenVersions={() => {
+          setDetailOpen(false);
+          if (viewing) openVersions(viewing);
+        }}
+      />
 
       <ProductFormDialog
         open={formOpen}

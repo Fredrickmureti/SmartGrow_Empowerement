@@ -115,3 +115,31 @@ export function decisionBlockedReason(
   }
   return null;
 }
+
+/**
+ * Why the requested terms can no longer be edited, or null when they can.
+ *
+ * A presentation mirror of `_mf_application_guard`, which refuses a change to
+ * the amount, term, client or product once the application has been decided,
+ * turned into a loan, disbursed or withdrawn. The database stays the control.
+ */
+export function applicationEditBlockedReason(
+  status: MfApplicationStatus,
+): string | null {
+  switch (status) {
+    case "draft":
+    case "submitted":
+    case "under_review":
+      return null;
+    case "approved":
+      return "Approved — the terms are settled and can no longer be edited.";
+    case "rejected":
+      return "Declined — the application is closed and stays on record as it was.";
+    case "ready_for_disbursement":
+      return "A loan has been created from this application; its terms are frozen.";
+    case "disbursed":
+      return "Disbursed — the loan governs from here.";
+    case "cancelled":
+      return "Withdrawn — the application is closed and stays on record as it was.";
+  }
+}

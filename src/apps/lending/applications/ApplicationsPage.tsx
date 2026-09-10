@@ -64,6 +64,7 @@ import {
 } from "@/lib/lending/applicationWorkflow";
 import { CreateLoanDialog } from "../loans/CreateLoanDialog";
 import { ApplicationFormDialog } from "./ApplicationFormDialog";
+import { ApplicationDetailSheet } from "./ApplicationDetailSheet";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
 import { WithdrawDialog } from "./WithdrawDialog";
@@ -133,6 +134,9 @@ export function ApplicationsPage() {
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MfLoanApplication | null>(null);
+  // Opening an application is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfLoanApplication | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [assessmentTarget, setAssessmentTarget] = useState<MfLoanApplication | null>(null);
   const [assessmentOpen, setAssessmentOpen] = useState(false);
   const [decisionTarget, setDecisionTarget] = useState<MfLoanApplication | null>(null);
@@ -314,8 +318,8 @@ export function ApplicationsPage() {
                     key={a.id}
                     className="cursor-pointer"
                     onClick={() => {
-                      setEditing(a);
-                      setFormOpen(true);
+                      setViewing(a);
+                      setDetailOpen(true);
                     }}
                   >
                     <TableCell className="font-mono text-xs">
@@ -423,8 +427,8 @@ export function ApplicationsPage() {
                             <DropdownMenuLabel>{a.application_number}</DropdownMenuLabel>
                             <DropdownMenuItem
                               onClick={() => {
-                                setEditing(a);
-                                setFormOpen(true);
+                                setViewing(a);
+                                setDetailOpen(true);
                               }}
                             >
                               Open
@@ -481,6 +485,24 @@ export function ApplicationsPage() {
           )}
         </Section>
       </PageBody>
+
+      <ApplicationDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        application={viewing}
+        canManage={canManage}
+        hasAssessment={viewing ? assessedIds.has(viewing.id) : false}
+        loanNumber={viewing ? loanNumberFor(viewing.id) : null}
+        clientLabel={viewing ? clientName(viewing.client_id) : ""}
+        productLabel={viewing ? pricedOn(viewing) : ""}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) {
+            setEditing(viewing);
+            setFormOpen(true);
+          }
+        }}
+      />
 
       <ApplicationFormDialog
         open={formOpen}
