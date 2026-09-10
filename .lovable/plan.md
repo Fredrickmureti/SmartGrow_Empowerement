@@ -54,6 +54,13 @@ Here's where things stand on the expense rehearsal.
 
 Confirmed working this session: recording an expense as a normal signed-in user is permitted (the column-level permissions are correctly in place), the expense number is generated automatically, submitting it routes through approval and lands it as approved, and the duplicate/ambiguous cancellation command was removed so only the correct one remains.
 
-Still unconfirmed: the last rehearsal run failed only on my own check query — I used wrong column names when totalling the ledger entry — so the approve → ledger entry figures and the cancel → reversal step were not printed before the rehearsal was rolled back. No production data was created or changed; every run was inside a transaction that was deliberately undone.
+Closed out this session (verified against the live system, read-only):
 
-Credits ran out mid-run, so finishing that final confirmation (correct ledger column names, then one clean rehearsal through record → approve → ledger → cancel → reversal) needs available credits.
+- Cash & bank accounts: no code anywhere still asks for the removed bank-provider catalogue; the screens compile and build cleanly.
+- Expense screens (list, record, detail, void) and the Finance menu entry are all present.
+- Accounting path confirmed authoritative: approval posts only through `post_expense_gl` → `post_journal_entry_atomic`; voiding posts the contra entry only through `void_journal_entry_atomic`, never deleting anything, and refuses closed periods, reimbursed expenses and expenses already turned into a supplier bill. The ledger figures come from `journal_entry_lines.debit/credit` (earlier check query used wrong column names — that was the only failure).
+- Gap found and fixed: voided expenses were not listed in the reversal register (its view only covered loan disbursements and repayments). Expenses are now registered as their own module, so every void is visible there with number, date, amount, reason and who voided it.
+
+No production data was created, changed or reversed at any point.
+
+Remaining: a signed-in click-through in the preview (record → submit → approve → confirm ledger entry → void → confirm register entry).
