@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Check, ChevronRight, ClipboardCheck, Plus } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, MoreHorizontal, Plus } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -27,6 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
 import {
   Table,
   TableBody,
@@ -57,6 +66,7 @@ import { CreateLoanDialog } from "../loans/CreateLoanDialog";
 import { ApplicationFormDialog } from "./ApplicationFormDialog";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
+import { WithdrawDialog } from "./WithdrawDialog";
 
 const STATUS_TONE: Record<
   MfApplicationStatus,
@@ -125,6 +135,10 @@ export function ApplicationsPage() {
   const [decisionOpen, setDecisionOpen] = useState(false);
   const [loanApplicationId, setLoanApplicationId] = useState<string | null>(null);
   const [loanOpen, setLoanOpen] = useState(false);
+  const [withdrawTarget, setWithdrawTarget] = useState<MfLoanApplication | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MfLoanApplication | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const {
     applications,
@@ -133,6 +147,8 @@ export function ApplicationsPage() {
     createApplication,
     updateApplication,
     transition,
+    withdrawApplication,
+    deleteApplication,
   } = useMfApplications({ status });
   const { clients } = useMfClients();
   const { products } = useMfLoanProducts({ status: "all" });
@@ -195,6 +211,25 @@ export function ApplicationsPage() {
 
   const move = (id: string, to: MfApplicationStatus) => {
     transition.mutate({ id, to });
+  };
+
+  /**
+   * What the menu may offer. These mirror the database rules so the operator is
+   * not sent into a refusal — enforcement itself lives in
+   * `mf_withdraw_loan_application` and `mf_delete_loan_application`.
+   */
+  const withdrawable = (a: MfLoanApplication) =>
+    !loanNumberFor(a.id) &&
+    !["cancelled", "rejected", "disbursed"].includes(a.status);
+
+  const deletable = (a: MfLoanApplication) =>
+    !loanNumberFor(a.id) && (a.status === "draft" || a.status === "cancelled");
+
+  const deletionBlockedReason = (a: MfLoanApplication) => {
+    if (loanNumberFor(a.id)) return `Part of loan ${loanNumberFor(a.id)} — cannot be deleted`;
+    if (a.status === "rejected") return "Declined applications stay on record";
+    if (a.status === "disbursed") return "Disbursed — cannot be deleted";
+    return "Withdraw it first, then it can be deleted";
   };
 
   const openLoanCreation = (application: MfLoanApplication) => {
@@ -370,6 +405,57 @@ export function ApplicationsPage() {
                           Loan {loanNumberFor(a.id)}
                         </span>
                       )}
+                      {canManage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" aria-label="More actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-64">
+                            <DropdownMenuLabel>{a.application_number}</DropdownMenuLabel>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditing(a);
+                                setFormOpen(true);
+                              }}
+                            >
+                              Open
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {/* Lifecycle, not removal: a submitted application that
+                                stops proceeding is withdrawn and stays on record. */}
+                            {withdrawable(a) ? (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setWithdrawTarget(a);
+                                  setWithdrawOpen(true);
+                                }}
+                              >
+                                Withdraw…
+                              </DropdownMenuItem>
+                            ) : null}
+                            {/* Removal is only for a record that never became
+                                lending history. The database decides; this is a
+                                hint, not the control. */}
+                            {deletable(a) ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setDeleteTarget(a);
+                                  setDeleteOpen(true);
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                {deletionBlockedReason(a)}
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -408,6 +494,30 @@ export function ApplicationsPage() {
         open={assessmentOpen}
         onOpenChange={setAssessmentOpen}
         application={assessmentTarget}
+      />
+
+      <WithdrawDialog
+        open={withdrawOpen}
+        onOpenChange={setWithdrawOpen}
+        application={withdrawTarget}
+        onWithdraw={async (input) => {
+          await withdrawApplication.mutateAsync(input);
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete application"
+        description={
+          deleteTarget
+            ? `Delete ${deleteTarget.application_number} for ${clientName(deleteTarget.client_id)}? It has produced no loan and no financial record, so nothing is lost from the ledger. This cannot be undone.`
+            : undefined
+        }
+        isLoading={deleteApplication.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteApplication.mutate(deleteTarget.id);
+        }}
       />
 
       <DecisionDialog
