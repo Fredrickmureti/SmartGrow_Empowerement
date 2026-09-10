@@ -177,6 +177,18 @@ export function FinanceApp() {
           }
         />
 
+        {/* Expenses — capture, approve and void; posting stays server-owned. */}
+        <Route
+          path="expenses"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <LazyRoute module="Expenses">
+                <ExpensesPage />
+              </LazyRoute>
+            </InstitutionRoute>
+          }
+        />
+
         {/* Journal Entry — routed create/edit on RecordFormShell.
             MUST come BEFORE `journal-entries/:id` to avoid shadowing. */}
         <Route
