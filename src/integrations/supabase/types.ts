@@ -27620,6 +27620,43 @@ export type Database = {
         Args: { _org_id: string }
         Returns: undefined
       }
+      set_branch_day_control: {
+        Args: {
+          p_branch_id: string
+          p_day_control_from?: string
+          p_reason?: string
+          p_variance_tolerance?: number
+        }
+        Returns: {
+          address: string | null
+          business_id: string
+          city: string | null
+          code: string | null
+          country: string | null
+          created_at: string
+          day_control_from: string | null
+          day_variance_tolerance: number
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_headquarters: boolean | null
+          logo_url: string | null
+          name: string
+          organization_id: string
+          phone: string | null
+          postal_code: string | null
+          receipt_footer: string | null
+          receipt_header: string | null
+          state: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "branches"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_branch_setting: {
         Args: {
           p_branch_id: string

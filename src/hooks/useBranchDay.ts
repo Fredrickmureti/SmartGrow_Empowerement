@@ -235,3 +235,68 @@ export function useBranchDayEvents(dayId: string | null | undefined) {
     enabled: !!dayId,
   });
 }
+
+/**
+ * Day control configuration for a branch: the go-live date (null = the branch
+ * is not under day control) and the cash difference the close is allowed to
+ * absorb. Written only through `set_branch_day_control`, which is where the
+ * rules live.
+ */
+export interface BranchDayControl {
+  day_control_from: string | null;
+  day_variance_tolerance: number;
+  name: string;
+}
+
+export function useBranchDayControl(branchId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["branch-day-control", branchId ?? null],
+    queryFn: async () => {
+      if (!branchId) return null;
+      const { data, error } = await supabase
+        .from("branches")
+        .select("name,day_control_from,day_variance_tolerance")
+        .eq("id", branchId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return {
+        name: data.name as string,
+        day_control_from: (data.day_control_from as string | null) ?? null,
+        day_variance_tolerance: Number(data.day_variance_tolerance ?? 0),
+      } satisfies BranchDayControl;
+    },
+    enabled: !!branchId,
+    staleTime: 30_000,
+  });
+}
+
+/** Switches day control on or off for a branch, or changes its tolerance. */
+export function useSetBranchDayControl() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: {
+      branchId: string;
+      dayControlFrom: string | null;
+      varianceTolerance?: number | null;
+      reason?: string | null;
+    }) => {
+      const { data, error } = await supabase.rpc("set_branch_day_control", {
+        p_branch_id: input.branchId,
+        p_day_control_from: input.dayControlFrom,
+        p_variance_tolerance: input.varianceTolerance ?? null,
+        p_reason: input.reason?.trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["branch-day-control"] });
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      toast.success("Day control settings saved");
+    },
+    onError: (e) =>
+      toast.error(lendingErrorMessage(e, "Could not save the day control settings")),
+  });
+}
