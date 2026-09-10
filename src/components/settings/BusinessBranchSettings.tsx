@@ -58,6 +58,7 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { BusinessLogoUpload } from "@/components/settings/BusinessLogoUpload";
 import { BranchOperations } from "@/components/settings/BranchOperations";
 import { BranchConfiguration } from "@/components/settings/BranchConfiguration";
+import { BranchDayControl } from "@/components/settings/BranchDayControl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function BusinessBranchSettings() {
@@ -412,10 +413,14 @@ function BusinessCard({
             <Tabs defaultValue="configuration" className="space-y-4">
               <TabsList>
                 <TabsTrigger value="configuration">Configuration</TabsTrigger>
+                <TabsTrigger value="day-control">Day control</TabsTrigger>
                 <TabsTrigger value="operations">Operational scoping</TabsTrigger>
               </TabsList>
               <TabsContent value="configuration">
                 <BranchConfiguration branchId={settingsBranch.id} branchName={settingsBranch.name} business={business} />
+              </TabsContent>
+              <TabsContent value="day-control">
+                <BranchDayControl branchId={settingsBranch.id} branchName={settingsBranch.name} />
               </TabsContent>
               <TabsContent value="operations">
                 <BranchOperations branchId={settingsBranch.id} branchName={settingsBranch.name} businessId={business.id} />
