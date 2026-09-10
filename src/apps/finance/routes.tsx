@@ -28,6 +28,7 @@ const JournalEntryDetailPage = lazy(() => import("@/features/finance/journal-ent
 const JournalEntryCreatePage = lazy(() => import("@/features/finance/journal-entries/JournalEntryCreatePage"));
 const JournalEntryEditPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryEditPage"));
 const ExpensesPage = lazy(() => import("@/features/finance/expenses/ExpensesPage"));
+const ExpenseDetailPage = lazy(() => import("@/features/finance/expenses/ExpenseDetailPage"));
 const BusinessTransactionCreatePage = lazy(() => import("@/features/finance/business-transactions/BusinessTransactionCreatePage"));
 const RecurringJournalCreatePage = lazy(() => import("@/features/finance/recurring-journals/RecurringJournalCreatePage"));
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
@@ -184,6 +185,16 @@ export function FinanceApp() {
             <InstitutionRoute allowReadOnly>
               <LazyRoute module="Expenses">
                 <ExpensesPage />
+              </LazyRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="expenses/:id"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <LazyRoute module="Expense">
+                <ExpenseDetailPage />
               </LazyRoute>
             </InstitutionRoute>
           }

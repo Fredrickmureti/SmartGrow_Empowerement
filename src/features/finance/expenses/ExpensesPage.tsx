@@ -66,6 +66,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { ExpenseFormDialog, type ExpenseFormValues } from "./ExpenseFormDialog";
 import { VoidExpenseDialog } from "./VoidExpenseDialog";
+import { ExpenseCategoriesDialog } from "./ExpenseCategoriesDialog";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   draft: "outline",
@@ -106,11 +107,14 @@ export default function ExpensesPage() {
     deleteExpense,
     voidExpense,
     refreshExpenses,
+    createCategory,
+    deleteCategory,
   } = useExpenses();
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [voiding, setVoiding] = useState<Expense | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -184,15 +188,20 @@ export default function ExpensesPage() {
             are handled by the system.
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          New expense
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setCategoriesOpen(true)}>
+            Categories
+          </Button>
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New expense
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -286,6 +295,12 @@ export default function ExpensesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => navigate(`/finance/expenses/${e.id}`)}
+                          >
+                            <Receipt className="mr-2 h-4 w-4" />
+                            View details
+                          </DropdownMenuItem>
                           {isExpenseEditable(e.status) && (
                             <DropdownMenuItem
                               onClick={() => {
@@ -383,6 +398,14 @@ export default function ExpensesPage() {
           );
           setVoiding(null);
         }}
+      />
+
+      <ExpenseCategoriesDialog
+        open={categoriesOpen}
+        onOpenChange={setCategoriesOpen}
+        categories={categories}
+        onCreate={createCategory}
+        onRetire={deleteCategory}
       />
     </div>
   );
