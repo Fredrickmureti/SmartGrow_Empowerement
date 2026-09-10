@@ -107,7 +107,7 @@ export function DepreciationRunSheet({ open, onOpenChange }: Props) {
               </Button>
               <Button
                 onClick={handleRun}
-                disabled={isRunning || preview.length === 0}
+                disabled={isRunning || postable.length === 0}
               >
                 {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Post depreciation
