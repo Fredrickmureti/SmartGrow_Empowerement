@@ -91,6 +91,15 @@ export function BranchDayPage() {
   const dayControlFrom = (branch as { day_control_from?: string | null } | null)
     ?.day_control_from ?? null;
 
+  /** Whole days between the open day's date and today; 0 when it is today. */
+  const staleDays = useMemo(() => {
+    if (!openDayRow?.business_date) return 0;
+    const opened = Date.parse(`${openDayRow.business_date}T00:00:00`);
+    const today = Date.parse(`${todayIso()}T00:00:00`);
+    if (Number.isNaN(opened) || Number.isNaN(today)) return 0;
+    return Math.max(0, Math.round((today - opened) / 86_400_000));
+  }, [openDayRow?.business_date]);
+
   const counted = Number(countedCash === "" ? NaN : countedCash);
   const liveVariance = useMemo(() => {
     if (Number.isNaN(counted) || expectedCash == null) return null;

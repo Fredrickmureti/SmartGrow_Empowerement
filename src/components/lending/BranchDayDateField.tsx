@@ -126,6 +126,13 @@ export function BranchDayDateField({
           {gate.branchName ?? "this branch"}.
         </p>
       )}
+      {gate.controlActive && gate.lockedDate && gate.lockedDate < todayIso() && (
+        <p className="text-xs text-destructive">
+          That day is still open from an earlier date, so this money will land in{" "}
+          {longDate(gate.lockedDate)}, not today. Close it in Lending → Branch day
+          first if that is not what you want.
+        </p>
+      )}
       {gate.blocked && (
         <p className="text-xs text-destructive">
           No day is open at {gate.branchName ?? "this branch"}. Open the day in

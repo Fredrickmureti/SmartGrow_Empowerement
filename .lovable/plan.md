@@ -135,7 +135,7 @@ I got most of the remaining work in before stopping.
 
 Verified as genuinely done: the branch day records, day history log, open/close/reopen controls, the ledger and collection-round day locks, and the day screen all exist in both the database and the app. Newly added this session: a Daily branch cash report (opening cash, cash in, cash out, what the books expect, cash counted, over/short per day, all read from the ledger), wired into Lending → Insights, plus a warning banner on the Branch day screen when a day is left open past today.
 
-Two small pieces remain unfinished: the staleDays value the new banner uses still needs to be computed on the Branch day screen (one line: days between the open day's date and today), and the same "day left open" note on the money-entry date field. Until that first line is added the Branch day screen will not build, so it should be the next thing done.
+Both remaining pieces are now done: the Branch day screen computes how many days behind today the open day is and shows the warning banner, and the money-entry date field warns when the open day it will post into is an earlier date. Typecheck passes. Only the signed-in walkthrough remains, which needs a preview sign-in on the owner's Supabase.
 
 
 KINDLY NOTE AND NOTE  CAREFULLY
