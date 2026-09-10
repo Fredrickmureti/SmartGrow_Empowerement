@@ -24475,6 +24475,17 @@ export type Database = {
           useful_life_years: number
         }[]
       }
+      fa_dispose_asset: {
+        Args: {
+          _asset_id: string
+          _business_id: string
+          _disposal_date: string
+          _disposal_price?: number
+          _payment_method?: string
+          _reason?: string
+        }
+        Returns: Json
+      }
       fa_post_depreciation: {
         Args: {
           _branch_id?: string
