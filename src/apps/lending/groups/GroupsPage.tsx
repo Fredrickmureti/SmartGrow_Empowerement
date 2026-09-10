@@ -191,8 +191,8 @@ export function GroupsPage() {
                 {filtered.map((g) => (
                   <TableRow
                     key={g.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(g) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => openView(g)}
                   >
                     <TableCell className="font-mono text-xs">{g.group_number}</TableCell>
                     <TableCell className="font-medium">{g.name}</TableCell>
