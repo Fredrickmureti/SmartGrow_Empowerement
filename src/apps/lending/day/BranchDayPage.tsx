@@ -53,9 +53,11 @@ import {
   useBranchDays,
   useOpenBranchDay,
   useExpectedCash,
+  useBranchDayControl,
   todayIso,
   type BranchOperationalDay,
 } from "@/hooks/useBranchDay";
+import { Link } from "@tanstack/react-router";
 
 export function BranchDayPage() {
   const { can } = usePermissions();
@@ -88,8 +90,9 @@ export function BranchDayPage() {
   const [reopenReason, setReopenReason] = useState("");
 
   const branch = branches.find((b) => b.id === branchId) ?? null;
-  const dayControlFrom = (branch as { day_control_from?: string | null } | null)
-    ?.day_control_from ?? null;
+  const { data: dayControl } = useBranchDayControl(branchId || null);
+  const dayControlFrom = dayControl?.day_control_from ?? null;
+  const dayControlOff = !!branchId && !!dayControl && !dayControlFrom;
 
   /** Whole days between the open day's date and today; 0 when it is today. */
   const staleDays = useMemo(() => {
