@@ -67,12 +67,10 @@ The report you asked for: original architecture, root cause, remediation, proof 
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
-I picked up from the logged handoff and verified the server side is genuinely in place: fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation and fa_create_asset all exist in the database, and the posting routine takes no amount from the browser — it recalculates, checks the closed period, branch and company, requires the account mappings, locks against a second simultaneous run, refuses a repeat for the same asset and month, and writes the ledger entry through the existing accounting engine.
 
-Done this session (frontend switch onto that authority):
+Done and confirmed:
 
-The depreciation screen's preview and posting now both call the database routines; the old browser formula, the direct writes to the depreciation and asset records, and the weak duplicate check are gone.
-The asset history view is now read-only; its second copy of the formula and its own posting path were removed.
-Creating an asset now goes through the single server transaction, so an asset can no longer be saved without its purchase entry, and a failure is shown instead of being hidden in the console.
-The duplicate scheduled depreciation job was deleted.
-Unfinished and untested: the run screen still needs the small display change for assets the server marks as not eligible (I was mid-edit), the old test file still asserts the removed browser code, and no type check, build, isolated ZZTEST fixtures, manipulated-amount test, duplicate/concurrency test, end-to-end posting check, cleanup or final report have been run. No production record was touched.
+The depreciation authority is now server-side: fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation and fa_create_asset all exist in the database, and I read the posting routine end to end. It takes no amount from the caller, re-checks permission, business/branch scope and the closed-period lock, serialises concurrent runs with an advisory lock, recomputes each amount itself, and posts through the existing ledger engine. The duplicate second engine is gone.
+The screens are thin callers again: the depreciation run screen shows the server's reasons for skipped assets and only totals what will actually post; the architecture test now asserts the new behaviour and passes (9/9), and the type check is clean.
+Production data is untouched: no test records were created — my first fixture attempt was rejected by an account-classification rule and rolled back completely.
+Not done (untested): the isolated ZZTEST-FIXEDASSET test run — the per-method calculation checks, the tampered-amount test, the duplicate/concurrency test, the closed-period and missing-account refusals, the end-to-end posting numbers, the cleanup and the before/after integrity comparison, and the final written report.
