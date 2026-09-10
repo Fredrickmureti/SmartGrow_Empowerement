@@ -50,12 +50,10 @@ into a supplier bill — both engine paths stay unused.
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND================
 
-Here's where things stand.
+Here's where things stand on the expense rehearsal.
 
-Verified as genuinely done: the Cash & Bank Accounts screen no longer requests the retired provider link, and the Expenses screens (list, record/edit, categories, detail with history, void with reason) plus the Finance menu entry and routes are all in place, with every status change going through the existing server-side accounting commands.
+Confirmed working this session: recording an expense as a normal signed-in user is permitted (the column-level permissions are correctly in place), the expense number is generated automatically, submitting it routes through approval and lands it as approved, and the duplicate/ambiguous cancellation command was removed so only the correct one remains.
 
-Fixed this session — two real blockers that made expense posting impossible in production:
+Still unconfirmed: the last rehearsal run failed only on my own check query — I used wrong column names when totalling the ledger entry — so the approve → ledger entry figures and the cancel → reversal step were not printed before the rehearsal was rolled back. No production data was created or changed; every run was inside a transaction that was deliberately undone.
 
-The posting routine called an account-validity check in a form that did not exist, so approving an expense failed outright.
-It also called the central ledger-posting routine with the wrong set of arguments. I rewrote it to pass date, reference, description, currency, rate and branch correctly, still posting through the one shared ledger routine, and it now also validates the paying cash/bank account.
-Still untested: the rehearsal reached the void step and stopped there because two versions of the void command exist, so the call was ambiguous — my test script needs the version stated explicitly. That means record → submit → approve → ledger entry is now unblocked but not yet confirmed end to end, and void/reversal remains unverified. Credits ran out, so finishing that rehearsal needs available credits.
+Credits ran out mid-run, so finishing that final confirmation (correct ledger column names, then one clean rehearsal through record → approve → ledger → cancel → reversal) needs available credits.
