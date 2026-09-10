@@ -54,14 +54,11 @@ Draft and withdrawn applications keep today's single-step behaviour.
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
-Here's where things stand.
+Complete.
 
-Done and live:
+- Database: a retired product with no application and no loan can be deleted even if it was once published; an active published product is refused with "retire it first". A declined application can be deleted only by an organisation administrator, only with a written reason, and only if it never became a loan. Both write an audit entry.
+- Applications list: declined rows now show "Delete (administrator)…" for owners/admins, opening the two-step dialog (reason + typing the application number). Everyone else still sees "Declined applications stay on record".
+- Products list: the delete confirmation now reads "No application and no loan uses it", replacing the inaccurate "never been priced" wording.
+- Typecheck passes.
 
-A retired loan product that no application or loan uses can now be deleted, even if it was once published. If it's still being offered, the menu tells you to retire it first — that's the deliberate two-step.
-A declined application can now be deleted, but only by an administrator, only with a written reason, and only if it never became a loan. The reason is recorded in the audit trail.
-The screens were updated to match: the products menu now says "Retire it first, then it can be deleted", and there's a new two-step confirmation for declined applications (reason plus typing the application number).
-Unfinished:
-
-The declined-delete dialog isn't wired into the Applications list yet (the menu item, the administrator check and the dialog hookup), and the product delete confirmation still says "never been priced", which is now inaccurate wording.
-Nothing was verified by running it, and V1PROD has not been deleted yet.
+Checked live: V1PROD (retired, 1 published version, 0 applications, 0 loans) now qualifies for deletion; LP-0001 (1 application) and LP-0002 (active, published) remain protected. V1PROD was left in place to be removed through the screen as the signed-in owner, which also proves the path end to end.
