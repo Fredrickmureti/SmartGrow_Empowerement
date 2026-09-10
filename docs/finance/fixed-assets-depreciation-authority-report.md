@@ -115,3 +115,41 @@ month end.**
 3. Depreciation reversal / unpost path.
 4. Asset transfer and a real retirement path.
 5. Guard or soft-delete on `deleteAsset`.
+
+## 7. Follow-up wave — disposal authority and delete guard (same day)
+
+Gap 1 and gap 5 from section 6 are now closed.
+
+**Disposal** — new `fa_dispose_asset(business, asset, date, proceeds, reason,
+payment_method)`, built on the same pattern as `fa_post_depreciation`:
+
+- `assert_can_manage_assets` + authenticated actor,
+- `pg_advisory_xact_lock` on the asset and `SELECT … FOR UPDATE`,
+- asset must belong to the caller's company; disposal date cannot precede
+  purchase; `is_period_locked` refuses a closed period,
+- refuses a second disposal (`FA_ALREADY_DISPOSED`) when the asset is already
+  disposed or a non-voided `asset_disposal` entry exists for it,
+- required GL mappings resolved server-side (category first, then default
+  account settings); missing mapping raises `FA_MISSING_GL_MAPPING` **before**
+  anything is posted,
+- **cost, accumulated depreciation, book value and gain/loss are computed by
+  the routine**; the caller supplies only the disposal date, the actual
+  proceeds and the reason — no accounting amount,
+- posts through `post_journal_entry_atomic` (Dr settlement, Dr accumulated
+  depreciation, Cr asset at cost, Dr/Cr gain or loss), branch-stamped from the
+  asset, and raises if the ledger refuses — the asset can no longer end up
+  disposed without its entry.
+
+`useFixedAssets.disposeAsset` is now a thin caller of that routine; the
+browser-side entry construction, the `postToGL` call, the swallowed GL error
+and the silent "missing mappings" skip are removed.
+
+**Delete guard** — `BEFORE DELETE` trigger `fa_guard_asset_delete` on
+`fixed_assets` refuses deletion when the asset has accumulated depreciation,
+any depreciation schedule/entry, or a non-voided acquisition, depreciation or
+disposal journal entry (`FA_ASSET_HAS_ACCOUNTING`). Assets with history must be
+disposed, not deleted.
+
+Remaining gaps after this wave: live concurrent-run test in the e2e harness,
+depreciation reversal/unpost path, asset transfer and a distinct retirement
+path.

@@ -5,8 +5,6 @@ import { useBusinesses } from "./useBusinesses";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { usePermissions } from "./usePermissions";
-import { useGLPosting } from "./useGLPosting";
-import { useDefaultAccounts } from "./useDefaultAccounts";
 import { useAuditLog } from "./useAuditLog";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { financeKey } from "@/lib/finance/financeKey";
@@ -97,8 +95,6 @@ export function useFixedAssets() {
   const scope = useFinanceScope();
   const { user } = useAuth();
   const { can } = usePermissions();
-  const { postToGL } = useGLPosting();
-  const { getFixedAssetAccountMappings } = useDefaultAccounts();
   const { logAction } = useAuditLog();
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [categories, setCategories] = useState<AssetCategory[]>([]);
@@ -284,127 +280,48 @@ export function useFixedAssets() {
 
   const disposeAsset = async (id: string, disposalDate: string, disposalPrice: number, reason: string) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to dispose assets"); throw new Error("Permission denied"); }
+    if (!currentBusiness?.id) throw new Error("No company selected");
 
     const asset = assets.find((a) => a.id === id);
-    if (!asset) throw new Error("Asset not found");
 
-    // The server stamps disposal_exchange_rate on the disposal date and derives
-    // base_disposal_price; proceeds are monetary, so they do NOT use the
-    // acquisition rate.
-    const { data: disposed, error } = await supabase
-      .from("fixed_assets")
-      .update({
-        status: "disposed",
-        disposal_date: disposalDate,
-        disposal_price: disposalPrice,
-        disposal_reason: reason,
-      })
-      .eq("id", id)
-      .select("disposal_exchange_rate, base_disposal_price, base_purchase_price")
-      .single();
+    // One server transaction: scope, open period and GL mappings are checked,
+    // the gain/loss is computed from the stored cost and accumulated
+    // depreciation, and the disposal entry is posted through
+    // post_journal_entry_atomic. The browser supplies no accounting amount and
+    // the asset is never left disposed without its entry.
+    const { data, error } = await supabase.rpc("fa_dispose_asset", {
+      _business_id: currentBusiness.id,
+      _asset_id: id,
+      _disposal_date: disposalDate,
+      _disposal_price: disposalPrice,
+      _reason: reason,
+      _payment_method: "bank",
+    } as any);
 
-    if (error) throw error;
+    if (error) throw new Error(normalizeError(error).message);
 
-    const baseProceeds = Number((disposed as any)?.base_disposal_price ?? disposalPrice);
-    const baseCost = Number((disposed as any)?.base_purchase_price ?? asset.purchase_price);
-
-    // Post disposal journal entry
-    // Dr Cash/Bank (disposal price)
-    // Dr Accumulated Depreciation (accumulated_depreciation)
-    // Cr Fixed Asset Account (purchase_price)
-    // Dr/Cr Gain/Loss on Disposal (difference)
-    const mappings = getFixedAssetAccountMappings();
-    const category = categories.find((c) => c.id === asset.category_id);
-    const gainLossAccountId = category?.gain_loss_account_id;
-    const assetAccountId = category?.asset_account_id || mappings.fixed_asset_account_id;
-    const accumDepAccountId = category?.accumulated_depreciation_account_id || mappings.accumulated_depreciation_account_id;
-    const cashAccountId = mappings.payment_account_id;
-
-    if (assetAccountId && accumDepAccountId && cashAccountId) {
-      const bookValue = baseCost - asset.accumulated_depreciation;
-      const gainLoss = baseProceeds - bookValue;
-
-      try {
-        const entries = [
-          // Dr Cash/Bank for disposal proceeds
-          ...(baseProceeds > 0 ? [{
-            account_id: cashAccountId,
-            debit_amount: baseProceeds,
-            credit_amount: 0,
-            description: `Disposal proceeds - ${asset.name}`,
-          }] : []),
-          // Dr Accumulated Depreciation (remove contra-asset)
-          ...(asset.accumulated_depreciation > 0 ? [{
-            account_id: accumDepAccountId,
-            debit_amount: asset.accumulated_depreciation,
-            credit_amount: 0,
-            description: `Remove accumulated depreciation - ${asset.name}`,
-          }] : []),
-          // Cr Fixed Asset (remove asset at cost)
-          {
-            account_id: assetAccountId,
-            debit_amount: 0,
-            credit_amount: baseCost,
-            description: `Asset disposal - ${asset.name}`,
-          },
-        ];
-
-        // Gain/Loss on disposal
-        if (gainLossAccountId && Math.abs(gainLoss) > 0.01) {
-          if (gainLoss > 0) {
-            // Gain: credit the gain/loss account
-            entries.push({
-              account_id: gainLossAccountId,
-              debit_amount: 0,
-              credit_amount: gainLoss,
-              description: `Gain on disposal - ${asset.name}`,
-            });
-          } else {
-            // Loss: debit the gain/loss account
-            entries.push({
-              account_id: gainLossAccountId,
-              debit_amount: Math.abs(gainLoss),
-              credit_amount: 0,
-              description: `Loss on disposal - ${asset.name}`,
-            });
-          }
-        }
-
-        await postToGL({
-          source_type: "asset_disposal",
-          source_id: id,
-          reference: `DISP-${asset.asset_number}`,
-          memo: `Asset disposal: ${asset.name} - ${reason}`,
-          entry_date: disposalDate,
-          // Stamp JE branch from the asset's branch so consolidated/branch reports reconcile.
-          branch_id: asset.branch_id ?? null,
-          entries,
-        });
-      } catch (glError) {
-        console.error("GL posting for asset disposal failed:", glError);
-        toast.error("Asset disposed but GL posting failed. Check account mappings.");
-      }
-    } else {
-      console.warn("Asset disposal GL posting skipped: missing account mappings.");
-    }
+    const result = data as any;
 
     logAction({
       action: "deleted",
       entityType: "fixed_asset",
       entityId: id,
-      entityName: `${asset.asset_number} - ${asset.name}`,
-      changesSummary: `Asset disposed: ${asset.asset_number}, disposal price ${disposalPrice}, reason: ${reason}`,
+      entityName: `${result?.asset_number ?? asset?.asset_number} - ${asset?.name ?? ""}`,
+      changesSummary: `Asset disposed: ${result?.asset_number}, proceeds ${result?.base_proceeds}, book value ${result?.book_value}, gain/loss ${result?.gain_loss}, reason: ${reason}`,
     });
 
     toast.success("Asset disposed successfully");
     await fetchAssets();
+    return result;
   };
 
   const deleteAsset = async (id: string) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to delete assets"); throw new Error("Permission denied"); }
+    // The database refuses to delete an asset that carries accounting history;
+    // such an asset must be disposed instead.
     const { error } = await supabase.from("fixed_assets").delete().eq("id", id);
 
-    if (error) throw error;
+    if (error) throw new Error(normalizeError(error).message);
 
     toast.success("Asset deleted successfully");
     await fetchAssets();
