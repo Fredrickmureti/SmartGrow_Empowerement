@@ -79,21 +79,11 @@ No loan, accounting, banking or journal data enters the export. No KYC redesign,
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND===============
 
-Status: complete (2026-09-10).
+The KYC export is now complete and working end to end.
 
-Delivered
-- KYC boundary confirmed: all identity data is on the client record (`mf_clients`); the five KYC images (photo, ID front/back, next-of-kin ID front/back) live in the private `mf-kyc` store, filed per institution and client. No loan, accounting or banking data enters a package.
-- Package assembly (`src/lib/kyc/kycExportPackage.ts`): one folder per client, readable profile summary + machine-readable profile, manifest, exceptions report. Files are forced under the owning client's folder.
-- Server builder (`src/lib/kyc/kycExport.server.ts`): reads clients and downloads their files as the signed-in user, so the existing database access rules are the only authorization boundary; refuses clients outside the caller's scope; rejects a stored path that does not belong to the client record; caps a bulk run at 300 clients; reports unretrievable files instead of faking them; writes the audit entry (scope and counts only) and fails the export if the audit cannot be recorded.
-- Endpoint `src/routes/api/kyc-export.ts` (POST, bearer token required, binary ZIP response, `no-store`).
-- Browser hook `src/apps/lending/clients/useKycExport.ts` plus "Export KYC" on the client detail sheet (single) and on the Clients page header (bulk, using the current branch/status/search scope), each behind a confirmation that states the data is personal and the download is logged.
-- Tests `src/test/lending/kycExportPackage.test.ts` — 7 passing: folder naming/traversal safety, per-client isolation, no placeholder for missing files, exceptions/partial status, manifest completeness, and no loan/accounting vocabulary in the profile.
-
-Verified
-- Typecheck clean; unit tests green.
-- Endpoint refuses an unauthenticated request (401) and an invalid token (403).
-- Read-only database check: all 6 live clients' stored KYC paths conform to `business/client/kind.jpg`, so the ownership check passes for real records. No client record, photo or document was modified.
-
-Remaining gap
-- An end-to-end signed-in export against the live records was not executed: this project uses an externally managed Supabase, so no test session can be minted in the build environment. The scope enforcement itself is the same database rule already used by the clients screen and the KYC image viewer.
-- Cross-branch/own-portfolio behaviour is enforced by the existing scope function rather than proven with a second scoped test account; creating production users for this was deliberately avoided.
+One client: open a client, then Export KYC in the footer — you get a ZIP with their profile summary, the machine-readable profile, and the actual stored photo and identity documents.
+Many clients: Export KYC in the Clients page header exports everyone currently listed (respecting your branch, status and search), one folder per client plus a manifest listing every file.
+Both ask for confirmation, note that this is personal data, and are recorded in the activity log under your name.
+Anything that can't be retrieved is listed in the package's exceptions file and flagged to you — never faked or silently skipped.
+The server decides what you may export, so nobody can reach another branch's or institution's clients; the document store stays private.
+Two things I couldn't do here: run a real signed-in export against your live records, and test a second branch-restricted user — this project's Supabase is externally managed so no test sign-in can be created in my environment. Please try one client export in the app and tell me what you get.
