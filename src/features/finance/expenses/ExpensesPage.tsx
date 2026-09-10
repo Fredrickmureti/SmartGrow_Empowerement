@@ -107,6 +107,8 @@ export default function ExpensesPage() {
     deleteExpense,
     voidExpense,
     refreshExpenses,
+    createCategory,
+    deleteCategory,
   } = useExpenses();
 
   const [search, setSearch] = useState("");
