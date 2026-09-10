@@ -67,3 +67,19 @@ I couldn't run the two report functions directly as a verification step (the que
 The reconciliation page still doesn't display an error if the data call fails — it just keeps spinning. That small screen change, the removal of the now-meaningless Payables tab, and the regression test run are still outstanding.
 
 Credits ran out mid-way, so continuing this needs available credits. The database repairs above are already live; only the on-screen error handling and final verification remain.
+---
+
+## Lending: view vs edit (complete)
+
+Loan products, groups and loan applications now open a read-only detail sheet
+on click. Editing is an explicit action in the sheet footer, gated by the
+existing permissions (`manageLoanProducts`, `manageClients`,
+`manageApplications`) and, for applications, by the lifecycle rule mirrored in
+`applicationEditBlockedReason` — after a decision the terms are settled and the
+Edit action is disabled with the reason shown. Create flows, save paths,
+versioning and the database guards are unchanged.
+
+New files: `src/apps/lending/shared/detailFields.tsx`,
+`products/ProductDetailSheet.tsx`, `groups/GroupDetailSheet.tsx`,
+`applications/ApplicationDetailSheet.tsx`. No database change; no records
+touched.
