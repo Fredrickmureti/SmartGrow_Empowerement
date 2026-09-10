@@ -1,74 +1,46 @@
-# Fixed Assets — depreciation authority audit, remediation and full verification
+# Finance Reports — Four Failing Reports: Root Causes and Fix Plan
 
-## What the audit already established (verified now, read-only)
+All four causes below were confirmed directly against the live database and the code, not inferred.
 
-Live database:
+## A. Journal Report — "structure of query does not match function result type"
 
-- `fixed_assets` 0 rows, `asset_categories` 0 rows, `depreciation_schedules` 0 rows, `depreciation_entries` 0 rows, journal entries with source "depreciation" 0. **The module has never been used in production**, so no real asset or depreciation record is at risk. 1 business, 2 branches exist.
-- No depreciation routine exists in the database. The only asset-related routines are `assert_can_manage_assets`, `get_next_asset_number`, two business-match guard triggers and a currency stamp trigger.
-- `depreciation_schedules` has `UNIQUE (asset_id, period_start)` — a real duplicate guard, but it is not what the code relies on.
-- `fixed_assets` has `depreciation_start_date`.
+Confirmed root cause: the database function `get_journal_report` declares `entry_status text`, but its final SELECT returns `p.status`, which is the enum type `journal_status`. Postgres cannot coerce an enum to the declared text column, so every call fails. Every other returned column is genuinely `text`, so this single column is the whole defect.
 
-Code:
+Fix: one migration recreating `get_journal_report` with `p.status::text` (all other logic, filters, authorisation checks, ordering and pagination unchanged). No frontend change — the page contract is already correct.
 
-- `src/hooks/useDepreciationRun.ts` — the browser computes the depreciation amount, then the browser inserts the depreciation record and overwrites `fixed_assets.accumulated_depreciation` and `book_value` directly. The amount handed to the ledger is whatever the browser decided.
-- Duplicate protection is a browser-side "check then insert", which two concurrent runs can both pass.
-- `supabase/functions/run-depreciation/index.ts` is a **second, divergent** depreciation engine (service-role): it depreciates on transaction-currency cost instead of the base-currency accounting cost, resolves accounts differently, and never records who posted.
-- `depreciation_start_date` is ignored by both engines: an asset not yet in service still depreciates, and there is no first-period/partial-period treatment — every open month is a full month.
-- Acquisition: `useFixedAssets.ts` posts the acquisition journal from the browser and, when that posting fails, only logs to the console — an asset can be created with no capitalisation entry.
-- Journal writing itself is correct: everything goes through `post_journal_entry_atomic` via `useGLPosting`, so the ledger monopoly is intact. The defect is the *amount*, not the posting engine.
+Also affected by the same function: the server-side PDF/CSV path (`reportDataEngine`) uses the same function, so it is fixed by the same change.
 
-Root cause: Fixed Assets was built as a client-side batch job. There is no server seam for depreciation at all, so the browser became the accounting authority by default.
+## B. Audit Trail — `public.v_unified_audit` not found
 
-## Remediation
+Confirmed: the view is defined in migration `20260525094000`, but it does not exist in this database. Its definition unions eight audit tables, and three of them — `timesheet_audit_log`, `signature_audit_log`, `pack_audit_log` — do not exist here, which is why the original migration could not be applied to this project. The other five sources do exist and hold real audit history (`audit_logs` currently has records).
 
-One authoritative database routine, used by both preview and posting. No new journal path — it calls the existing `post_journal_entry_atomic`.
+Fix: a migration recreating `v_unified_audit` with the same row contract (source table, id, organization, business, actor, action, entity type, entity id, summary, payload, occurred at) built only from the audit tables that exist in this database: `audit_logs`, `account_change_audit_log`, `settings_audit_log`, `commercial_audit_logs`, `default_account_mapping_audit`, plus `admin_audit_log` and `identity_change_audit_log` where their columns map cleanly. Security-invoker is set so each underlying table's own access rules still apply; no audit record is created, altered or deleted.
 
-`mf`-style naming aside, the new seam is:
+## C. Report Run History — `public.report_run_log` not found
 
-- `fa_depreciation_plan(_business_id, _period_date, _branch_id)` — read-only. Returns per eligible asset: method, base cost, residual, useful life, depreciation start, prior accumulated depreciation, the period amount, remaining depreciable amount, and the resolved expense/accumulated accounts. Writes nothing.
-- `fa_post_depreciation(_business_id, _period_date, _branch_id)` — takes **no amount from the caller**. It recomputes from the same internal calculation, refuses on missing account mappings, closed fiscal period, insufficient permission, or an already-posted asset/period, then posts through `post_journal_entry_atomic` and records the depreciation event, the asset's new accumulated depreciation and book value, and who posted.
+Confirmed: no migration anywhere in the repository ever created this table, yet six code paths write to it (the PDF renderer and the shared screen/CSV/XLSX logger) and one page reads it. So every report run has been silently failing to record itself, and the reader page errors.
 
-Both delegate to one internal calculation function so preview and posting can never diverge. Rules it enforces, matching the intent already in the schema and standard ERP treatment: depreciation begins at `depreciation_start_date` (falling back to `purchase_date`), never exceeds cost less residual, stops on a fully depreciated asset, uses the base-currency cost, and is idempotent per asset and period (backed by the existing unique constraint plus row locking, so two concurrent runs cannot both post).
+Fix: a migration creating `report_run_log` exactly to the contract the existing writers already use (organization, business, user, report type, parameters, run hash, byte count, status, created at), with row-level security limiting reads to members of the same organisation, the grants the platform requires, and indexes on organisation + time. No writer or reader code changes; they were already correct against this contract. After the table exists, running a report will create a history row, and failures will be recorded with error status rather than as successes.
 
-Frontend and cleanup:
+## D. Control Account Reconciliation — never finishes loading
 
-- `useDepreciationRun` becomes a thin caller: preview calls the plan routine, posting calls the post routine. Its local formula, its direct writes to `depreciation_schedules` and `fixed_assets`, and its check-then-insert are removed.
-- Acquisition posting moves behind the same boundary so an asset cannot be created without its capitalisation entry, and a failure surfaces instead of being swallowed.
-- The `run-depreciation` edge function is reduced to a caller of the same routine, so the second engine stops existing.
-- Permissions reuse `assert_can_manage_assets` / `finance.manage_assets`. No new roles, no hard-coded role names.
+Confirmed root cause, two parts:
 
-## Verification (isolated fixtures, prefix `ZZTEST-FIXEDASSET`)
+1. The function `get_control_account_reconciliation` reads `invoices` and `bills` to compute the sub-ledger side. Neither table exists in this database — this deployment is microfinance-only and those sales/purchase ledgers were removed. The call therefore throws every time.
+2. The screen never shows that failure: the hook exposes an error but the page passes only the loading flag to the report layout, so the failure is swallowed and the page sits on a spinner.
 
-Fixtures: a temporary branch, one category per supported depreciation method, and assets covering each boundary. Every created ID recorded.
+Fix, in this order:
 
-Matrix run and reported as Test / Expected / Actual / Result / Evidence:
+- Surface the failure: pass the query error through to the report layout so a broken report says so instead of hanging. This is error handling, not a workaround for the cause.
+- Make the report truthful for this deployment. The authoritative sub-ledger here is the microfinance ledger (`mf_loans` principal outstanding, `mf_client_charges` less `mf_client_charge_payments`), not invoices and bills. The function will be recreated so the receivable side reconciles the configured receivable control account against those authoritative microfinance balances, using the same organisation/business/branch scoping and the same migration-opening-balance handling it uses today. The payable side has no sub-ledger in this deployment, so instead of inventing one the report will state plainly that no payable sub-ledger is configured rather than reporting a false zero or a false drift.
 
-- Category configuration: every field saved, stored in `asset_categories`, and actually consumed by the calculation; required GL mappings enforced; invalid useful life rejected.
-- Asset creation through the real screens; which values are inherited vs asset-level; UI value → stored value → engine value.
-- Acquisition: journal entry, lines, direction, date, branch, business, asset account.
-- Preview: correct assets, period, method, dates, residual, prior depreciation, mappings, rounding — and a before/after digest proving preview writes nothing.
-- Independent calculation per method, compared with the authoritative result; any difference explained as convention, rounding or defect, never by adjusting the expectation.
-- Posting: one event, balanced journal, correct accounts and direction, branch/business scope, asset reference, audit record, resulting accumulated depreciation and net book value.
-- Manipulated-input test: call the posting routine directly with an inflated amount in the payload and prove the ledger still receives the authoritative amount.
-- Duplicate and concurrency: second run refused; two simultaneous runs produce exactly one event.
-- Controls: closed fiscal period blocked; missing mapping refuses instead of posting an incomplete journal; asset before its depreciation start not depreciated; fully depreciated asset stops; residual floor respected; cross-branch posting refused.
-- Permissions: a user without `finance.manage_assets` refused at the backend, not only in the UI.
-- Depreciation report / register values reconciled against the underlying records.
-- Lifecycle audit: edit, disposal, retirement, transfer, reversal — each classified as functional, partly functional or not implemented. Nothing new built here.
+If you would rather retire this report entirely for a microfinance-only install than retarget it, say so and I will remove it and its navigation entry instead.
 
-## Cleanup and integrity proof
+## Scope, safety and verification
 
-Digests of `journal_entries`, `journal_entry_lines`, `accounts`, `fixed_assets`, `asset_categories`, `depreciation_schedules`, `depreciation_entries`, `branches`, `businesses` captured before the run and recomputed after cleanup, excluding only the recorded fixture IDs. Test journals are removed through the system's legitimate reversal/void mechanism, never by deleting posted accounting behind the controls. Any drift outside the fixture IDs stops the wave.
-
-## Deliverable
-
-The report you asked for: original architecture, root cause, remediation, proof of the authority boundary via the manipulated-input test, the full test matrix, one complete asset lifecycle with numbers, production-safety statement with exact fixture IDs, and remaining gaps split into fixed / already correct / not implemented / future wave.
-
-=============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
-
-Done. Closed-period posting was refused correctly, and the duplicate guard held. A true two-at-once test couldn't be run (this Supabase project won't give me a test sign-in), so I documented the protections that make it safe and flagged it for the automated test suite.
-
-All test data is gone: the five test entries were reversed through the system's own reversal (net effect zero, audit trail intact), and the nine test assets, four categories and their depreciation records are removed. Nothing real was touched.
-
-The report is in docs/finance/fixed-assets-depreciation-authority-report.md. Its main new finding: disposal still has the same flaw depreciation just had — the browser decides the gain/loss, and if the entry fails the asset is still marked disposed. That's the next thing worth fixing.
+- All four fixes are database migrations plus one small error-surfacing change on the reconciliation page. No accounting calculation moves into the frontend.
+- Existing authorisation is reused unchanged: the journal and reconciliation functions keep their organisation/business/branch authorisation gates, and the two new/restored objects rely on row-level security over their underlying tables.
+- Read-only verification against existing real data: the journal report loaded with date, branch, business and source filters plus an empty range; the audit trail loaded and filtered against the existing audit records; the reconciliation completes and its figures are checked against the ledger.
+- One controlled write test only: running a report to confirm a run-history row appears, kept as legitimate history rather than deleted.
+- Regression check limited to the direct dependents of the changed functions — the server-side journal PDF/CSV path, and the receivable/payable cards that share the reconciliation function.
+- Result of every check goes into a test table in the final report, together with anything still outstanding.
