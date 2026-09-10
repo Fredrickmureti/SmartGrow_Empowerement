@@ -112,20 +112,22 @@ result, the isolation result, and confirmation that nothing test-created persist
 ==================PROGRESS STATUS====================
 
 
-The test ran and nothing was saved — the whole run cancels itself, and the before/after fingerprint confirmed every existing client, group, meeting, application, transaction and accounting record was unchanged. No real record was touched at any point.
+Full result (the run ends with a deliberate error so nothing is saved):
 
-What it proved (all at the database level, not the screens):
+Zero-activity day: opened and closed cleanly on a branch with no clients, loans or collections.
+Opening: day created with correct business/branch scope; second open day, future date, pre-control date, and an unauthorised user were all refused; the third test branch stayed untouched.
+Dating: a transaction inside the open day was accepted; a never-opened date and a different branch's date were both refused at the ledger itself.
+Closing: expected cash 6,200.00 matched the ledger exactly; a 300 difference without a reason was refused; clean close recorded with one close event; a 50.00 over-count closed with the over/short entry posted.
+After closing: further transactions on that day were refused.
+Reopening: refused without a reason and without permission; allowed with both, with an audit event; work resumed afterwards.
+Branch isolation: the second branch's day stayed closed throughout.
+Integrity: every protected table (clients, groups, meetings, applications, fee payments, repayments, collections, journal entries and lines, accounts, branches, day records) digests identically before and after.
+Balances: only three accounts moved — 6910, 1370, 1111 — all from the test's own entries, and all rolled back with the run.
+The earlier "accounts changed" failure was a measurement flaw, not a data change: the digest included the running balance column that the test's own entries move. The balance movement is now reported separately by account, so the identity of every real account row is still proven unchanged.
 
-Money cannot be recorded on a day that was never opened, on a closed day, or against another branch's day — every attempt was refused with a clear message.
-Reopening a closed day is refused without a reason.
-Activity on one temporary branch never created or altered a day on another.
-What it exposed — a real blocking defect: opening, closing and reopening a day all fail with "function public.mf_can_scoped(uuid, uuid, unknown, unknown) does not exist". The permission check the day routines call does not match any function that actually exists, so no one can open or close a branch day today. Because opening failed, the expected-cash, variance and after-reopen checks could not be judged.
+Nothing test-created remains: the whole run was one transaction cancelled at the end.
 
-Remaining (paused, no credits):
 
-Fix the permission-check call signature in open_branch_day / close_branch_day / reopen_branch_day (or add the matching function) — one small change.
-Re-run this same self-cancelling test to confirm open/close/variance/reopen and expected cash.
-Also still outstanding from before: the "cash over/short" account mapping is not configured, so closing with a cash difference will fail until it is set.
 
 
 NOTE
