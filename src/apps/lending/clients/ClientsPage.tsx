@@ -321,6 +321,48 @@ export function ClientsPage() {
         client={feeClient}
         canManage={canManage}
       />
+
+      <AlertDialog open={bulkExportOpen} onOpenChange={setBulkExportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export KYC for {filtered.length} client(s)?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  A ZIP file will be downloaded with one folder per client, containing
+                  their identity details and stored identity photographs and documents.
+                </p>
+                <p>
+                  Branch: <strong>{branchId === "all" ? "All branches" : branchName(branchId)}</strong>
+                  {" · "}
+                  Status: <strong>{status === "all" ? "All statuses" : status}</strong>
+                  {search.trim() ? " · limited to the clients currently listed" : ""}
+                </p>
+                <p>
+                  Only clients you are permitted to see are included. This is personal
+                  data and the download is recorded in the activity log against your name.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void runExport({
+                  mode: "bulk",
+                  ...(currentBusiness?.id ? { businessId: currentBusiness.id } : {}),
+                  branchId: branchId === "all" ? null : branchId,
+                  status: status === "all" ? null : status,
+                  clientIds: search.trim() ? filtered.map((c) => c.id) : null,
+                });
+              }}
+            >
+              Export KYC
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
