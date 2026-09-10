@@ -1,64 +1,66 @@
-# Loan product & application deletion — closing the two gaps
+# Fixed Assets — depreciation authority audit, remediation and full verification
 
-## Verification of the previous wave (checked just now)
+## What the audit already established (verified now, read-only)
 
-Confirmed in the live database and in the code:
+Live database:
 
-- The four operations exist and enforce the rules server-side: delete application, withdraw application, delete loan product, retire loan product.
-- The Withdraw / Delete / Retire actions are already on the Applications and Loan products lists, permission-gated, with confirmation dialogs.
+- `fixed_assets` 0 rows, `asset_categories` 0 rows, `depreciation_schedules` 0 rows, `depreciation_entries` 0 rows, journal entries with source "depreciation" 0. **The module has never been used in production**, so no real asset or depreciation record is at risk. 1 business, 2 branches exist.
+- No depreciation routine exists in the database. The only asset-related routines are `assert_can_manage_assets`, `get_next_asset_number`, two business-match guard triggers and a currency stamp trigger.
+- `depreciation_schedules` has `UNIQUE (asset_id, period_start)` — a real duplicate guard, but it is not what the code relies on.
+- `fixed_assets` has `depreciation_start_date`.
 
-So the earlier report is accurate. What it did not cover is the two situations you hit.
+Code:
 
-## Gap 1 — a retired product you can never remove
+- `src/hooks/useDepreciationRun.ts` — the browser computes the depreciation amount, then the browser inserts the depreciation record and overwrites `fixed_assets.accumulated_depreciation` and `book_value` directly. The amount handed to the ledger is whatever the browser decided.
+- Duplicate protection is a browser-side "check then insert", which two concurrent runs can both pass.
+- `supabase/functions/run-depreciation/index.ts` is a **second, divergent** depreciation engine (service-role): it depreciates on transaction-currency cost instead of the base-currency accounting cost, resolves accounts differently, and never records who posted.
+- `depreciation_start_date` is ignored by both engines: an asset not yet in service still depreciates, and there is no first-period/partial-period treatment — every open month is a full month.
+- Acquisition: `useFixedAssets.ts` posts the acquisition journal from the browser and, when that posting fails, only logs to the console — an asset can be created with no capitalisation entry.
+- Journal writing itself is correct: everything goes through `post_journal_entry_atomic` via `useGLPosting`, so the ledger monopoly is intact. The defect is the *amount*, not the posting engine.
 
-Your V1PROD "V1 Proof Product" is retired, has no applications and no loans — but it has one *published price version*. Both the screen and the database refuse deletion purely because a price version was once published, even though nothing in the institution's history ever used it.
+Root cause: Fixed Assets was built as a client-side batch job. There is no server seam for depreciation at all, so the browser became the accounting authority by default.
 
-That is too strict. A published price only matters if something was priced on it. The correct rule:
+## Remediation
 
-> A loan product may be removed when no application and no loan reference it. If it was ever published, it must be retired first — so removal is a deliberate two-step act, not a slip.
+One authoritative database routine, used by both preview and posting. No new journal path — it calls the existing `post_journal_entry_atomic`.
 
-A product touched by any application or loan stays undeletable and can only be retired. That is unchanged.
+`mf`-style naming aside, the new seam is:
 
-## Gap 2 — declined applications stay forever
+- `fa_depreciation_plan(_business_id, _period_date, _branch_id)` — read-only. Returns per eligible asset: method, base cost, residual, useful life, depreciation start, prior accumulated depreciation, the period amount, remaining depreciable amount, and the resolved expense/accumulated accounts. Writes nothing.
+- `fa_post_depreciation(_business_id, _period_date, _branch_id)` — takes **no amount from the caller**. It recomputes from the same internal calculation, refuses on missing account mappings, closed fiscal period, insufficient permission, or an already-posted asset/period, then posts through `post_journal_entry_atomic` and records the depreciation event, the asset's new accumulated depreciation and book value, and who posted.
 
-Today only draft and withdrawn applications can be removed; a declined one is permanently on record. You are right that a declined test application should be removable, but it is a stronger act than deleting a draft, so it gets stronger controls:
+Both delegate to one internal calculation function so preview and posting can never diverge. Rules it enforces, matching the intent already in the schema and standard ERP treatment: depreciation begins at `depreciation_start_date` (falling back to `purchase_date`), never exceeds cost less residual, stops on a fully depreciated asset, uses the base-currency cost, and is idempotent per asset and period (backed by the existing unique constraint plus row locking, so two concurrent runs cannot both post).
 
-- Only an administrator/owner may remove a declined application (ordinary delete permission is not enough).
-- It requires a written reason.
-- The confirmation is two-step: type the application number, then confirm.
-- Still refused outright if the application ever produced a loan.
+Frontend and cleanup:
 
-Draft and withdrawn applications keep today's single-step behaviour.
+- `useDepreciationRun` becomes a thin caller: preview calls the plan routine, posting calls the post routine. Its local formula, its direct writes to `depreciation_schedules` and `fixed_assets`, and its check-then-insert are removed.
+- Acquisition posting moves behind the same boundary so an asset cannot be created without its capitalisation entry, and a failure surfaces instead of being swallowed.
+- The `run-depreciation` edge function is reduced to a caller of the same routine, so the second engine stops existing.
+- Permissions reuse `assert_can_manage_assets` / `finance.manage_assets`. No new roles, no hard-coded role names.
 
-## Work
+## Verification (isolated fixtures, prefix `ZZTEST-FIXEDASSET`)
 
-### Database (one small migration per object, as always)
+Fixtures: a temporary branch, one category per supported depreciation method, and assets covering each boundary. Every created ID recorded.
 
-1. Teach the price-version freeze rule to allow removal only inside the product-removal operation (a dedicated internal marker, not the reset switch).
-2. `mf_delete_loan_product` — drop the "published pricing" refusal; instead refuse when the product is not retired while having published pricing. Keep the application/loan refusals, the permission check, the audit entry.
-3. `mf_delete_loan_application` — add a declined path: allowed only for an organisation administrator/owner, requires a non-empty reason, refused when a loan exists. Reason recorded in the audit entry. Draft/withdrawn path unchanged.
+Matrix run and reported as Test / Expected / Actual / Result / Evidence:
 
-### Interface
+- Category configuration: every field saved, stored in `asset_categories`, and actually consumed by the calculation; required GL mappings enforced; invalid useful life rejected.
+- Asset creation through the real screens; which values are inherited vs asset-level; UI value → stored value → engine value.
+- Acquisition: journal entry, lines, direction, date, branch, business, asset account.
+- Preview: correct assets, period, method, dates, residual, prior depreciation, mappings, rounding — and a before/after digest proving preview writes nothing.
+- Independent calculation per method, compared with the authoritative result; any difference explained as convention, rounding or defect, never by adjusting the expectation.
+- Posting: one event, balanced journal, correct accounts and direction, branch/business scope, asset reference, audit record, resulting accumulated depreciation and net book value.
+- Manipulated-input test: call the posting routine directly with an inflated amount in the payload and prove the ledger still receives the authoritative amount.
+- Duplicate and concurrency: second run refused; two simultaneous runs produce exactly one event.
+- Controls: closed fiscal period blocked; missing mapping refuses instead of posting an incomplete journal; asset before its depreciation start not depreciated; fully depreciated asset stops; residual floor respected; cross-branch posting refused.
+- Permissions: a user without `finance.manage_assets` refused at the backend, not only in the UI.
+- Depreciation report / register values reconciled against the underlying records.
+- Lifecycle audit: edit, disposal, retirement, transfer, reversal — each classified as functional, partly functional or not implemented. Nothing new built here.
 
-- Products list: Delete is offered for any product with no applications and no loans; when it has published pricing and is still active, the menu says "Retire it first, then it can be deleted". The confirmation names the product and states that no lending history depends on it.
-- Applications list: declined rows show "Delete (administrator)" for admins only, opening a two-step dialog — reason box plus typing the application number — worded as permanent removal of a record kept for audit. Non-admins keep seeing "Declined applications stay on record".
-- Buttons remain hints; the database stays the control.
+## Cleanup and integrity proof
 
-### Verification
+Digests of `journal_entries`, `journal_entry_lines`, `accounts`, `fixed_assets`, `asset_categories`, `depreciation_schedules`, `depreciation_entries`, `branches`, `businesses` captured before the run and recomputed after cleanup, excluding only the recorded fixture IDs. Test journals are removed through the system's legitimate reversal/void mechanism, never by deleting posted accounting behind the controls. Any drift outside the fixture IDs stops the wave.
 
-- Re-run the scenario checks inside a rolled-back transaction with self-created fixtures only: retired unreferenced product with published pricing (now removable), active published product (refused — retire first), product with an application (refused), product with a loan (refused), declined application as admin with reason (removed), as non-admin (refused), without reason (refused), declined application that produced a loan (refused).
-- No production client, group, application, product or journal entry is created, changed or removed.
-- Then remove V1PROD for real, since it qualifies under the new rule, and report the result.
-- Update the status file with the final rule.
+## Deliverable
 
-
-=============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
-
-Complete.
-
-- Database: a retired product with no application and no loan can be deleted even if it was once published; an active published product is refused with "retire it first". A declined application can be deleted only by an organisation administrator, only with a written reason, and only if it never became a loan. Both write an audit entry.
-- Applications list: declined rows now show "Delete (administrator)…" for owners/admins, opening the two-step dialog (reason + typing the application number). Everyone else still sees "Declined applications stay on record".
-- Products list: the delete confirmation now reads "No application and no loan uses it", replacing the inaccurate "never been priced" wording.
-- Typecheck passes.
-
-Checked live: V1PROD (retired, 1 published version, 0 applications, 0 loans) now qualifies for deletion; LP-0001 (1 application) and LP-0002 (active, published) remain protected. V1PROD was left in place to be removed through the screen as the signed-in owner, which also proves the path end to end.
+The report you asked for: original architecture, root cause, remediation, proof of the authority boundary via the manipulated-input test, the full test matrix, one complete asset lifecycle with numbers, production-safety statement with exact fixture IDs, and remaining gaps split into fixed / already correct / not implemented / future wave.
