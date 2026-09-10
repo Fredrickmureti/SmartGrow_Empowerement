@@ -110,7 +110,7 @@ export function useJournalEntries() {
           journal_entry_lines(
             *,
             accounts(id, name, code, account_type),
-            contacts(id, name)
+            contacts:mf_clients(id, name:full_name)
           )
         `)
         .eq("organization_id", organizationId);
