@@ -1,85 +1,77 @@
-# Finance Reports — Four Failing Reports: Root Causes and Fix Plan
+# Client KYC Export — single client and bulk
 
-All four causes below were confirmed directly against the live database and the code, not inferred.
+## What exists today (verified)
 
-## A. Journal Report — "structure of query does not match function result type"
+- A client record (`mf_clients`, 6 rows live) holds all KYC data: client number, name, national ID, date of birth, gender, phone, email, address, occupation, business type/location, next-of-kin details, branch, loan officer, status, joined date, cycles, notes.
+- KYC images are **not** in a separate documents table. Each client row stores up to five file paths — photo, ID front, ID back, next-of-kin ID front, next-of-kin ID back — pointing into a **private** file bucket (`mf-kyc`, 8 MB per file), laid out as `business/client/kind.jpg`.
+- Access rules already exist and are enforced by the database: reading a client requires business access, and reading its files requires the same "clients read" permission plus branch/own-portfolio scope. Loan officers restricted to their own portfolio only see their own clients' files.
+- The app has a PDF library (`pdf-lib`) and spreadsheet/CSV helpers, but **no ZIP support** anywhere.
+- Audit trail: the shared `audit_logs` table (organization, business, user, action, entity, summary). No export-specific audit table.
+- The clients screen (list, detail sheet with Edit) reads Supabase directly from the browser; there is one existing server-side function pattern in the codebase to follow.
 
-Confirmed root cause: the database function `get_journal_report` declares `entry_status text`, but its final SELECT returns `p.status`, which is the enum type `journal_status`. Postgres cannot coerce an enum to the declared text column, so every call fails. Every other returned column is genuinely `text`, so this single column is the whole defect.
+## What will be built
 
-Fix: one migration recreating `get_journal_report` with `p.status::text` (all other logic, filters, authorisation checks, ordering and pagination unchanged). No frontend change — the page contract is already correct.
+### 1. A secure server-side export endpoint
 
-Also affected by the same function: the server-side PDF/CSV path (`reportDataEngine`) uses the same function, so it is fixed by the same change.
+A single new backend endpoint that produces the ZIP file. It:
 
-## B. Audit Trail — `public.v_unified_audit` not found
+- Requires the signed-in user's token; unauthenticated requests are rejected.
+- Reads clients and downloads their files **as that user**, so the existing database access rules decide what can be exported. No service-role/bypass access is used, and the file bucket stays private.
+- Never trusts a business or branch id sent from the browser: the business comes from the user's own access record, and the database re-checks every client and every file.
+- Refuses a single-client export when the database returns no row for that id (covers cross-branch and cross-organization attempts).
 
-Confirmed: the view is defined in migration `20260525094000`, but it does not exist in this database. Its definition unions eight audit tables, and three of them — `timesheet_audit_log`, `signature_audit_log`, `pack_audit_log` — do not exist here, which is why the original migration could not be applied to this project. The other five sources do exist and hold real audit history (`audit_logs` currently has records).
+### 2. Single client package
 
-Fix: a migration recreating `v_unified_audit` with the same row contract (source table, id, organization, business, actor, action, entity type, entity id, summary, payload, occurred at) built only from the audit tables that exist in this database: `audit_logs`, `account_change_audit_log`, `settings_audit_log`, `commercial_audit_logs`, `default_account_mapping_audit`, plus `admin_audit_log` and `identity_change_audit_log` where their columns map cleanly. Security-invoker is set so each underlying table's own access rules still apply; no audit record is created, altered or deleted.
+`CL-0007_Jane-Doe.zip`
 
-## C. Report Run History — `public.report_run_log` not found
+```text
+client-profile.pdf      readable KYC summary
+client-profile.json     same data, machine readable
+manifest.json           every file listed, with status
+photo.jpg
+identification/id-front.jpg
+identification/id-back.jpg
+next-of-kin/id-front.jpg
+next-of-kin/id-back.jpg
+```
 
-Confirmed: no migration anywhere in the repository ever created this table, yet six code paths write to it (the PDF renderer and the shared screen/CSV/XLSX logger) and one page reads it. So every report run has been silently failing to record itself, and the reader page errors.
+Original stored files are copied byte-for-byte — never re-rendered or recompressed. The PDF is an added summary, not a replacement.
 
-Fix: a migration creating `report_run_log` exactly to the contract the existing writers already use (organization, business, user, report type, parameters, run hash, byte count, status, created at), with row-level security limiting reads to members of the same organisation, the grants the platform requires, and indexes on organisation + time. No writer or reader code changes; they were already correct against this contract. After the table exists, running a report will create a history row, and failures will be recorded with error status rather than as successes.
+### 3. Bulk package
 
-## D. Control Account Reconciliation — never finishes loading
+`kyc-export-2026-09-10.zip` containing `manifest.csv` (client reference, name, branch, status, document type, stored filename, exported path, result) plus one folder per client with the same structure as above.
 
-Confirmed root cause, two parts:
+Scope choices offered are only those the user already has: current branch filter, current status filter, or the clients currently listed/selected. The backend re-derives the client set itself from the user's permitted scope. A cap of 300 clients per run (current population is 6) with a clear message if exceeded.
 
-1. The function `get_control_account_reconciliation` reads `invoices` and `bills` to compute the sub-ledger side. Neither table exists in this database — this deployment is microfinance-only and those sales/purchase ledgers were removed. The call therefore throws every time.
-2. The screen never shows that failure: the hook exposes an error but the page passes only the loading flag to the report layout, so the failure is swallowed and the page sits on a spinner.
+### 4. Missing or unreadable files
 
-Fix, in this order:
+The export completes and reports exceptions rather than failing silently: each missing file is marked in `manifest.json`/`manifest.csv` with a reason, an `exceptions.txt` is added when any exist, and the UI shows "Exported 12 clients — 3 documents could not be retrieved". No empty placeholder files, no storage paths or credentials exposed.
 
-- Surface the failure: pass the query error through to the report layout so a broken report says so instead of hanging. This is error handling, not a workaround for the cause.
-- Make the report truthful for this deployment. The authoritative sub-ledger here is the microfinance ledger (`mf_loans` principal outstanding, `mf_client_charges` less `mf_client_charge_payments`), not invoices and bills. The function will be recreated so the receivable side reconciles the configured receivable control account against those authoritative microfinance balances, using the same organisation/business/branch scoping and the same migration-opening-balance handling it uses today. The payable side has no sub-ledger in this deployment, so instead of inventing one the report will state plainly that no payable sub-ledger is configured rather than reporting a false zero or a false drift.
+### 5. Audit
 
-If you would rather retire this report entirely for a microfinance-only install than retarget it, say so and I will remove it and its navigation entry instead.
+One entry per export in the existing `audit_logs` table: actor, time, action `exported`, entity `mf_client` (single) or `mf_client_bulk`, the client reference or the scope and client count, plus success/partial status and the export identifier. No document contents are recorded.
 
-## Scope, safety and verification
+### 6. UI
 
-- All four fixes are database migrations plus one small error-surfacing change on the reconciliation page. No accounting calculation moves into the frontend.
-- Existing authorisation is reused unchanged: the journal and reconciliation functions keep their organisation/business/branch authorisation gates, and the two new/restored objects rely on row-level security over their underlying tables.
-- Read-only verification against existing real data: the journal report loaded with date, branch, business and source filters plus an empty range; the audit trail loaded and filtered against the existing audit records; the reconciliation completes and its figures are checked against the ledger.
-- One controlled write test only: running a report to confirm a run-history row appears, kept as legitimate history rather than deleted.
-- Regression check limited to the direct dependents of the changed functions — the server-side journal PDF/CSV path, and the receivable/payable cards that share the reconciliation function.
-- Result of every check goes into a test table in the final report, together with anything still outstanding.
+- Client detail sheet footer: `Close` `Export KYC` `Edit client` — visible only with the manage-clients permission, with a short confirmation explaining that personal identity documents will be downloaded and that the action is logged.
+- Clients page header: `Export KYC` opening a small dialog showing the scope (branch/status from the current filters) and the number of clients, then downloading the ZIP.
 
-=============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
+## Technical notes
 
+- New backend route `src/routes/api/kyc-export.ts` (raw binary response; not under `/api/public`). Bearer token verified in the handler, then a user-scoped Supabase client performs all reads — RLS (`mf_can_scoped`) is the security boundary, matching the KYC view path exactly.
+- Add `fflate` (pure JS, edge/Worker-safe) for ZIP assembly; reuse `pdf-lib` for the profile PDF. No new report/print infrastructure and no changes to the existing document-render pipeline.
+- Register the generated `attachSupabaseAuth` client middleware in `src/start.ts` (currently absent) so authenticated server calls carry the token; append, do not replace existing middleware.
+- Frontend: `src/apps/lending/clients/useKycExport.ts` (fetch + save file + toast summary) plus small additions to `ClientDetailSheet.tsx` and `ClientsPage.tsx`. Permission check via existing `usePermissions().can("manageClients")` for UI only.
+- No database migration is required; no schema, storage or client data is modified. `audit_logs` accepts the new action/entity values as-is.
 
-Here's where things stand on the four failing Finance reports.
+## Testing
 
-Fixed and applied to the database
+- Unit tests (vitest) for package assembly: folder layout, manifest contents, missing-file handling, and that a client's files can only be placed under its own folder.
+- PDF visual check on a generated sample.
+- Read-only run against the 6 live clients — export only, no writes to client records or stored documents.
+- Authorization tests: unauthenticated request rejected; single-client export of an id outside the caller's scope rejected; bulk export returns only clients the caller can already see (verified by comparing against the same RLS-backed read used by the clients list).
+- Cross-branch/own-portfolio behaviour is exercised against the existing scope function rather than by creating new production users; if a second scoped test account is needed, this is called out rather than faked.
 
-Journal Report — the report function was returning the entry status in the wrong format; corrected. The original error should be gone.
+## Out of scope
 
-Audit Trail — the combined audit view never existed because it referenced three tables that aren't in this database. Rebuilt it from the audit records that do exist; it now returns 91 records (general activity 42, identity changes 24, account changes 24, settings 1).
-
-Report Run History — the missing history table now exists, with access limited to members of the same organisation, so the page can load and future report runs get recorded.
-
-Control Account Reconciliation — the receivables figure now comes from your real lending data (outstanding loan principal and unpaid client fees) instead of sales invoices, which don't exist here. Payables now report honestly that there's no payable sub-ledger rather than showing a made-up balance.
-
-Not finished
-
-I couldn't run the two report functions directly as a verification step (the query tool isn't permitted to call them, and no direct database shell is available here), so the journal and reconciliation fixes are verified by definition but not yet by a live run in the app.
-
-The reconciliation page still doesn't display an error if the data call fails — it just keeps spinning. That small screen change, the removal of the now-meaningless Payables tab, and the regression test run are still outstanding.
-
-Credits ran out mid-way, so continuing this needs available credits. The database repairs above are already live; only the on-screen error handling and final verification remain.
----
-
-## Lending: view vs edit (complete)
-
-Loan products, groups and loan applications now open a read-only detail sheet
-on click. Editing is an explicit action in the sheet footer, gated by the
-existing permissions (`manageLoanProducts`, `manageClients`,
-`manageApplications`) and, for applications, by the lifecycle rule mirrored in
-`applicationEditBlockedReason` — after a decision the terms are settled and the
-Edit action is disabled with the reason shown. Create flows, save paths,
-versioning and the database guards are unchanged.
-
-New files: `src/apps/lending/shared/detailFields.tsx`,
-`products/ProductDetailSheet.tsx`, `groups/GroupDetailSheet.tsx`,
-`applications/ApplicationDetailSheet.tsx`. No database change; no records
-touched.
+No loan, accounting, banking or journal data enters the export. No KYC redesign, no bucket permission changes, no background job system.
