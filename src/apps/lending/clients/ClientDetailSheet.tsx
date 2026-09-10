@@ -146,6 +146,16 @@ export function ClientDetailSheet({
                   Close
                 </Button>
                 {canManage && (
+                  <Button
+                    variant="outline"
+                    disabled={exporting}
+                    onClick={() => setConfirmExport(true)}
+                  >
+                    <Download className="mr-1.5 h-4 w-4" />
+                    {exporting ? "Preparing…" : "Export KYC"}
+                  </Button>
+                )}
+                {canManage && (
                   <Button onClick={onEdit}>
                     <Pencil className="mr-1.5 h-4 w-4" />
                     Edit client
