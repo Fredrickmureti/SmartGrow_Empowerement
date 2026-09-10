@@ -179,7 +179,7 @@ export function BranchDayPage() {
                 ))}
               </SelectContent>
             </Select>
-            {canManage && !openDayRow && (
+            {canManage && !openDayRow && !dayControlOff && (
               <Button onClick={() => setOpenFormOpen(true)} disabled={!branchId}>
                 <LockOpen className="mr-1.5 h-4 w-4" />
                 Open the day
@@ -192,6 +192,19 @@ export function BranchDayPage() {
               </Button>
             )}
           </FilterBar>
+
+          {dayControlOff && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <span className="font-medium">
+                The trading day is not switched on for {branch?.name ?? "this branch"}
+              </span>{" "}
+              — so it cannot be opened yet. An administrator switches it on in
+              Settings → Company → {branch?.name ?? "the branch"} → Settings → Day
+              control, by choosing the date it starts to apply. Until then money
+              entries here are not tied to a day.
+            </div>
+          )}
+
 
           {staleDays > 0 && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
