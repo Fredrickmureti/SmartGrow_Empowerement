@@ -24440,6 +24440,10 @@ export type Database = {
         }
         Returns: number
       }
+      fa_create_asset: {
+        Args: { _asset: Json; _business_id: string; _payment_method?: string }
+        Returns: Json
+      }
       fa_depreciation_plan: {
         Args: {
           _branch_id?: string
