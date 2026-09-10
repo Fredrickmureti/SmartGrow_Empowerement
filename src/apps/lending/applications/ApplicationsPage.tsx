@@ -537,6 +537,16 @@ export function ApplicationsPage() {
         }}
       />
 
+      <DeleteDeclinedDialog
+        open={declinedOpen}
+        onOpenChange={setDeclinedOpen}
+        application={declinedTarget}
+        clientLabel={declinedTarget ? clientName(declinedTarget.client_id) : ""}
+        onDelete={async (input) => {
+          await deleteApplication.mutateAsync(input);
+        }}
+      />
+
       <DecisionDialog
         open={decisionOpen}
         onOpenChange={setDecisionOpen}
