@@ -82,9 +82,11 @@ export function BranchDayPage() {
   const [openNotes, setOpenNotes] = useState("");
 
   const [closeFormOpen, setCloseFormOpen] = useState(false);
+  const [closeStep, setCloseStep] = useState<1 | 2 | 3>(1);
   const [countedCash, setCountedCash] = useState("");
   const [varianceReason, setVarianceReason] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
+  const [closeTyped, setCloseTyped] = useState("");
 
   const [reopenTarget, setReopenTarget] = useState<BranchOperationalDay | null>(null);
   const [reopenReason, setReopenReason] = useState("");
