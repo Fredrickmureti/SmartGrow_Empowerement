@@ -5,7 +5,6 @@ import { ConfirmDeleteDialog, useConfirmDelete } from "@/components/shared/Confi
 import { useJournalEntries, JournalEntry } from "@/hooks/useJournalEntries";
 import { JournalEntryOutputMenuItems } from "@/features/finance/journal-entries/JournalEntryOutputMenuItems";
 import { useAccounts } from "@/hooks/useAccounts";
-import { useContacts } from "@/hooks/useContacts";
 import { useCurrency } from "@/hooks/useCurrency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,8 +95,6 @@ export default function JournalEntries() {
     createReversingEntry,
   } = useJournalEntries();
   const { accounts } = useAccounts();
-  // contacts still consumed by ContactCombobox in view surfaces below; keep hook for cache warm-up
-  useContacts();
   const { formatCurrency } = useCurrency();
   const { currentOrg } = useOrganization();
   const { currentBusiness } = useBusinesses();
