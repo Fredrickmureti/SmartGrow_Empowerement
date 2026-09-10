@@ -291,14 +291,14 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
       // @ts-ignore
       const { data, error } = await supabase
         .from("expenses")
-        .select("*, category:expense_categories(name), vendor:contacts(id, name)")
+        .select("*, category:expense_categories(name)")
         .eq("id", sourceId)
         .single();
       if (error || !data) throw new Error("Expense not found");
       return {
         type: "expense",
         title: data.description || "Expense",
-        subtitle: data.vendor?.name || data.category?.name,
+        subtitle: data.category?.name,
         status: data.status,
         amount: data.amount,
         currency: data.currency,
@@ -306,13 +306,13 @@ async function fetchSourceTransaction(sourceType: string, sourceId: string): Pro
         details: [
           { icon: Calendar, label: "Date", value: format(new Date(data.expense_date), "MMM d, yyyy") },
           { icon: Tag, label: "Category", value: data.category?.name || "—" },
-          { icon: Building2, label: "Vendor", value: data.vendor?.name || "—" },
           { icon: CreditCard, label: "Method", value: data.payment_method || "—" },
           { icon: Hash, label: "Reference", value: data.reference || "—" },
         ],
         navigateTo: `/purchases/expenses?id=${sourceId}`,
       };
     }
+
 
 
     case "migration": {

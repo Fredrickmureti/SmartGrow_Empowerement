@@ -94,7 +94,7 @@ export function useExpenses() {
       // (see query-builder-type-performance); `.returns<>()` pins the shape.
       const base = supabase
         .from("expenses")
-        .select(sel("*, category:expense_categories(*), vendor:contacts(name)"))
+        .select(sel("*, category:expense_categories(*)"))
         .eq("organization_id", currentOrg.id)
         .eq("business_id", currentBusiness.id)
         .order("expense_date", { ascending: false });

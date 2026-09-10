@@ -2217,13 +2217,6 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "asset_maintenance_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
         ]
       }
       audit_logs: {
@@ -3245,13 +3238,6 @@ export type Database = {
             columns: ["counterpart_account_id"]
             isOneToOne: false
             referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bank_reconciliation_rules_counterpart_contact_id_fkey"
-            columns: ["counterpart_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -5072,13 +5058,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "collector_assignments_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "collector_assignments_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -5222,256 +5201,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contacts: {
-        Row: {
-          address_line1: string | null
-          address_line2: string | null
-          business_id: string | null
-          child_address_type: string | null
-          city: string | null
-          commercial_partner_id: string | null
-          company: string | null
-          country: string | null
-          created_at: string
-          credit_hold: boolean | null
-          credit_limit: number | null
-          customer_rank: number
-          default_currency: string | null
-          default_expense_account_id: string | null
-          default_payable_account_id: string | null
-          default_payment_method_id: string | null
-          default_receivable_account_id: string | null
-          default_tax_rate_id: string | null
-          email: string | null
-          id: string
-          is_active: boolean
-          is_company: boolean
-          is_default_billing: boolean
-          is_default_shipping: boolean
-          is_pinned: boolean | null
-          is_sample_data: boolean
-          name: string
-          notes: string | null
-          opening_balance: number | null
-          opening_balance_date: string | null
-          organization_id: string
-          parent_contact_id: string | null
-          payment_term_id: string | null
-          phone: string | null
-          portal_user_id: string | null
-          postal_code: string | null
-          sms_consent: boolean | null
-          state: string | null
-          supplier_rank: number
-          tax_exemption_expiry: string | null
-          tax_exemption_number: string | null
-          tax_id: string | null
-          type: Database["public"]["Enums"]["contact_type"] | null
-          updated_at: string
-          withholding_tax_rate: number | null
-        }
-        Insert: {
-          address_line1?: string | null
-          address_line2?: string | null
-          business_id?: string | null
-          child_address_type?: string | null
-          city?: string | null
-          commercial_partner_id?: string | null
-          company?: string | null
-          country?: string | null
-          created_at?: string
-          credit_hold?: boolean | null
-          credit_limit?: number | null
-          customer_rank?: number
-          default_currency?: string | null
-          default_expense_account_id?: string | null
-          default_payable_account_id?: string | null
-          default_payment_method_id?: string | null
-          default_receivable_account_id?: string | null
-          default_tax_rate_id?: string | null
-          email?: string | null
-          id?: string
-          is_active?: boolean
-          is_company?: boolean
-          is_default_billing?: boolean
-          is_default_shipping?: boolean
-          is_pinned?: boolean | null
-          is_sample_data?: boolean
-          name: string
-          notes?: string | null
-          opening_balance?: number | null
-          opening_balance_date?: string | null
-          organization_id: string
-          parent_contact_id?: string | null
-          payment_term_id?: string | null
-          phone?: string | null
-          portal_user_id?: string | null
-          postal_code?: string | null
-          sms_consent?: boolean | null
-          state?: string | null
-          supplier_rank?: number
-          tax_exemption_expiry?: string | null
-          tax_exemption_number?: string | null
-          tax_id?: string | null
-          type?: Database["public"]["Enums"]["contact_type"] | null
-          updated_at?: string
-          withholding_tax_rate?: number | null
-        }
-        Update: {
-          address_line1?: string | null
-          address_line2?: string | null
-          business_id?: string | null
-          child_address_type?: string | null
-          city?: string | null
-          commercial_partner_id?: string | null
-          company?: string | null
-          country?: string | null
-          created_at?: string
-          credit_hold?: boolean | null
-          credit_limit?: number | null
-          customer_rank?: number
-          default_currency?: string | null
-          default_expense_account_id?: string | null
-          default_payable_account_id?: string | null
-          default_payment_method_id?: string | null
-          default_receivable_account_id?: string | null
-          default_tax_rate_id?: string | null
-          email?: string | null
-          id?: string
-          is_active?: boolean
-          is_company?: boolean
-          is_default_billing?: boolean
-          is_default_shipping?: boolean
-          is_pinned?: boolean | null
-          is_sample_data?: boolean
-          name?: string
-          notes?: string | null
-          opening_balance?: number | null
-          opening_balance_date?: string | null
-          organization_id?: string
-          parent_contact_id?: string | null
-          payment_term_id?: string | null
-          phone?: string | null
-          portal_user_id?: string | null
-          postal_code?: string | null
-          sms_consent?: boolean | null
-          state?: string | null
-          supplier_rank?: number
-          tax_exemption_expiry?: string | null
-          tax_exemption_number?: string | null
-          tax_id?: string | null
-          type?: Database["public"]["Enums"]["contact_type"] | null
-          updated_at?: string
-          withholding_tax_rate?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_commercial_partner_id_fkey"
-            columns: ["commercial_partner_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_expense_account_id_fkey"
-            columns: ["default_expense_account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_expense_account_id_fkey"
-            columns: ["default_expense_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_payable_account_id_fkey"
-            columns: ["default_payable_account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_payable_account_id_fkey"
-            columns: ["default_payable_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_payment_method_id_fkey"
-            columns: ["default_payment_method_id"]
-            isOneToOne: false
-            referencedRelation: "organization_payment_methods"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_receivable_account_id_fkey"
-            columns: ["default_receivable_account_id"]
-            isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_receivable_account_id_fkey"
-            columns: ["default_receivable_account_id"]
-            isOneToOne: false
-            referencedRelation: "v_unidentified_system_accounts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_default_tax_rate_id_fkey"
-            columns: ["default_tax_rate_id"]
-            isOneToOne: false
-            referencedRelation: "tax_rates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "legal_order_effective_kind_defaults"
-            referencedColumns: ["organization_id"]
-          },
-          {
-            foreignKeyName: "contacts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "org_health"
-            referencedColumns: ["org_id"]
-          },
-          {
-            foreignKeyName: "contacts_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_parent_contact_id_fkey"
-            columns: ["parent_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_payment_term_id_fkey"
-            columns: ["payment_term_id"]
-            isOneToOne: false
-            referencedRelation: "payment_terms"
             referencedColumns: ["id"]
           },
         ]
@@ -9100,13 +8829,6 @@ export type Database = {
             referencedRelation: "tax_rates"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "expenses_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
         ]
       }
       finance_alert_drift_streaks: {
@@ -9688,13 +9410,6 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fixed_assets_vendor_id_fkey"
-            columns: ["vendor_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
@@ -11211,7 +10926,28 @@ export type Database = {
             foreignKeyName: "journal_entry_lines_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -11400,13 +11136,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "legal_recipients_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "legal_recipients_default_payment_method_id_fkey"
             columns: ["default_payment_method_id"]
@@ -14724,13 +14453,6 @@ export type Database = {
             columns: ["matched_client_id"]
             isOneToOne: false
             referencedRelation: "party_register"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "mpesa_c2b_transactions_matched_contact_id_fkey"
-            columns: ["matched_contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -20383,7 +20105,28 @@ export type Database = {
             foreignKeyName: "journal_entry_lines_contact_id_fkey"
             columns: ["contact_id"]
             isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "mf_client_exposure"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "mf_client_fee_positions"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
         ]
