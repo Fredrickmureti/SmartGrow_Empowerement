@@ -13087,6 +13087,9 @@ export type Database = {
           approved_term_installments: number | null
           branch_id: string
           business_id: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           client_id: string
           created_at: string
           created_by: string | null
@@ -13115,6 +13118,9 @@ export type Database = {
           approved_term_installments?: number | null
           branch_id: string
           business_id: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_id: string
           created_at?: string
           created_by?: string | null
@@ -13143,6 +13149,9 @@ export type Database = {
           approved_term_installments?: number | null
           branch_id?: string
           business_id?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           client_id?: string
           created_at?: string
           created_by?: string | null
@@ -26063,6 +26072,14 @@ export type Database = {
         Args: { p_sequence_key: string }
         Returns: string
       }
+      mf_delete_loan_application: {
+        Args: { p_application_id: string }
+        Returns: string
+      }
+      mf_delete_loan_product: {
+        Args: { p_product_id: string }
+        Returns: string
+      }
       mf_disburse_loan: {
         Args: {
           p_amount: number
@@ -26264,6 +26281,10 @@ export type Database = {
         Args: { p_branch_id: string; p_business_id: string; p_key: string }
         Returns: string
       }
+      mf_retire_loan_product: {
+        Args: { p_product_id: string }
+        Returns: string
+      }
       mf_reverse_client_charge: {
         Args: {
           p_charge_id: string
@@ -26295,6 +26316,10 @@ export type Database = {
       mf_reverse_repayment: {
         Args: { p_reason: string; p_repayment_id: string }
         Returns: undefined
+      }
+      mf_withdraw_loan_application: {
+        Args: { p_application_id: string; p_reason: string }
+        Returns: string
       }
       mf_write_off_loan: {
         Args: { p_loan_id: string; p_reason: string; p_written_off_on: string }
