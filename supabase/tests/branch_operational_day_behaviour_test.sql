@@ -192,20 +192,24 @@ BEGIN
   END;
 
   ------------------------------------------------------- 5. CLOSING
-  v_num := public.branch_day_expected_cash(a_day);
-  SELECT 5000 + COALESCE(SUM(l.debit - l.credit), 0) INTO v_num2
-    FROM public.journal_entry_lines l
-    JOIN public.journal_entries je ON je.id = l.journal_entry_id
-   WHERE l.account_id = v_cash AND je.branch_id = a_branch
-     AND je.entry_date = CURRENT_DATE AND je.status = 'posted';
-  IF v_num = v_num2 THEN
-    r := r || format('PASS expected-cash: %s = opening 5000 + ledger cash movement', v_num);
-  ELSE
-    r := r || format('FAIL expected-cash: routine says %s, ledger says %s', v_num, v_num2);
-  END IF;
+  BEGIN
+    v_num := public.branch_day_expected_cash(a_day);
+    SELECT 5000 + COALESCE(SUM(l.debit - l.credit), 0) INTO v_num2
+      FROM public.journal_entry_lines l
+      JOIN public.journal_entries je ON je.id = l.journal_entry_id
+     WHERE l.account_id = v_cash AND je.branch_id = a_branch
+       AND je.entry_date = CURRENT_DATE AND je.status = 'posted';
+    IF v_num = v_num2 THEN
+      r := r || format('PASS expected-cash: %s = opening 5000 + ledger cash movement', v_num);
+    ELSE
+      r := r || format('FAIL expected-cash: routine says %s, ledger says %s', v_num, v_num2);
+    END IF;
+  EXCEPTION WHEN OTHERS THEN
+    r := r || format('FAIL expected-cash: %s', SQLERRM);
+  END;
 
   BEGIN
-    PERFORM public.close_branch_day(a_day, v_num - 300, NULL, 'zzt no reason');
+    PERFORM public.close_branch_day(a_day, COALESCE(v_num,0) - 300, NULL, 'zzt no reason');
     r := r || 'FAIL variance-reason: a cash difference was accepted without a reason'::text;
   EXCEPTION WHEN OTHERS THEN
     r := r || format('PASS variance-reason enforced: %s', SQLERRM);
