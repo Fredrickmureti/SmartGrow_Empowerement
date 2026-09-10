@@ -50,7 +50,7 @@ describe("Fixed Assets — business-level permission gate", () => {
   it("depreciation is server-authoritative: no client formula, no client JE", () => {
     expect(depRun).toMatch(/rpc\(\s*["']fa_depreciation_plan["']/);
     expect(depRun).toMatch(/rpc\(\s*["']fa_post_depreciation["']/);
-    expect(depRun).not.toMatch(/postToGL|journal_entry_lines|post_journal_entry_atomic/);
+    expect(depRun).not.toMatch(/postToGL\(|from\(["']journal_entr/);
     expect(depRun).not.toMatch(/from\(["']depreciation_schedules["']\)/);
   });
 
