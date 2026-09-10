@@ -68,11 +68,20 @@ BEGIN
   ------------------------------------------------------- 0. before-digest
   d_before := '{}'::jsonb;
   FOREACH t IN ARRAY protected LOOP
-    EXECUTE format(
-      'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.%I s) x',
-      '|', 'EMPTY') INTO v_txt;
+    IF t = 'accounts' THEN
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT (row_to_json(s)::jsonb - ''current_balance'' - ''updated_at'')::text AS j FROM public.accounts s) x',
+        '|', 'EMPTY') INTO v_txt;
+    ELSE
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.%I s) x',
+        '|', 'EMPTY', t) INTO v_txt;
+    END IF;
     d_before := d_before || jsonb_build_object(t, v_txt);
   END LOOP;
+
+  -- balance snapshot, so any account whose balance moved during the run is named
+  SELECT jsonb_object_agg(a.id::text, a.current_balance) INTO bal_before FROM public.accounts a;
 
   ------------------------------------------------------- 1. temp branches
   INSERT INTO public.branches (business_id, organization_id, name, code, is_active, day_control_from, day_variance_tolerance)
