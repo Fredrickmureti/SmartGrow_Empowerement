@@ -256,6 +256,45 @@ export function useMfApplications(options?: {
     onError: (e) => toast.error(lendingErrorMessage(e, "That transition was refused")),
   });
 
+  /**
+   * Withdraw a submitted/under-review application. The authoritative rule —
+   * who may withdraw, which states allow it, and that no loan exists — lives in
+   * `mf_withdraw_loan_application`; this only carries the operator's reason.
+   */
+  const withdrawApplication = useMutation({
+    mutationFn: async (input: { id: string; reason: string }) => {
+      const { error } = await supabase.rpc("mf_withdraw_loan_application", {
+        p_application_id: input.id,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Application withdrawn");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The application could not be withdrawn")),
+  });
+
+  /**
+   * Remove an application that never became lending history. Eligibility
+   * (draft or withdrawn, no loan, permission, branch/officer scope) is decided
+   * by `mf_delete_loan_application`, never by this button.
+   */
+  const deleteApplication = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("mf_delete_loan_application", {
+        p_application_id: id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Application deleted");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The application could not be deleted")),
+  });
+
   return {
     applications: query.data ?? [],
     isLoading: query.isLoading,
@@ -264,8 +303,11 @@ export function useMfApplications(options?: {
     createApplication,
     updateApplication,
     transition,
+    withdrawApplication,
+    deleteApplication,
     businessId,
   };
+
 }
 
 /** Assessments recorded against one application. */
