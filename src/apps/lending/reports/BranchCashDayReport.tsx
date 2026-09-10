@@ -71,7 +71,7 @@ export function BranchCashDayReport() {
         r.variance != null && Number(r.variance) !== 0
           ? "warning"
           : r.status === "open"
-            ? "info"
+            ? "success"
             : "default",
       values: {
         business_date: r.business_date,
