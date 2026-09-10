@@ -149,7 +149,10 @@ export function DepreciationRunSheet({ open, onOpenChange }: Props) {
             </TableHeader>
             <TableBody>
               {preview.map((item) => (
-                <TableRow key={item.assetId}>
+                <TableRow
+                  key={item.assetId}
+                  className={item.blocker ? "opacity-60" : undefined}
+                >
                   <TableCell className="font-medium">
                     {item.assetNumber} — {item.assetName}
                   </TableCell>
@@ -160,17 +163,24 @@ export function DepreciationRunSheet({ open, onOpenChange }: Props) {
                     {formatCurrency(item.bookValue)}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(item.monthlyDepreciation)}
+                    {item.blocker ? (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {DEPRECIATION_BLOCKER_LABEL[item.blocker] ?? item.blocker}
+                      </span>
+                    ) : (
+                      formatCurrency(item.monthlyDepreciation)
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
               <TableRow>
                 <TableCell colSpan={3} className="font-bold text-right">
-                  Total
+                  Total ({postable.length} asset
+                  {postable.length === 1 ? "" : "s"} to post)
                 </TableCell>
                 <TableCell className="text-right font-bold">
                   {formatCurrency(
-                    preview.reduce((s, i) => s + i.monthlyDepreciation, 0),
+                    postable.reduce((s, i) => s + i.monthlyDepreciation, 0),
                   )}
                 </TableCell>
               </TableRow>
