@@ -188,6 +188,16 @@ export function FinanceApp() {
             </InstitutionRoute>
           }
         />
+        <Route
+          path="expenses/:id"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <LazyRoute module="Expense">
+                <ExpenseDetailPage />
+              </LazyRoute>
+            </InstitutionRoute>
+          }
+        />
 
         {/* Journal Entry — routed create/edit on RecordFormShell.
             MUST come BEFORE `journal-entries/:id` to avoid shadowing. */}
