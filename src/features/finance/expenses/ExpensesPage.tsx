@@ -295,6 +295,12 @@ export default function ExpensesPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => navigate(`/finance/expenses/${e.id}`)}
+                          >
+                            <Receipt className="mr-2 h-4 w-4" />
+                            View details
+                          </DropdownMenuItem>
                           {isExpenseEditable(e.status) && (
                             <DropdownMenuItem
                               onClick={() => {
