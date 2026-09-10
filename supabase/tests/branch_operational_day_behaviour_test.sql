@@ -38,6 +38,7 @@ DECLARE
   v_tmp        uuid;
   v_num        numeric;
   v_txt        text;
+  v_txt2       text;
   v_int        integer;
   d_before     jsonb;
   d_after      jsonb;
@@ -49,7 +50,8 @@ DECLARE
     'mf_fee_collections','mf_repayments','mf_repayment_batches',
     'mf_collection_bankings','branches','branch_operational_days','branch_day_events'];
 
-  PROCEDURE_PLACEHOLDER boolean := true;
+  v_bool       boolean;
+  v_num2       numeric;
 BEGIN
   ---------------------------------------------------------------- fixtures ids
   SELECT b.id, b.organization_id, o.owner_user_id
@@ -94,7 +96,7 @@ BEGIN
   BEGIN
     b_day := public.open_branch_day(b_branch, CURRENT_DATE, 0, 'zzt zero activity');
     PERFORM public.close_branch_day(b_day, 0, NULL, 'zzt zero activity close');
-    SELECT status, expected_cash, variance INTO v_txt, v_num, v_int
+    SELECT status, expected_cash INTO v_txt, v_num
       FROM public.branch_operational_days WHERE id = b_day;
     IF v_txt = 'closed' AND v_num = 0 THEN
       r := r || 'PASS zero-activity: branch with no loans/repayments/collections opened and closed cleanly';
@@ -108,8 +110,8 @@ BEGIN
   ------------------------------------------------------- 3. OPENING
   BEGIN
     a_day := public.open_branch_day(a_branch, CURRENT_DATE, 5000, 'zzt open');
-    SELECT business_id, branch_id INTO v_tmp, v_txt FROM public.branch_operational_days WHERE id = a_day;
-    r := r || format('PASS open: day %s created, scope business=%s branch=%s', a_day, v_tmp, v_txt);
+    SELECT business_id::text, branch_id::text INTO v_txt, v_txt2 FROM public.branch_operational_days WHERE id = a_day;
+    r := r || format('PASS open: day %s created, scope business=%s branch=%s', a_day, v_txt, v_txt2);
   EXCEPTION WHEN OTHERS THEN
     r := r || format('FAIL open: %s', SQLERRM);
   END;
@@ -191,15 +193,15 @@ BEGIN
 
   ------------------------------------------------------- 5. CLOSING
   v_num := public.branch_day_expected_cash(a_day);
-  SELECT 5000 + COALESCE(SUM(l.debit - l.credit), 0) INTO v_int
+  SELECT 5000 + COALESCE(SUM(l.debit - l.credit), 0) INTO v_num2
     FROM public.journal_entry_lines l
     JOIN public.journal_entries je ON je.id = l.journal_entry_id
    WHERE l.account_id = v_cash AND je.branch_id = a_branch
      AND je.entry_date = CURRENT_DATE AND je.status = 'posted';
-  IF v_num = v_int THEN
+  IF v_num = v_num2 THEN
     r := r || format('PASS expected-cash: %s = opening 5000 + ledger cash movement', v_num);
   ELSE
-    r := r || format('FAIL expected-cash: routine says %s, ledger says %s', v_num, v_int);
+    r := r || format('FAIL expected-cash: routine says %s, ledger says %s', v_num, v_num2);
   END IF;
 
   BEGIN
@@ -211,7 +213,7 @@ BEGIN
 
   BEGIN
     PERFORM public.close_branch_day(a_day, v_num, NULL, 'zzt clean close');
-    SELECT status, expected_cash, counted_cash, variance INTO v_txt, v_num, v_int, v_int
+    SELECT status INTO v_txt
       FROM public.branch_operational_days WHERE id = a_day;
     SELECT count(*) INTO v_int FROM public.branch_day_events
      WHERE operational_day_id = a_day AND event_type = 'closed';
@@ -224,9 +226,9 @@ BEGIN
   BEGIN
     c_day := public.open_branch_day(c_branch, CURRENT_DATE, 1000, 'zzt variance day');
     PERFORM public.close_branch_day(c_day, 1050, 'zzt counted 50 over');
-    SELECT variance, variance_journal_entry_id IS NOT NULL INTO v_num, PROCEDURE_PLACEHOLDER
+    SELECT variance, variance_journal_entry_id IS NOT NULL INTO v_num, v_bool
       FROM public.branch_operational_days WHERE id = c_day;
-    r := r || format('PASS variance-close: variance=%s, over/short entry posted=%s', v_num, PROCEDURE_PLACEHOLDER);
+    r := r || format('PASS variance-close: variance=%s, over/short entry posted=%s', v_num, v_bool);
   EXCEPTION WHEN OTHERS THEN
     r := r || format('FAIL variance-close: %s', SQLERRM);
   END;
