@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Download, Pencil } from "lucide-react";
 import { DetailSheet, FooterActionBar, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
