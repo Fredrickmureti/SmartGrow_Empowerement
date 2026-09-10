@@ -12,7 +12,7 @@
  * means adding it here FIRST, then extending the register view.
  */
 
-export type ReversalModule = "lending" | "collections";
+export type ReversalModule = "lending" | "collections" | "expenses";
 
 export interface ReversibleDocument {
   /** Matches `reversal_register.document_type`. */
@@ -27,6 +27,7 @@ export interface ReversibleDocument {
 export const REVERSAL_MODULE_LABELS: Record<ReversalModule, string> = {
   lending: "Lending",
   collections: "Collections",
+  expenses: "Expenses",
 };
 
 export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
@@ -41,6 +42,12 @@ export const REVERSIBLE_DOCUMENTS: ReversibleDocument[] = [
     module: "collections",
     label: "Loan repayment",
     table: "mf_repayments",
+  },
+  {
+    documentType: "expense",
+    module: "expenses",
+    label: "Expense",
+    table: "expenses",
   },
 ];
 
