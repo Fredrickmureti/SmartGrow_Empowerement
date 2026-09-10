@@ -284,6 +284,53 @@ export function useFixedAssets() {
 
   const disposeAsset = async (id: string, disposalDate: string, disposalPrice: number, reason: string) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to dispose assets"); throw new Error("Permission denied"); }
+    if (!currentBusiness?.id) throw new Error("No company selected");
+
+    const asset = assets.find((a) => a.id === id);
+
+    // One server transaction: scope, open period and GL mappings are checked,
+    // the gain/loss is computed from the stored cost and accumulated
+    // depreciation, and the disposal entry is posted through
+    // post_journal_entry_atomic. The browser supplies no accounting amount and
+    // the asset is never left disposed without its entry.
+    const { data, error } = await supabase.rpc("fa_dispose_asset", {
+      _business_id: currentBusiness.id,
+      _asset_id: id,
+      _disposal_date: disposalDate,
+      _disposal_price: disposalPrice,
+      _reason: reason,
+      _payment_method: "bank",
+    } as any);
+
+    if (error) throw new Error(normalizeError(error).message);
+
+    const result = data as any;
+
+    logAction({
+      action: "deleted",
+      entityType: "fixed_asset",
+      entityId: id,
+      entityName: `${result?.asset_number ?? asset?.asset_number} - ${asset?.name ?? ""}`,
+      changesSummary: `Asset disposed: ${result?.asset_number}, proceeds ${result?.base_proceeds}, book value ${result?.book_value}, gain/loss ${result?.gain_loss}, reason: ${reason}`,
+    });
+
+    toast.success("Asset disposed successfully");
+    await fetchAssets();
+    return result;
+  };
+
+  const deleteAsset = async (id: string) => {
+    if (!can("manageFinancials")) { toast.error("You don't have permission to delete assets"); throw new Error("Permission denied"); }
+    // The database refuses to delete an asset that carries accounting history;
+    // such an asset must be disposed instead.
+    const { error } = await supabase.from("fixed_assets").delete().eq("id", id);
+
+    if (error) throw new Error(normalizeError(error).message);
+
+    toast.success("Asset deleted successfully");
+    await fetchAssets();
+  };
+    if (!can("manageFinancials")) { toast.error("You don't have permission to dispose assets"); throw new Error("Permission denied"); }
 
     const asset = assets.find((a) => a.id === id);
     if (!asset) throw new Error("Asset not found");
