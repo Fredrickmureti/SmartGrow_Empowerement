@@ -274,6 +274,30 @@ export function ClientDetailSheet({
         }}
         onUpdate={onUpdate}
       />
+
+      <AlertDialog open={confirmExport} onOpenChange={setConfirmExport}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export this client's KYC package?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ZIP file will be downloaded containing {client.full_name}'s identity
+              details and the stored identity photographs and documents. This is
+              personal data — the download is recorded in the activity log against
+              your name.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void runExport({ mode: "single", clientId: client.id });
+              }}
+            >
+              Export KYC
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
