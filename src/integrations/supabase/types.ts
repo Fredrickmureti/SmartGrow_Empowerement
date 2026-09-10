@@ -17372,6 +17372,48 @@ export type Database = {
           },
         ]
       }
+      report_run_log: {
+        Row: {
+          branch_id: string | null
+          business_id: string | null
+          byte_count: number
+          created_at: string
+          id: string
+          organization_id: string | null
+          params_jsonb: Json
+          report_type: string
+          run_hash: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          business_id?: string | null
+          byte_count?: number
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          params_jsonb?: Json
+          report_type: string
+          run_hash: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          business_id?: string | null
+          byte_count?: number
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          params_jsonb?: Json
+          report_type?: string
+          run_hash?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       report_saved_views: {
         Row: {
           business_id: string | null
@@ -21871,6 +21913,22 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_unified_audit: {
+        Row: {
+          action: string | null
+          actor_id: string | null
+          business_id: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string | null
+          occurred_at: string | null
+          organization_id: string | null
+          payload: Json | null
+          source_table: string | null
+          summary: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
