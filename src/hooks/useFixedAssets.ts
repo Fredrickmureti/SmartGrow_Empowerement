@@ -218,71 +218,41 @@ export function useFixedAssets() {
   ) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to create assets"); throw new Error("Permission denied"); }
     if (!currentOrg || !user) throw new Error("No organization selected");
+    if (!currentBusiness?.id) throw new Error("No company selected");
 
-    const assetNumber = await getNextAssetNumber();
     // Stamp branch from active scope when caller did not specify one.
     const stampedBranchId = asset.branch_id ?? scope.branchId ?? null;
 
-    const { data, error } = await supabase
-      .from("fixed_assets")
-      .insert({
+    // One server transaction: asset number, the asset row, the FX stamp and the
+    // capitalisation journal through post_journal_entry_atomic. It refuses on a
+    // closed period, a missing GL mapping, or a foreign category/branch — so an
+    // asset can no longer exist without its acquisition entry.
+    const { data, error } = await supabase.rpc("fa_create_asset", {
+      _business_id: currentBusiness.id,
+      _asset: {
         ...asset,
         branch_id: stampedBranchId,
-        organization_id: currentOrg.id,
-        business_id: currentBusiness?.id,
-        asset_number: assetNumber,
-        // currency, acquisition_exchange_rate, base_purchase_price,
-        // base_residual_value and book_value are stamped server-side by
-        // trg_fixed_assets_stamp_currency through the one FX engine. A
-        // client-supplied rate is ignored; a foreign asset with no rate on
-        // file is refused rather than recorded at face value.
-        created_by: user.id,
-      } as any)
-      .select()
-      .single();
+      },
+      _payment_method: "bank",
+    } as any);
 
-    if (error) throw error;
+    if (error) throw new Error(normalizeError(error).message);
 
-    // The ledger is kept in the base currency: post the server-stamped base cost.
-    const baseCost = Number((data as any).base_purchase_price ?? asset.purchase_price);
-
-    // Post acquisition journal entry: Dr Fixed Asset, Cr Cash/Bank
-    const mappings = getFixedAssetAccountMappings();
-    if (mappings.fixed_asset_account_id && mappings.payment_account_id) {
-      try {
-        await postToGL({
-          source_type: "asset_acquisition",
-          source_id: data.id,
-          reference: assetNumber,
-          memo: `Fixed asset acquisition: ${asset.name}`,
-          entry_date: asset.purchase_date,
-          // Stamp the JE with the asset's branch so consolidated/branch reports reconcile.
-          branch_id: stampedBranchId,
-          entries: [
-            { account_id: mappings.fixed_asset_account_id, debit_amount: baseCost, credit_amount: 0, description: `Asset acquisition - ${asset.name}` },
-            { account_id: mappings.payment_account_id, debit_amount: 0, credit_amount: baseCost, description: `Payment for asset - ${assetNumber}` },
-          ],
-        });
-      } catch (glError) {
-        console.error("GL posting for asset acquisition failed:", glError);
-        toast.error("Asset created but GL posting failed. Check default account mappings.");
-      }
-    } else {
-      console.warn("Fixed asset GL posting skipped: missing account mappings. Configure in Finance Settings.");
-    }
+    const created = data as any;
+    const assetNumber = created?.asset_number as string;
 
     // Audit log
     logAction({
       action: "created",
       entityType: "fixed_asset",
-      entityId: data.id,
+      entityId: created.id,
       entityName: `${assetNumber} - ${asset.name}`,
-      changesSummary: `Fixed asset created: ${assetNumber}, purchase price ${asset.purchase_price} ${(data as any).currency ?? ""} (base ${baseCost} @ ${(data as any).acquisition_exchange_rate})`,
+      changesSummary: `Fixed asset created: ${assetNumber}, purchase price ${asset.purchase_price} ${created.currency ?? ""} (base ${created.base_purchase_price} @ ${created.acquisition_exchange_rate})`,
     });
 
     toast.success(`Asset ${assetNumber} created successfully`);
     await fetchAssets();
-    return data;
+    return created;
   };
 
   const updateAsset = async (id: string, updates: Partial<FixedAsset>) => {
