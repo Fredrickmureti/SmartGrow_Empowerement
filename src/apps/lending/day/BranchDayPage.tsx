@@ -133,9 +133,11 @@ export function BranchDayPage() {
       notes: closeNotes.trim() || null,
     });
     setCloseFormOpen(false);
+    setCloseStep(1);
     setCountedCash("");
     setVarianceReason("");
     setCloseNotes("");
+    setCloseTyped("");
   };
 
   const submitReopen = async () => {
