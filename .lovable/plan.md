@@ -75,3 +75,22 @@ One entry per export in the existing `audit_logs` table: actor, time, action `ex
 ## Out of scope
 
 No loan, accounting, banking or journal data enters the export. No KYC redesign, no bucket permission changes, no background job system.
+
+
+=================IMPLEMENTATION PROGRESS/WHERE THINGS STAND===============
+
+I got partway into the KYC export build before credits ran out.
+
+Done so far
+
+Audited the existing KYC setup: all client identity data lives on the client record (mf_clients), and the five KYC images (photo, ID front/back, next-of-kin ID front/back) live in the private mf-kyc file store, filed per institution and client. Access is already enforced by the database for both the records and the files, so that stays the security boundary.
+Confirmed the shared activity log can record an "exported" event with scope and counts only.
+Added ZIP packaging support to the project.
+Wrote the package-assembly logic (folder layout per client, readable profile summary, machine-readable profile, manifest, exceptions report) and the server-side export builder that reads clients and downloads their files as the signed-in user, refuses clients outside their permitted scope, caps a bulk run at 300 clients, reports any file it could not retrieve instead of faking one, and writes the audit entry.
+Not yet done / untested
+
+The backend endpoint the browser calls, and registering the token attacher.
+The "Export KYC" button on the client detail sheet and the bulk export on the Clients page.
+All testing: single client, bulk, missing-file handling, and the cross-branch/cross-institution security checks.
+One deviation to note: the readable profile is a text file rather than a PDF, because this project deliberately forbids PDF generation inside the app; the original files are still exported untouched.
+No real client records, photos or documents were changed. Continuing this next.
