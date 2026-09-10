@@ -50,21 +50,14 @@ into a supplier bill — both engine paths stay unused.
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND================
 
-Credits ran out mid-way, so I've stopped here. Where things stand:
+Here's where things stand.
 
-Verified as done (the previous agent's claims hold)
+Verified as genuinely done: the Cash & Bank Accounts screen no longer asks for the retired provider link, the Expenses screen (list, record/edit, void with reason, sidebar entry) is in place, and every status change goes through the existing server-side accounting commands. I also confirmed in the live database that the two earlier blocking defects are gone — the leftover supplier rule on expenses no longer exists.
 
-Finance → Expenses exists: the list screen, the record/edit form, the void-with-reason dialog, the sidebar entry and the route are all in place, and every status change goes through the existing server-side accounting commands.
-Cash & bank accounts: the obsolete provider link is genuinely gone from the code, so that screen's failed request is fixed.
-Fixed during testing (two real production defects that made expenses unusable)
+Added this session:
 
-Recording any expense failed outright: a leftover supplier check on the expenses table pointed at a rule and supplier tables that were removed with the old ERP. That orphaned check has been removed.
-Approving an expense failed: the ledger-posting rule still referred to retired project-tracking fields. It now posts without them, using the same single posting engine as everything else.
-Not finished
+A Categories button on the Expenses screen so you can create, note and retire expense categories, each with an optional default expense account.
+An expense detail page (open it from a row's menu → View details) showing the summary, the history trail — recorded, submitted, approved, voided — the void reason, and a link to the ledger entry once it exists.
+Both compile cleanly.
 
-The end-to-end rehearsal (record → approve → check the ledger entry → void → check the reversal) was interrupted right after the second fix, so it has not yet been confirmed to run clean. No test data was left behind — the test was designed to undo itself, and nothing was written.
-There are no expense categories set up yet, so the first real expense will fall back to the default operating-expense account.
-A dedicated expense detail page with a lifecycle timeline is still open.
-Continuing needs available credits; the next step is simply to re-run the self-undoing test and confirm the ledger lines and the reversal.
-
-ALSO IF EXPENSE CATEGORIES CREATION IS NOT EXPOSED IN THE UI it needs to be exposed in the ui 
+Still unfinished: the end-to-end rehearsal (record → approve → check the ledger entry → void → check the reversal) has not been run, so the posting path remains unconfirmed in practice, and no signed-in walkthrough was possible. Credits ran out, so continuing that verification needs available credits.
