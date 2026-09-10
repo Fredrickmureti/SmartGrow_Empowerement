@@ -67,15 +67,12 @@ The report you asked for: original architecture, root cause, remediation, proof 
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
-Done so far (verified against the live database and code):
+I picked up from the logged handoff and verified the server side is genuinely in place: fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation and fa_create_asset all exist in the database, and the posting routine takes no amount from the browser — it recalculates, checks the closed period, branch and company, requires the account mappings, locks against a second simultaneous run, refuses a repeat for the same asset and month, and writes the ledger entry through the existing accounting engine.
 
-Confirmed the finding: depreciation amounts were decided in the browser, in three separate places (useDepreciationRun, useDepreciationSchedule, and the run-depreciation edge function), with acquisition posting also browser-side and failures silently swallowed. No real asset or depreciation records exist yet, so nothing in production is affected.
-The authoritative database routines (fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation) exist and were reviewed line by line.
-Applied a migration just now that: hardens fa_post_depreciation so a pre-generated projected row is finalised rather than skipped after a journal is written (a true duplicate now aborts the whole run); adds fa_create_asset, which creates the asset and its acquisition journal in one transaction and refuses on closed periods, missing account mappings, or foreign category/branch; and removes direct insert/update/delete access on depreciation records so only the server routines can write them.
-Unfinished / untested:
+Done this session (frontend switch onto that authority):
 
-The screens still call the old browser code: useDepreciationRun.ts, useDepreciationSchedule.ts, DepreciationRunSheet.tsx, useFixedAssets.ts (create path) have not yet been switched to the new routines, and the duplicate edge function has not been removed.
-The architecture test fixed-assets-business-level-gating.test.ts will need its stale browser-posting assertions updated.
-No ZZTEST-FIXEDASSET fixtures, manipulated-input test, concurrency test, preview no-write digest, accounting chain check, or cleanup/integrity proof has been run yet.
-The linter output after the migration is the pre-existing project-wide baseline (security-definer function grants, extensions in public, leaked-password protection); the new functions are explicitly granted to signed-in users only and revoked from anonymous access. Disposal remains a browser-computed posting and should be classified as a future-wave item.
-The earlier contacts-cleanup migration is also still mid-way (command provider rewrite, old-file deletion, DB drop, verification).  the next step is the coherent frontend pass to route preview, posting, and asset creation through the new database routines, then the isolated fixture verification and final report.
+The depreciation screen's preview and posting now both call the database routines; the old browser formula, the direct writes to the depreciation and asset records, and the weak duplicate check are gone.
+The asset history view is now read-only; its second copy of the formula and its own posting path were removed.
+Creating an asset now goes through the single server transaction, so an asset can no longer be saved without its purchase entry, and a failure is shown instead of being hidden in the console.
+The duplicate scheduled depreciation job was deleted.
+Unfinished and untested: the run screen still needs the small display change for assets the server marks as not eligible (I was mid-edit), the old test file still asserts the removed browser code, and no type check, build, isolated ZZTEST fixtures, manipulated-amount test, duplicate/concurrency test, end-to-end posting check, cleanup or final report have been run. No production record was touched.
