@@ -28,6 +28,7 @@ import { ClientStatementReport } from "./reports/ClientStatementReport";
 import { OfficerCollectionsReport } from "./reports/OfficerCollectionsReport";
 import { ProductPerformanceReport } from "./reports/ProductPerformanceReport";
 import { ClientExposureReport } from "./reports/ClientExposureReport";
+import { BranchCashDayReport } from "./reports/BranchCashDayReport";
 import { ParAgingReport } from "./reports/ParAgingReport";
 import { ReportFilterProvider } from "@/contexts/ReportFilterContext";
 
@@ -150,6 +151,16 @@ export function LendingApp() {
             <InstitutionRoute allowReadOnly>
               <PermissionProtectedRoute permission="viewLendingReports">
               <ReportFilterProvider><ArrearsReport /></ReportFilterProvider>
+            </PermissionProtectedRoute>
+            </InstitutionRoute>
+          }
+        />
+        <Route
+          path="reports/branch-cash-day"
+          element={
+            <InstitutionRoute allowReadOnly>
+              <PermissionProtectedRoute permission="viewLendingReports">
+              <ReportFilterProvider><BranchCashDayReport /></ReportFilterProvider>
             </PermissionProtectedRoute>
             </InstitutionRoute>
           }
