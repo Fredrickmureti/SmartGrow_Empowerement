@@ -26004,16 +26004,26 @@ export type Database = {
         }
         Returns: boolean
       }
-      mf_can_scoped: {
-        Args: {
-          _branch_id: string
-          _business_id: string
-          _module: string
-          _officer_id: string
-          _operation: string
-        }
-        Returns: boolean
-      }
+      mf_can_scoped:
+        | {
+            Args: {
+              _branch_id: string
+              _business_id: string
+              _module: string
+              _operation: string
+            }
+            Returns: boolean
+          }
+        | {
+            Args: {
+              _branch_id: string
+              _business_id: string
+              _module: string
+              _officer_id: string
+              _operation: string
+            }
+            Returns: boolean
+          }
       mf_close_loan: {
         Args: { p_closed_on?: string; p_loan_id: string; p_notes?: string }
         Returns: string
