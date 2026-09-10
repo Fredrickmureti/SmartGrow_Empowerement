@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.expense_void(uuid, text);

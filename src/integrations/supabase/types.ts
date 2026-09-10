@@ -24409,16 +24409,14 @@ export type Database = {
         Returns: Json
       }
       expense_submit: { Args: { p_expense_id: string }; Returns: Json }
-      expense_void:
-        | { Args: { p_expense_id: string; p_reason?: string }; Returns: Json }
-        | {
-            Args: {
-              p_expense_id: string
-              p_reason?: string
-              p_reason_code?: string
-            }
-            Returns: Json
-          }
+      expense_void: {
+        Args: {
+          p_expense_id: string
+          p_reason?: string
+          p_reason_code?: string
+        }
+        Returns: Json
+      }
       fetch_collector_assignments_with_names: {
         Args: { _org_id: string }
         Returns: {
