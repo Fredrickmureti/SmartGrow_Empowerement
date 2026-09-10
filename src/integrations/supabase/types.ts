@@ -23679,6 +23679,24 @@ export type Database = {
         Args: { p_reason: string; p_supplier_id: string }
         Returns: Json
       }
+      branch_day_cash_report: {
+        Args: { p_branch_id: string; p_from: string; p_to: string }
+        Returns: {
+          business_date: string
+          cash_in: number
+          cash_out: number
+          closed_at: string
+          closed_by: string
+          counted_cash: number
+          day_id: string
+          expected_cash: number
+          opened_by: string
+          opening_cash: number
+          status: string
+          variance: number
+          variance_reason: string
+        }[]
+      }
       branch_day_expected_cash: { Args: { p_day_id: string }; Returns: number }
       budget_fiscal_months: {
         Args: { _business_id: string; _fiscal_year: number }

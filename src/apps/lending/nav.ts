@@ -54,6 +54,7 @@ export const LENDING_NAV: WorkspaceNav = {
         { to: "/lending/reports/portfolio", label: "Loan portfolio", icon: BarChart3, permission: "viewLendingReports" },
         { to: "/lending/reports/arrears", label: "Arrears & PAR", icon: AlertTriangle, permission: "viewLendingReports" },
         { to: "/lending/reports/collections", label: "Collections report", icon: Wallet, permission: "viewLendingReports" },
+        { to: "/lending/reports/branch-cash-day", label: "Daily branch cash", icon: CalendarClock, permission: "viewLendingReports" },
         { to: "/lending/reports/disbursements", label: "Disbursements", icon: Landmark, permission: "viewLendingReports" },
         { to: "/lending/reports/client-statement", label: "Client statement", icon: FileText, permission: "viewLendingReports" },
         { to: "/lending/reports/officer-collections", label: "Officer & branch collections", icon: Wallet, permission: "viewLendingReports" },
