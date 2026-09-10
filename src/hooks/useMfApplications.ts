@@ -281,13 +281,17 @@ export function useMfApplications(options?: {
 
   /**
    * Remove an application that never became lending history. Eligibility
-   * (draft or withdrawn, no loan, permission, branch/officer scope) is decided
+   * (draft or withdrawn, no loan, permission, branch/officer scope — or a
+   * declined application removed by an administrator with a reason) is decided
    * by `mf_delete_loan_application`, never by this button.
    */
   const deleteApplication = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async (input: string | { id: string; reason?: string }) => {
+      const id = typeof input === "string" ? input : input.id;
+      const reason = typeof input === "string" ? undefined : input.reason;
       const { error } = await supabase.rpc("mf_delete_loan_application", {
         p_application_id: id,
+        p_reason: reason ?? null,
       });
       if (error) throw error;
     },
@@ -297,6 +301,7 @@ export function useMfApplications(options?: {
     },
     onError: (e) => toast.error(lendingErrorMessage(e, "The application could not be deleted")),
   });
+
 
   return {
     applications: query.data ?? [],

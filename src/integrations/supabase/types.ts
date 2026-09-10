@@ -26073,7 +26073,7 @@ export type Database = {
         Returns: string
       }
       mf_delete_loan_application: {
-        Args: { p_application_id: string }
+        Args: { p_application_id: string; p_reason?: string }
         Returns: string
       }
       mf_delete_loan_product: {
