@@ -88,6 +88,8 @@ export function useControlAccountReconciliation(reportType: "ar" | "ap") {
     // so the card does NOT flash a skeleton or a wrong verdict on reload.
     isLoading: query.isLoading && !d,
     isFetching: query.isFetching,
+    // Surfaced so a failing report says so instead of spinning forever.
+    error: (query.error as Error | null) ?? null,
     refetch: query.refetch,
   };
 }
