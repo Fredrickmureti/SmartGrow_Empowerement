@@ -67,6 +67,7 @@ import { ApplicationFormDialog } from "./ApplicationFormDialog";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
 import { WithdrawDialog } from "./WithdrawDialog";
+import { DeleteDeclinedDialog } from "./DeleteDeclinedDialog";
 
 const STATUS_TONE: Record<
   MfApplicationStatus,
@@ -121,7 +122,11 @@ function WorkflowTrail({
 }
 
 export function ApplicationsPage() {
-  const { can } = usePermissions();
+  const { can, role } = usePermissions();
+  // Removing a declined application is an administrator act. The database
+  // (`is_org_admin` inside `mf_delete_loan_application`) is the control; this
+  // only decides whether to offer the action.
+  const isAdmin = role === "owner" || role === "admin";
   const canManage = can("manageApplications");
   const canApprove = can("approveApplications");
   const [status, setStatus] = useState<MfApplicationStatus | "all" | "open">("all");
@@ -139,6 +144,8 @@ export function ApplicationsPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MfLoanApplication | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [declinedTarget, setDeclinedTarget] = useState<MfLoanApplication | null>(null);
+  const [declinedOpen, setDeclinedOpen] = useState(false);
 
   const {
     applications,
@@ -438,7 +445,17 @@ export function ApplicationsPage() {
                             {/* Removal is only for a record that never became
                                 lending history. The database decides; this is a
                                 hint, not the control. */}
-                            {deletable(a) ? (
+                            {a.status === "rejected" && isAdmin && !loanNumberFor(a.id) ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setDeclinedTarget(a);
+                                  setDeclinedOpen(true);
+                                }}
+                              >
+                                Delete (administrator)…
+                              </DropdownMenuItem>
+                            ) : deletable(a) ? (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => {
@@ -517,6 +534,16 @@ export function ApplicationsPage() {
         isLoading={deleteApplication.isPending}
         onConfirm={() => {
           if (deleteTarget) deleteApplication.mutate(deleteTarget.id);
+        }}
+      />
+
+      <DeleteDeclinedDialog
+        open={declinedOpen}
+        onOpenChange={setDeclinedOpen}
+        application={declinedTarget}
+        clientLabel={declinedTarget ? clientName(declinedTarget.client_id) : ""}
+        onDelete={async (input) => {
+          await deleteApplication.mutateAsync(input);
         }}
       />
 

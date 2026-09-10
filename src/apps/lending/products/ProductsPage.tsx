@@ -282,7 +282,7 @@ export function ProductsPage() {
         title="Delete loan product"
         description={
           deleteTarget
-            ? `Delete ${deleteTarget.code} — ${deleteTarget.name}? It has never been priced, applied for or lent on, so no lending history depends on it. This cannot be undone.`
+            ? `Delete ${deleteTarget.code} — ${deleteTarget.name}? No application and no loan uses it, so no lending history depends on it. This cannot be undone.`
             : undefined
         }
         isLoading={deleteProduct.isPending}
