@@ -10,7 +10,8 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [ ] M1 — Owner verification pass in the signed-in preview.
 - [x] Branch Operational Day — day table/event log, open/close/reopen RPCs, ledger + batch day locks, per-branch activation, UI surface; all invariants re-verified live.
 - [x] Fiscal period close/reopen now sets `is_closed` and `is_period_open` reads both markers.
-- [ ] Branch Operational Day — signed-in walkthrough (blocked: needs a preview sign-in on your own Supabase), stale-open-day alert, daily branch cash report.
+- [x] Branch Operational Day — stale-open-day alert (day screen + money date field) and daily branch cash report.
+- [ ] Branch Operational Day — signed-in walkthrough (blocked: needs a preview sign-in on your own Supabase).
 - [ ] M5a — Drop `payments`/`payment_allocations`; sweep ERP dashboard widget ids.
 - [ ] M5b — Drop `contacts` (journal counterparty → `mf_clients`).
 - [ ] M7 — Orphan function purge.
