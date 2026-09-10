@@ -98,6 +98,9 @@ export interface MfLoanApplication {
   decision_at: string | null;
   decision_notes: string | null;
   rejection_reason: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -144,7 +147,7 @@ export type MfAssessmentInput = Omit<
 > & { assessed_at?: string };
 
 const APPLICATION_SELECT =
-  "id,business_id,branch_id,application_number,client_id,group_id,product_id,product_version_id,loan_officer_id,requested_amount,requested_term_installments,purpose,status,submitted_at,submitted_by,review_started_at,approved_amount,approved_term_installments,decision_by,decision_at,decision_notes,rejection_reason,created_at,updated_at";
+  "id,business_id,branch_id,application_number,client_id,group_id,product_id,product_version_id,loan_officer_id,requested_amount,requested_term_installments,purpose,status,submitted_at,submitted_by,review_started_at,approved_amount,approved_term_installments,decision_by,decision_at,decision_notes,rejection_reason,cancelled_at,cancelled_by,cancellation_reason,created_at,updated_at";
 
 const ASSESSMENT_SELECT =
   "id,business_id,application_id,assessed_by,assessed_at,visit_date,visit_location,business_verified,monthly_income,monthly_expenses,existing_obligations,collateral_description,character_notes,recommended_amount,recommended_term_installments,recommendation,notes,created_at,updated_at";
