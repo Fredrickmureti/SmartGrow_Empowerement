@@ -27,6 +27,7 @@ const JournalEntries = lazy(() => import("@/pages/JournalEntries"));
 const JournalEntryDetailPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryDetailPage"));
 const JournalEntryCreatePage = lazy(() => import("@/features/finance/journal-entries/JournalEntryCreatePage"));
 const JournalEntryEditPage = lazy(() => import("@/features/finance/journal-entries/JournalEntryEditPage"));
+const ExpensesPage = lazy(() => import("@/features/finance/expenses/ExpensesPage"));
 const BusinessTransactionCreatePage = lazy(() => import("@/features/finance/business-transactions/BusinessTransactionCreatePage"));
 const RecurringJournalCreatePage = lazy(() => import("@/features/finance/recurring-journals/RecurringJournalCreatePage"));
 const AccountDetailRedirect = lazy(() => import("@/pages/finance/AccountDetailRedirect"));
