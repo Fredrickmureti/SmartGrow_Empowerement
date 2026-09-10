@@ -9,7 +9,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Pencil } from "lucide-react";
+import { Download, Pencil } from "lucide-react";
 import { DetailSheet, FooterActionBar, StatusBadge } from "@/design-system";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,17 @@ import { useOrgMembers } from "@/hooks/useOrgMembers";
 import { useMfClientActiveGroup } from "@/hooks/useMfClientActiveGroup";
 import { useKycImageUrl, type MfClient, type MfClientStatus } from "@/hooks/useMfClients";
 import { ClientAssignmentDialog, type ControlledField } from "./ClientAssignmentDialog";
+import { useKycExport } from "./useKycExport";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import type { MfClientInput } from "@/hooks/useMfClients";
 
 const STATUS_TONE: Record<MfClientStatus, "neutral" | "success" | "warning" | "danger"> = {
@@ -92,6 +103,8 @@ export function ClientDetailSheet({
   const { getUserName } = useOrgMembers();
   const { group } = useMfClientActiveGroup(open ? (client?.id ?? null) : null);
   const [controlled, setControlled] = useState<ControlledField | null>(null);
+  const [confirmExport, setConfirmExport] = useState(false);
+  const { runExport, exporting } = useKycExport();
 
   const branchName = useMemo(
     () => branches.find((b) => b.id === client?.branch_id)?.name ?? "—",
@@ -132,6 +145,16 @@ export function ClientDetailSheet({
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Close
                 </Button>
+                {canManage && (
+                  <Button
+                    variant="outline"
+                    disabled={exporting}
+                    onClick={() => setConfirmExport(true)}
+                  >
+                    <Download className="mr-1.5 h-4 w-4" />
+                    {exporting ? "Preparing…" : "Export KYC"}
+                  </Button>
+                )}
                 {canManage && (
                   <Button onClick={onEdit}>
                     <Pencil className="mr-1.5 h-4 w-4" />
@@ -251,6 +274,30 @@ export function ClientDetailSheet({
         }}
         onUpdate={onUpdate}
       />
+
+      <AlertDialog open={confirmExport} onOpenChange={setConfirmExport}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export this client's KYC package?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ZIP file will be downloaded containing {client.full_name}'s identity
+              details and the stored identity photographs and documents. This is
+              personal data — the download is recorded in the activity log against
+              your name.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void runExport({ mode: "single", clientId: client.id });
+              }}
+            >
+              Export KYC
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

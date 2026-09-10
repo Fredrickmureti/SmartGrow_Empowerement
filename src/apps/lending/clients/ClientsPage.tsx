@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Plus } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -45,6 +45,18 @@ import {
 import { ClientFormDialog } from "./ClientFormDialog";
 import { ClientDetailSheet } from "./ClientDetailSheet";
 import { ClientChargesDialog } from "./ClientChargesDialog";
+import { useKycExport } from "./useKycExport";
+import { useBusinesses } from "@/hooks/useBusinesses";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import {
   useMfClientChargeSummary,
@@ -80,6 +92,9 @@ export function ClientsPage() {
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [feeClient, setFeeClient] = useState<MfClient | null>(null);
+  const [bulkExportOpen, setBulkExportOpen] = useState(false);
+  const { currentBusiness } = useBusinesses();
+  const { runExport, exporting } = useKycExport();
 
   const { clients, isLoading, error, createClient, updateClient } = useMfClients({
     branchId: branchId === "all" ? null : branchId,
@@ -123,10 +138,21 @@ export function ClientsPage() {
         description="Member records with KYC identity, owning branch and loan officer."
         actions={
           canManage ? (
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              Register client
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={exporting || filtered.length === 0}
+                onClick={() => setBulkExportOpen(true)}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                {exporting ? "Preparing…" : "Export KYC"}
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Register client
+              </Button>
+            </>
           ) : undefined
         }
       />
@@ -295,6 +321,48 @@ export function ClientsPage() {
         client={feeClient}
         canManage={canManage}
       />
+
+      <AlertDialog open={bulkExportOpen} onOpenChange={setBulkExportOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Export KYC for {filtered.length} client(s)?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  A ZIP file will be downloaded with one folder per client, containing
+                  their identity details and stored identity photographs and documents.
+                </p>
+                <p>
+                  Branch: <strong>{branchId === "all" ? "All branches" : branchName(branchId)}</strong>
+                  {" · "}
+                  Status: <strong>{status === "all" ? "All statuses" : status}</strong>
+                  {search.trim() ? " · limited to the clients currently listed" : ""}
+                </p>
+                <p>
+                  Only clients you are permitted to see are included. This is personal
+                  data and the download is recorded in the activity log against your name.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                void runExport({
+                  mode: "bulk",
+                  ...(currentBusiness?.id ? { businessId: currentBusiness.id } : {}),
+                  branchId: branchId === "all" ? null : branchId,
+                  status: status === "all" ? null : status,
+                  clientIds: search.trim() ? filtered.map((c) => c.id) : null,
+                });
+              }}
+            >
+              Export KYC
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

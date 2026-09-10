@@ -79,18 +79,21 @@ No loan, accounting, banking or journal data enters the export. No KYC redesign,
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND===============
 
-I got partway into the KYC export build before credits ran out.
+Status: complete (2026-09-10).
 
-Done so far
+Delivered
+- KYC boundary confirmed: all identity data is on the client record (`mf_clients`); the five KYC images (photo, ID front/back, next-of-kin ID front/back) live in the private `mf-kyc` store, filed per institution and client. No loan, accounting or banking data enters a package.
+- Package assembly (`src/lib/kyc/kycExportPackage.ts`): one folder per client, readable profile summary + machine-readable profile, manifest, exceptions report. Files are forced under the owning client's folder.
+- Server builder (`src/lib/kyc/kycExport.server.ts`): reads clients and downloads their files as the signed-in user, so the existing database access rules are the only authorization boundary; refuses clients outside the caller's scope; rejects a stored path that does not belong to the client record; caps a bulk run at 300 clients; reports unretrievable files instead of faking them; writes the audit entry (scope and counts only) and fails the export if the audit cannot be recorded.
+- Endpoint `src/routes/api/kyc-export.ts` (POST, bearer token required, binary ZIP response, `no-store`).
+- Browser hook `src/apps/lending/clients/useKycExport.ts` plus "Export KYC" on the client detail sheet (single) and on the Clients page header (bulk, using the current branch/status/search scope), each behind a confirmation that states the data is personal and the download is logged.
+- Tests `src/test/lending/kycExportPackage.test.ts` — 7 passing: folder naming/traversal safety, per-client isolation, no placeholder for missing files, exceptions/partial status, manifest completeness, and no loan/accounting vocabulary in the profile.
 
-Audited the existing KYC setup: all client identity data lives on the client record (mf_clients), and the five KYC images (photo, ID front/back, next-of-kin ID front/back) live in the private mf-kyc file store, filed per institution and client. Access is already enforced by the database for both the records and the files, so that stays the security boundary.
-Confirmed the shared activity log can record an "exported" event with scope and counts only.
-Added ZIP packaging support to the project.
-Wrote the package-assembly logic (folder layout per client, readable profile summary, machine-readable profile, manifest, exceptions report) and the server-side export builder that reads clients and downloads their files as the signed-in user, refuses clients outside their permitted scope, caps a bulk run at 300 clients, reports any file it could not retrieve instead of faking one, and writes the audit entry.
-Not yet done / untested
+Verified
+- Typecheck clean; unit tests green.
+- Endpoint refuses an unauthenticated request (401) and an invalid token (403).
+- Read-only database check: all 6 live clients' stored KYC paths conform to `business/client/kind.jpg`, so the ownership check passes for real records. No client record, photo or document was modified.
 
-The backend endpoint the browser calls, and registering the token attacher.
-The "Export KYC" button on the client detail sheet and the bulk export on the Clients page.
-All testing: single client, bulk, missing-file handling, and the cross-branch/cross-institution security checks.
-One deviation to note: the readable profile is a text file rather than a PDF, because this project deliberately forbids PDF generation inside the app; the original files are still exported untouched.
-No real client records, photos or documents were changed. Continuing this next.
+Remaining gap
+- An end-to-end signed-in export against the live records was not executed: this project uses an externally managed Supabase, so no test session can be minted in the build environment. The scope enforcement itself is the same database rule already used by the clients screen and the KYC image viewer.
+- Cross-branch/own-portfolio behaviour is enforced by the existing scope function rather than proven with a second scoped test account; creating production users for this was deliberately avoided.
