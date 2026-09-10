@@ -1,66 +1,12 @@
-# Fix bank accounts error + add expense recording
 
-## 1. Cash & bank accounts error (orphaned ERP leftover)
+Manual journal entry creation now works. Here's where things stand.
 
-Confirmed cause: the bank accounts screen still asks the database to join each account to a
-platform "bank provider" catalogue. That catalogue table was removed when the old ERP pieces were
-retired, so the database rejects the whole request and no accounts load at all.
+What was wrong (both confirmed, not guessed):
 
-Fix:
-- Stop requesting the provider join when loading bank accounts (`src/hooks/useBankAccounts.ts`).
-- Remove the provider logo lookup on the account card (`src/components/banking/BankAccountCard.tsx`),
-  falling back to the existing bank-name display.
-- Leave the already-stubbed provider hook alone; nothing else references the removed table.
+The accounting engine has two versions of its internal write step, and the manual journal entry didn't say which one to use — so the database refused the call outright, before any entry was created. That refusal is a technical error, not a business rule, which is why you saw the vague "an unexpected error occurred" message instead of something useful.
+Behind that sat a second fault: the entry was being sent without a currency, which the ledger requires, so it would still have failed at the last step.
+What I changed: the manual journal entry routine now names the current, currency-aware accounting engine explicitly and records the entry in your company's own currency at rate 1. If a company has no currency set, the user now gets a plain message telling them to set it in company settings. No tables, data or accounting rules were touched, and the entry still goes through the one authoritative posting path.
 
-No database change is needed. This is a read-path fix only.
+Verified with throwaway entries that were all discarded afterwards: a balanced entry saved correctly (numbered JE-00007, posted, two lines, correct branch, KES); an unbalanced entry was refused with a clear reason and left nothing behind; an entry using an account outside the company was refused. No production records were modified, and nothing test-related remains in the ledger.
 
-## 2. Expense recording
-
-The expense engine already exists in the database (expenses, categories, attachments, and the
-server commands for submit / approve / reject / void / post to the ledger), plus a client hook
-`useExpenses` and `expenseCommands`. What is missing is the screens and the menu entry — nothing
-in Finance links to it.
-
-Build, reusing the existing record/list design-system patterns used by journal entries:
-
-- **Expenses list** at `/finance/expenses`: date, number, category, payee/description, amount,
-  status, with search, status filter and a "New expense" button.
-- **Record expense** page: date, category, description, amount and currency, tax treatment,
-  who paid (institution account vs. employee), the paying cash/bank account, reference,
-  optional receipt attachment.
-- **Expense detail**: read-only summary, lifecycle timeline (submitted / approved / posted /
-  voided), the linked ledger entry, and the actions the current status allows —
-  Submit, Approve, Reject, Void — each calling the existing server command, never writing
-  status or amounts from the browser.
-- **Edit** allowed only while the expense is still in an editable status.
-- Add "Expenses" to the Finance sidebar under Operations, and register the routes.
-
-Permissions follow the existing permission framework already used across Finance; approval uses
-the existing server-side approval routing, so no new authorisation logic is introduced.
-
-## Verification
-- Cash & bank accounts loads without the failed request, accounts and balances visible.
-- Record an expense, submit it, approve it, and confirm the ledger entry appears and the trial
-  balance moves; then void one and confirm the reversal is registered.
-- Typecheck clean.
-
-## Out of scope
-Employee payroll reimbursement queueing (no payroll in this system) and converting an expense
-into a supplier bill — both engine paths stay unused.
-
-=================IMPLEMENTATION PROGRESS/WHERE THINGS STAND================
-
-Here's where things stand on the expense rehearsal.
-
-Confirmed working this session: recording an expense as a normal signed-in user is permitted (the column-level permissions are correctly in place), the expense number is generated automatically, submitting it routes through approval and lands it as approved, and the duplicate/ambiguous cancellation command was removed so only the correct one remains.
-
-Closed out this session (verified against the live system, read-only):
-
-- Cash & bank accounts: no code anywhere still asks for the removed bank-provider catalogue; the screens compile and build cleanly.
-- Expense screens (list, record, detail, void) and the Finance menu entry are all present.
-- Accounting path confirmed authoritative: approval posts only through `post_expense_gl` → `post_journal_entry_atomic`; voiding posts the contra entry only through `void_journal_entry_atomic`, never deleting anything, and refuses closed periods, reimbursed expenses and expenses already turned into a supplier bill. The ledger figures come from `journal_entry_lines.debit/credit` (earlier check query used wrong column names — that was the only failure).
-- Gap found and fixed: voided expenses were not listed in the reversal register (its view only covered loan disbursements and repayments). Expenses are now registered as their own module, so every void is visible there with number, date, amount, reason and who voided it.
-
-No production data was created, changed or reversed at any point.
-
-Remaining: a signed-in click-through in the preview (record → submit → approve → confirm ledger entry → void → confirm register entry).
+Not finished: a closed-period entry (5 September) was accepted rather than blocked — that looks like a real gap in the period lock for manual entries and needs its own investigation. Also untested: the permission checks for who may create entries, and the browser walk-through of the form itself (balance totals, error wording, finding the entry afterwards). Credits ran out mid-way, so continuing those needs available credits.
