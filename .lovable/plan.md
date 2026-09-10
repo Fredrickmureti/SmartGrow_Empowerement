@@ -1,121 +1,128 @@
-# Lending Lifecycle — Verified Investigation, Testing and User Guide
+# Day Control Enablement — Root Cause and Remediation
 
-Goal: produce a client-ready Lending user guide that describes the system as it
-actually behaves, plus an internal verification report. Discovery and testing
-come first; writing comes last.
+## A. Root cause (verified)
 
-## What exists today (confirmed by directory read, not yet by behaviour)
+`open_branch_day` refuses because the branch has never been activated:
 
-The Lending app already has screens for products (with versions), clients,
-groups, meetings, applications (form, assessment, decision), loans (create,
-disburse, schedule, lifecycle), repayments (record, group sheet, bank batch),
-collections, branch day and seven reports. Each has a matching data hook.
-Whether each control behaves as its label suggests is exactly what this wave
-must verify — nothing below assumes it.
+```text
+Branch day page  → openDay.mutateAsync
+  → rpc open_branch_day(branch_id, ...)
+    → reads public.branches (name, business_id, organization_id, day_control_from, is_active)
+    → mf_can_scoped(business, branch, 'treasury', 'write')   [passes]
+    → IF branches.day_control_from IS NULL
+         RAISE 'Day control is not enabled for %'             ← P0001 raised here
+```
 
-## Wave 1 — UI walkthrough (source of truth for the guide's structure)
+Live data confirms it:
 
-Drive the running app as a user, screen by screen, in lifecycle order:
-products → product version → client → group/meeting (if required to borrow) →
-application → submit → assess → decide → create loan → disburse → schedule →
-repayment → closure. For every screen capture: navigation path, buttons,
-every field with its exact label, input type, required/optional, default,
-every dropdown option, and validation messages. Screenshots kept for reference.
+| branch | code | day_control_from |
+| --- | --- | --- |
+| Headquarters | HQ | null |
+| Kitengela Branch (inactive) | KTG | null |
 
-Output: a raw walkthrough log (internal).
+So enablement is a single column — `branches.day_control_from`, a **go-live date**
+(null = branch not under day control; a date = day control applies from that date
+onward). It is read by `open_branch_day`, by the ledger guard
+`enforce_branch_day_lock`, by the collection-round guard
+`enforce_batch_branch_day`, and in the UI by `useBranchDayGate`
+(`BranchDayDateField`) and `BranchDayPage`.
 
-## Wave 2 — Trace each control to its real effect
+Nothing anywhere writes it. Verified: no database function sets
+`day_control_from`; no frontend file writes it; the two branch settings tabs
+that exist (Settings → Company → branch → Settings → *Configuration* /
+*Operations*) edit branch setting overrides and re-scope bank accounts and
+payment methods respectively — neither touches day control.
 
-For every field and option recorded in Wave 1, follow it from the form into the
-hook, into the server routine, into the stored row. Establish for each:
-what is stored, what is merely a default, what is a constraint, what is
-recalculated later, what is ignored. Special attention to:
+## B. Verdict
 
-- Product → application inheritance: copied value vs default vs range
-  constraint vs override; whether the application snapshots product terms and
-  whether editing a product later touches existing applications/loans.
-- Interest method options: what each one actually computes in schedule
-  generation, not what the name implies.
-- Fees, penalties, grace periods: when they are charged, when they hit the
-  ledger.
-- Status transitions: the real state machine and who may trigger each move.
+**Partially implemented feature.** Column, RPC enforcement, posting guards, day
+register UI and behavioural test scaffolding all exist. The *activation*
+step — the administrator setting the go-live date — was never built, in any
+layer: no RPC, no UI, no seed. The error message is therefore a correct
+business rejection of an unreachable configuration state, which is why it reads
+as a dead end to the operator.
 
-## Wave 3 — Controlled behavioural tests (production-safe)
+Headquarters is a normal operational branch in this deployment (the only active
+one, and the branch all current cash activity belongs to). It is eligible for
+day control; it simply has not been activated. No classification change is
+warranted.
 
-Real client and accounting data is read-only. Tests use a temporary isolated
-test client/group/product created for this wave and removed or left clearly
-marked afterwards; no real application, loan, meeting or journal entry is
-touched.
+## C. What will be built
 
-Scenarios to run end to end and observe the resulting rows and journal effects:
+### 1. Activation RPC (`set_branch_day_control`)
 
-1. Product with each available interest method → application → approval →
-   loan creation → schedule. Compare schedules across methods.
-2. Disbursement with and without deductible fees — confirm gross vs net cash.
-3. Normal repayment, partial repayment, overpayment, final repayment/closure.
-4. Penalty on a late instalment, if the system charges one.
-5. Rejection path and cancellation path.
-6. A reversal, where reversal is supported.
+One `SECURITY DEFINER` function, matching the posture of the existing day RPCs
+(advisory lock, permission via the existing `mf_can_scoped` framework, no
+hard-coded roles):
 
-Each scenario records: what was entered, what the system produced, and the
-accounting effect in business terms (which account is debited/credited).
+- Authority: the branch-configuration capability the existing resolver already
+  answers for the `settings` module (confirmed against
+  `user_has_module_permission` before the SQL is written) — plus the existing
+  `branches` UPDATE policy posture (owner/admin), so no new role concept.
+- **Activation**: sets `day_control_from` to a date that is today or later only.
+  Backdating is refused — activating retroactively would invalidate already
+  posted entries that no day covers. Refused if already set to the same value.
+- **Deactivation** (`null`): refused while a day is open at that branch; allowed
+  otherwise, so a mis-set go-live can be corrected. Closed historical days are
+  retained untouched.
+- **Change of date**: allowed only while no operational day has yet been
+  recorded for the branch; once days exist the date is fixed.
+- Every activation, change and deactivation is written to the existing audit
+  trail with actor, branch, old and new value, and reason.
+- Also allows setting `day_variance_tolerance`, which is likewise read by
+  `close_branch_day` and today has no editing surface.
 
-## Wave 4 — Defect handling
+### 2. Activation UI
 
-Findings are classified as confirmed defect, potential design issue,
-UX/documentation issue, or expected behaviour. Confirmed defects inside this
-lifecycle are root-caused, fixed and retested in this wave, each recorded
-separately. Questionable-but-deliberate business behaviour is flagged, not
-redesigned.
+A **Day control** card added to the existing branch settings dialog
+(Settings → Company → *branch* → Settings), beside Configuration and
+Operations. Shows current state ("not switched on" / "in force since <date>"),
+a go-live date field defaulting to today, the cash variance tolerance, and a
+plain-language explanation of what switching it on does to transaction dates.
+Rendered read-only for users without the capability.
 
-## Wave 5 — Completeness reconciliation
+### 3. Actionable message on the Branch day page
 
-Walk the Wave 1 log against the drafted guide outline and confirm every
-navigation step, action, required field, meaningful optional field, dropdown,
-calculation method, validation and status transition is represented, with no
-unexplained jump between states.
+When the selected branch has no go-live date, the page stops presenting *Open
+the day* as if it would work: it shows an inline notice explaining that an
+authorised administrator must switch day control on for this branch first, with
+a link straight to that branch's settings. The backend rejection is left exactly
+as it is.
 
-## Wave 6 — Write the two deliverables
+## D. Production-safe testing
 
-**Deliverable 1 — `docs/manuals/lending/user-guide.md`** (client-facing, no
-technical vocabulary), following the requested structure: lifecycle at a
-glance, before you start, create a product (field table + interest method table
-with worked examples + repayment option table), create an application (field
-table incl. relationship to product), submit and review, approve/reject,
-create/activate the loan, disburse (field table), understand the schedule,
-record repayments, the loan after disbursement, accounting overview in business
-language, common scenarios, important rules, items requiring attention.
+No production row is read-modify-written. Fixture work is confined to one
+temporary branch (`ZZTEST-DAYCTL`) inside the existing business, created and
+removed by the test itself; its id is captured and reported. Value-level
+digests (`md5` over ordered `row_to_json`) are taken before and after over
+`branches`, `branch_operational_days`, `branch_day_events`, `journal_entries`,
+`journal_entry_lines`, `mf_clients`, `mf_groups`, `mf_group_meetings`,
+`mf_loan_applications`, `mf_client_charge_payments` and `mf_fee_collections`,
+excluding the fixture, and any drift fails the run. Headquarters' own
+`day_control_from` is only changed through the new supported RPC, as the
+deliberate go-live action, and only with your say-so.
 
-**Deliverable 2 — `.lovable/plan/lending-lifecycle-verification-<date>.md>`**
-(internal): discovered lifecycle, screen → logic → data mapping, status
-transitions, accounting events, tests run and their results, defects found,
-fixes made, design issues, remaining uncertainties.
+Scenarios covered: activation refused without the capability; refused for a past
+date; accepted for today; open day succeeds after activation; refused before the
+go-live date; second open day refused; future date refused; concurrent opens
+produce one day; zero-activity day opens and closes; deactivation refused while
+a day is open.
 
-## Ground rules
+## E. Resulting flow
 
-- Every statement in the guide traces to observed UI behaviour, traced logic,
-  or a recorded test result. Nothing inferred from a field name.
-- No production client, application, loan, meeting, fee transaction, journal
-  entry or accounting period is modified.
-- Fixes are limited to defects proven by a test in this lifecycle.
+```text
+Settings → Company → <branch> → Settings → Day control
+        ↓  (owner/admin capability)
+Set go-live date (today or later) → saved + audited
+        ↓
+Lending → Branch day → select branch → Open the day
+        ↓
+Count opening cash, confirm → day opens, register row appears
+        ↓
+From then on money entries carry the open day's date; closed days refuse postings
+```
 
-## Scale note
+## Out of scope
 
-This is a large wave: roughly twenty screens to walk, several dozen fields to
-trace, and six test scenarios to run before any writing starts. It will run
-across multiple steps, with progress reported as each wave closes.
-
-
-===========THIS WAS THE LAST MESSAGE FROM THE PREVIOUS AGENT BEFORE ITS TIME RUN OUT============
-I paused the lending investigation because your workspace ran out of credits.
-
-What I completed (discovery, verified from the actual screens and server logic):
-
-Mapped the full lending navigation and every lifecycle screen: loan products and product versions, clients, groups, meetings, applications, assessment, approval/rejection, loan creation, disbursement, repayments, collections, branch day, and the ten reports.
-Confirmed how products work: identity is separate from priced, frozen versions; publishing a version is the only way to reprice, and loans keep the version they were written on.
-Verified the three interest methods and four rate bases, the fee rules (deducted from payout vs added to the first instalment), grace instalments, and penalty rules — including how the schedule is actually calculated.
-Confirmed the real chain: application (requested terms) → submit → review → recorded business visit → approve with a decided amount/term inside the product band → create loan (schedule generated, no money moves) → disburse once, full principal, fees netted out of the cash paid → repayments allocated penalty, fee, interest, principal, oldest instalment first, with overpayment held as client credit and automatic closure when nothing remains.
-Traced the accounting effect of disbursement, repayment, settlement and write-off.
-What is unfinished: the controlled test runs (comparing schedules across the interest methods, fee/net-payout checks, overpayment, penalties, rejection and reversal paths), and both written deliverables — the client user guide and the internal verification report. The system currently has no loans or applications recorded, so nothing has been changed and no production data was touched.
-
-Continuing needs available credits; once topped up, I can pick up straight from the testing stage.
+Loan, reconciliation, reporting and unrelated accounting work. Transaction-date
+enforcement is only verified for consistency, not redesigned.
