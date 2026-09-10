@@ -50,22 +50,21 @@ into a supplier bill — both engine paths stay unused.
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND================
 
-Done and verified:
-- Cash & bank accounts: the retired `platform_bank_providers` join is gone from
-  `useBankAccounts` (comment at the former join site) and no source file queries that
-  relation any more. `useBankProviders` remains an inert stub.
-- Void reason codes for expenses exist and are read from `reversal_reason_codes`.
-- `ExpenseFormDialog` (capture/edit) and `VoidExpenseDialog` exist.
-- NEW: `src/features/finance/expenses/ExpensesPage.tsx` — list with search, status
-  filter, totals, "New expense", and row actions Submit / Approve / Reject / Void /
-  Delete / View ledger entry. Every transition calls the existing server command in
-  `src/lib/finance/expenseCommands.ts`; the browser writes commercial fields only.
-- NEW: route `/finance/expenses` registered in `src/apps/finance/routes.tsx` and
-  "Expenses" added to the Finance sidebar Operations group (`src/apps/finance/nav.ts`).
-- Typecheck clean for the new/edited files.
+Credits ran out mid-way, so I've stopped here. Where things stand:
 
-Remaining:
-- Live end-to-end rehearsal (record → submit → approve → check ledger/trial balance →
-  void → check reversal register) has NOT been run.
-- No dedicated detail page; the list drawer/detail view and lifecycle timeline are still
-  open. Ledger entry is reachable via the row action.
+Verified as done (the previous agent's claims hold)
+
+Finance → Expenses exists: the list screen, the record/edit form, the void-with-reason dialog, the sidebar entry and the route are all in place, and every status change goes through the existing server-side accounting commands.
+Cash & bank accounts: the obsolete provider link is genuinely gone from the code, so that screen's failed request is fixed.
+Fixed during testing (two real production defects that made expenses unusable)
+
+Recording any expense failed outright: a leftover supplier check on the expenses table pointed at a rule and supplier tables that were removed with the old ERP. That orphaned check has been removed.
+Approving an expense failed: the ledger-posting rule still referred to retired project-tracking fields. It now posts without them, using the same single posting engine as everything else.
+Not finished
+
+The end-to-end rehearsal (record → approve → check the ledger entry → void → check the reversal) was interrupted right after the second fix, so it has not yet been confirmed to run clean. No test data was left behind — the test was designed to undo itself, and nothing was written.
+There are no expense categories set up yet, so the first real expense will fall back to the default operating-expense account.
+A dedicated expense detail page with a lifecycle timeline is still open.
+Continuing needs available credits; the next step is simply to re-run the self-undoing test and confirm the ledger lines and the reversal.
+
+ALSO IF EXPENSE CATEGORIES CREATION IS NOT EXPOSED IN THE UI it needs to be exposed in the ui 
