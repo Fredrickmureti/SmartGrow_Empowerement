@@ -42,6 +42,31 @@ describe("normalizeError", () => {
     expect(normalizeError({ foo: "bar" }).kind).toBe("unknown");
   });
 
+  it("passes an author-written business refusal through (P0001)", () => {
+    const n = normalizeError({ code: "P0001", message: "Debits must equal credits." });
+    expect(n.kind).toBe("validation");
+    expect(n.message).toBe("Debits must equal credits.");
+  });
+
+  it("passes a business refusal raised as check_violation through (23514)", () => {
+    const n = normalizeError({
+      code: "23514",
+      message: "Cannot post journal entry to closed fiscal period: Sep 2026",
+    });
+    expect(n.kind).toBe("validation");
+    expect(n.message).toMatch(/closed fiscal period: Sep 2026/);
+  });
+
+  it("never renders a raw Postgres check-constraint failure (23514)", () => {
+    const n = normalizeError({
+      code: "23514",
+      message: 'new row for relation "accounts" violates check constraint "accounts_code_check"',
+    });
+    expect(n.kind).toBe("validation");
+    expect(n.message).not.toMatch(/constraint/i);
+  });
+
+
   it("never leaks raw error.message into the user-facing message", () => {
     const raw = "stack trace at https://internal.host/secret";
     const n = normalizeError(new Error(raw));
