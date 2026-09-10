@@ -9,7 +9,7 @@
 
 import { useMemo, useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { History, Plus } from "lucide-react";
+import { History, MoreHorizontal, Plus } from "lucide-react";
 import {
   PageHeader,
   PageBody,
@@ -28,6 +28,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDeleteDialog } from "@/components/shared/ConfirmDeleteDialog";
 import {
   Table,
   TableBody,
@@ -60,9 +69,28 @@ export function ProductsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [versionProduct, setVersionProduct] = useState<MfLoanProduct | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MfLoanProduct | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [retireTarget, setRetireTarget] = useState<MfLoanProduct | null>(null);
+  const [retireOpen, setRetireOpen] = useState(false);
 
-  const { products, isLoading, error, createProduct, updateProduct, businessId } =
-    useMfLoanProducts({ status });
+  const {
+    products,
+    isLoading,
+    error,
+    createProduct,
+    updateProduct,
+    retireProduct,
+    deleteProduct,
+    businessId,
+  } = useMfLoanProducts({ status });
+
+  /**
+   * A product that has ever been priced has been offered, so history depends on
+   * it: retire it instead. The database (`mf_delete_loan_product`) also refuses
+   * when applications or loans exist — this only shapes the menu.
+   */
+  const deletable = (p: MfLoanProduct) => !p.current_version_id;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -173,18 +201,56 @@ export function ProductsPage() {
                     <TableCell>
                       <StatusBadge tone={STATUS_TONE[p.status]}>{p.status}</StatusBadge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openVersions(p);
-                        }}
-                      >
+                    <TableCell
+                      className="space-x-1.5 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button variant="outline" size="sm" onClick={() => openVersions(p)}>
                         <History className="mr-1.5 h-3.5 w-3.5" />
                         Versions
                       </Button>
+                      {canManage && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="sm" variant="ghost" aria-label="More actions">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-64">
+                            <DropdownMenuLabel>{p.code}</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openVersions(p)}>
+                              Versions
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {p.status !== "retired" && (
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setRetireTarget(p);
+                                  setRetireOpen(true);
+                                }}
+                              >
+                                Retire (stop offering)
+                              </DropdownMenuItem>
+                            )}
+                            {deletable(p) ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setDeleteTarget(p);
+                                  setDeleteOpen(true);
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem disabled>
+                                Already priced — retire it instead
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -204,6 +270,38 @@ export function ProductsPage() {
         }}
         onUpdate={async (id, patch) => {
           await updateProduct.mutateAsync({ id, ...patch });
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete loan product"
+        description={
+          deleteTarget
+            ? `Delete ${deleteTarget.code} — ${deleteTarget.name}? It has never been priced, applied for or lent on, so no lending history depends on it. This cannot be undone.`
+            : undefined
+        }
+        isLoading={deleteProduct.isPending}
+        onConfirm={() => {
+          if (deleteTarget) deleteProduct.mutate(deleteTarget.id);
+        }}
+      />
+
+      <ConfirmDeleteDialog
+        open={retireOpen}
+        onOpenChange={setRetireOpen}
+        variant="warning"
+        title="Retire loan product"
+        confirmLabel="Retire"
+        description={
+          retireTarget
+            ? `Stop offering ${retireTarget.code} — ${retireTarget.name}? Existing applications and loans keep the pricing that governed them.`
+            : undefined
+        }
+        isLoading={retireProduct.isPending}
+        onConfirm={() => {
+          if (retireTarget) retireProduct.mutate(retireTarget.id);
         }}
       />
 

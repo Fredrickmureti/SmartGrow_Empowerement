@@ -278,12 +278,46 @@ export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }
     onError: (e) => toast.error(lendingErrorMessage(e, "Could not update the product")),
   });
 
+  /**
+   * Stop offering a product while every past application and loan keeps the
+   * pricing context that governed it. `mf_retire_loan_product` owns the rule.
+   */
+  const retireProduct = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("mf_retire_loan_product", { p_product_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Product retired");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The product could not be retired")),
+  });
+
+  /**
+   * Remove a product that was never published, never applied for and never
+   * lent on. `mf_delete_loan_product` decides — the menu only asks.
+   */
+  const deleteProduct = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("mf_delete_loan_product", { p_product_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Product deleted");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The product could not be deleted")),
+  });
+
   return {
     products: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error as Error | null,
     createProduct,
     updateProduct,
+    retireProduct,
+    deleteProduct,
     businessId,
   };
 }

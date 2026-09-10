@@ -98,6 +98,9 @@ export interface MfLoanApplication {
   decision_at: string | null;
   decision_notes: string | null;
   rejection_reason: string | null;
+  cancelled_at: string | null;
+  cancelled_by: string | null;
+  cancellation_reason: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -144,7 +147,7 @@ export type MfAssessmentInput = Omit<
 > & { assessed_at?: string };
 
 const APPLICATION_SELECT =
-  "id,business_id,branch_id,application_number,client_id,group_id,product_id,product_version_id,loan_officer_id,requested_amount,requested_term_installments,purpose,status,submitted_at,submitted_by,review_started_at,approved_amount,approved_term_installments,decision_by,decision_at,decision_notes,rejection_reason,created_at,updated_at";
+  "id,business_id,branch_id,application_number,client_id,group_id,product_id,product_version_id,loan_officer_id,requested_amount,requested_term_installments,purpose,status,submitted_at,submitted_by,review_started_at,approved_amount,approved_term_installments,decision_by,decision_at,decision_notes,rejection_reason,cancelled_at,cancelled_by,cancellation_reason,created_at,updated_at";
 
 const ASSESSMENT_SELECT =
   "id,business_id,application_id,assessed_by,assessed_at,visit_date,visit_location,business_verified,monthly_income,monthly_expenses,existing_obligations,collateral_description,character_notes,recommended_amount,recommended_term_installments,recommendation,notes,created_at,updated_at";
@@ -256,6 +259,45 @@ export function useMfApplications(options?: {
     onError: (e) => toast.error(lendingErrorMessage(e, "That transition was refused")),
   });
 
+  /**
+   * Withdraw a submitted/under-review application. The authoritative rule —
+   * who may withdraw, which states allow it, and that no loan exists — lives in
+   * `mf_withdraw_loan_application`; this only carries the operator's reason.
+   */
+  const withdrawApplication = useMutation({
+    mutationFn: async (input: { id: string; reason: string }) => {
+      const { error } = await supabase.rpc("mf_withdraw_loan_application", {
+        p_application_id: input.id,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Application withdrawn");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The application could not be withdrawn")),
+  });
+
+  /**
+   * Remove an application that never became lending history. Eligibility
+   * (draft or withdrawn, no loan, permission, branch/officer scope) is decided
+   * by `mf_delete_loan_application`, never by this button.
+   */
+  const deleteApplication = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("mf_delete_loan_application", {
+        p_application_id: id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Application deleted");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The application could not be deleted")),
+  });
+
   return {
     applications: query.data ?? [],
     isLoading: query.isLoading,
@@ -264,8 +306,11 @@ export function useMfApplications(options?: {
     createApplication,
     updateApplication,
     transition,
+    withdrawApplication,
+    deleteApplication,
     businessId,
   };
+
 }
 
 /** Assessments recorded against one application. */
