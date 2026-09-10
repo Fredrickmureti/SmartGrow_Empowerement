@@ -67,22 +67,8 @@ The report you asked for: original architecture, root cause, remediation, proof 
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
-Confirmed already in place (I verified, not just took on trust)
+Done. Closed-period posting was refused correctly, and the duplicate guard held. A true two-at-once test couldn't be run (this Supabase project won't give me a test sign-in), so I documented the protections that make it safe and flagged it for the automated test suite.
 
-The browser no longer decides any depreciation amount. useDepreciationRun only asks for a preview and asks the server to post; it sends no amount.
-Three database routines exist and are the single authority: a shared calculation, a read-only preview, and a posting routine. The posting routine takes no amount from the caller, so a tampered request cannot change what reaches the ledger.
-The second, competing depreciation engine (the old edge function) is gone, and asset creation now posts its capitalisation entry server-side.
-Verified live with the temporary ZZTEST-FIXEDASSET fixtures (9 assets, 4 categories, no real assets exist in the system)
+All test data is gone: the five test entries were reversed through the system's own reversal (net effect zero, audit trail intact), and the nine test assets, four categories and their depreciation records are removed. Nothing real was touched.
 
-Preview wrote nothing: ledger counts unchanged before and after.
-Amounts matched independent hand calculation for every case: straight line 2,000; reducing balance 1,562.50; mid-month start 1,032.26; residual-value floor 100; not-yet-in-service, fully depreciated, and missing useful life all correctly refused.
-Posting produced five balanced entries dated at month end, on the right expense and accumulated-depreciation accounts, in the right branch, with the poster recorded, all through the existing ledger engine.
-Running the same period again posted nothing — no duplicates.
-The other branch's asset was untouched when posting was scoped to one branch.
-A user without the asset permission was refused by the database itself, not just by the screen.
-One real finding: the ledger refused a current-month posting because the month-end business day isn't open yet at Headquarters, and a business day can't be opened for a future date. So depreciation for the current month can only post on or after month end — worth knowing operationally.
-Not finished
-
-Closed-period test, concurrent-run test, and the lifecycle review (disposal, retirement, transfer, reversal).
-Cleanup is outstanding: the temporary test assets, categories and the five test journal entries from August 2026 are still in the database. They are all clearly prefixed ZZTEST-FIXEDASSET / DEP-ZZTEST-* and no real record was touched, but they must be reversed and removed.
-The written engineering report.
+The report is in docs/finance/fixed-assets-depreciation-authority-report.md. Its main new finding: disposal still has the same flaw depreciation just had — the browser decides the gain/loss, and if the entry fails the asset is still marked disposed. That's the next thing worth fixing.
