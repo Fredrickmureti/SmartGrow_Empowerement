@@ -181,7 +181,19 @@ export function BranchDayPage() {
             )}
           </FilterBar>
 
+          {staleDays > 0 && (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+              <span className="font-medium">
+                {openDayRow?.business_date} is still open
+              </span>{" "}
+              — {staleDays === 1 ? "a day" : `${staleDays} days`} behind today. Balance it
+              and close it, otherwise today’s money keeps landing in{" "}
+              {openDayRow?.business_date}.
+            </div>
+          )}
+
           {openDayRow && (
+
             <div className="grid gap-3 sm:grid-cols-3">
               <SummaryTile
                 label="Cash at open"
