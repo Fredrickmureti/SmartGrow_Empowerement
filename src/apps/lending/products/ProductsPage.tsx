@@ -86,11 +86,14 @@ export function ProductsPage() {
   } = useMfLoanProducts({ status });
 
   /**
-   * A product that has ever been priced has been offered, so history depends on
-   * it: retire it instead. The database (`mf_delete_loan_product`) also refuses
-   * when applications or loans exist — this only shapes the menu.
+   * A product that is still being offered and has been priced must be retired
+   * before it can go — removal is a deliberate two-step act. A retired or
+   * never-priced product may be removed when nothing references it; the
+   * database (`mf_delete_loan_product`) refuses when applications or loans
+   * exist, so this only shapes the menu.
    */
-  const deletable = (p: MfLoanProduct) => !p.current_version_id;
+  const deletable = (p: MfLoanProduct) => !p.current_version_id || p.status === "retired";
+
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
