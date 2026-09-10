@@ -194,9 +194,26 @@ export function normalizeError(
     // Only user-shaped integrity errors map to "validation". 23502 (NOT NULL)
     // and 23503 (FK violation) are server/integrity bugs — surface them as
     // "unknown" so users don't get a misleading "check your input" toast.
+    //
+    // 23514 arrives in two very different shapes:
+    //  - a Postgres CHECK constraint failure ("violates check constraint
+    //    accounts_code_check") — infra text we must never render;
+    //  - an author-written business refusal RAISEd with
+    //    ERRCODE = 'check_violation' (e.g. the fiscal-period lock:
+    //    "Cannot post journal entry to closed fiscal period: Sep 2026").
+    // Pass the second through; keep the generic message for the first.
+    if (code === "23514" && typeof e.message === "string" && e.message.trim().length > 0
+        && !/violates|constraint|relation "|column "/i.test(e.message)) {
+      return shape("validation", err, {
+        title: "Couldn't complete this action",
+        message: e.message.trim(),
+        action: "Review and try again",
+      });
+    }
     if (status === 422 || code === "23514" || code === "23P01") {
       return shape("validation", err);
     }
+
     // Business rules our own RPCs RAISE EXCEPTION with (SQLSTATE P0001) carry
     // an author-written, user-safe sentence ("Allocation exceeds open balance
     // on bill INV-1"). Collapsing those into "An unexpected error occurred"
