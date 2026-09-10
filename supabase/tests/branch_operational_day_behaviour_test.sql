@@ -229,7 +229,7 @@ BEGIN
   -- variance path on branch C (tolerance 100) — exercises the over/short posting
   BEGIN
     c_day := public.open_branch_day(c_branch, CURRENT_DATE, 1000, 'zzt variance day');
-    PERFORM public.close_branch_day(c_day, 1050, 'zzt counted 50 over');
+    PERFORM public.close_branch_day(c_day, 1050, 'zzt counted 50 over', NULL);
     SELECT variance, variance_journal_entry_id IS NOT NULL INTO v_num, v_bool
       FROM public.branch_operational_days WHERE id = c_day;
     r := r || format('PASS variance-close: variance=%s, over/short entry posted=%s', v_num, v_bool);
@@ -302,6 +302,13 @@ BEGIN
              THEN format('s.id NOT IN (%L::uuid,%L::uuid,%L::uuid)', a_branch, b_branch, c_branch)
              ELSE format('s.branch_id NOT IN (%L::uuid,%L::uuid,%L::uuid)', a_branch, b_branch, c_branch) END)
         INTO v_txt;
+    ELSIF t = 'accounts' THEN
+      -- current_balance / updated_at are recomputed by the ledger trigger when the
+      -- test's own entries post, so the identity digest excludes those two columns
+      -- and the balance movement is reported separately below.
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT (row_to_json(s)::jsonb - ''current_balance'' - ''updated_at'')::text AS j FROM public.accounts s) x',
+        '|', 'EMPTY') INTO v_txt;
     ELSIF t IN ('journal_entries') THEN
       EXECUTE format(
         'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.journal_entries s WHERE s.branch_id IS DISTINCT FROM %L::uuid AND s.branch_id IS DISTINCT FROM %L::uuid AND s.branch_id IS DISTINCT FROM %L::uuid) x',
