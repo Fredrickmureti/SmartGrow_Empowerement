@@ -56,20 +56,17 @@ function ControlAccountReconciliationInner() {
   return (
     <ReportPageLayout
       title="Control Account Reconciliation"
-      description="Subledger totals (open AR / AP documents) compared to the GL control-account closing balance. A non-zero drift flags a missing migration journal, an unposted document, or a manual GL entry bypassing the subledger."
+      description="Receivable sub-ledger balances (outstanding loan principal and unpaid client charges) compared to the GL control-account closing balance. A non-zero drift flags a missing migration journal, an unposted document, or a manual GL entry bypassing the sub-ledger. This deployment has no payables sub-ledger, so only receivables are reconciled."
       isLoading={recon.isLoading}
+      error={recon.error}
       getExportConfig={getExportConfig}
     >
       <Tabs value={active} onValueChange={(v) => setActive(v as ReconType)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="ar">Accounts Receivable</TabsTrigger>
-          <TabsTrigger value="ap">Accounts Payable</TabsTrigger>
         </TabsList>
         <TabsContent value="ar" className="space-y-3">
           <ControlAccountReconciliationCard reportType="ar" />
-        </TabsContent>
-        <TabsContent value="ap" className="space-y-3">
-          <ControlAccountReconciliationCard reportType="ap" />
         </TabsContent>
       </Tabs>
     </ReportPageLayout>
