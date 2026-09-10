@@ -131,11 +131,26 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 
 ===============IMPLEMENTATION PROGRESS=================
 
-I got most of the remaining work in before stopping.
+From the current plan and roadmap, here is what is still open:
 
-Verified as genuinely done: the branch day records, day history log, open/close/reopen controls, the ledger and collection-round day locks, and the day screen all exist in both the database and the app. Newly added this session: a Daily branch cash report (opening cash, cash in, cash out, what the books expect, cash counted, over/short per day, all read from the ledger), wired into Lending → Insights, plus a warning banner on the Branch day screen when a day is left open past today.
+Branch Operational Day
 
-Both remaining pieces are now done: the Branch day screen computes how many days behind today the open day is and shows the warning banner, and the money-entry date field warns when the open day it will post into is an earlier date. Typecheck passes. Only the signed-in walkthrough remains, which needs a preview sign-in on the owner's Supabase.
+Signed-in walkthrough of open / close / money-entry flow — blocked because the preview needs your Supabase sign-in.
+Roadmap items still open
+
+M1 — Owner verification pass in the signed-in preview.
+M5a — Drop payments / payment_allocations; sweep ERP dashboard widget IDs.
+M5b — Drop contacts (journal counterparty → mf_clients).
+M7 — Orphan function purge.
+M8 — Linter posture on retained schema.
+M9 — Microfinance report gaps.
+Resource Center — remove the inert demo-video section.
+M10 — Microfinance document gaps.
+Recently completed
+
+Branch day screen stale-open-day warning.
+Money-entry date field warning when posting into an earlier open day.
+Daily branch cash report wired into Lending → Insights.
 
 
 KINDLY NOTE AND NOTE  CAREFULLY
