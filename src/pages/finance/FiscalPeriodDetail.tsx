@@ -336,7 +336,6 @@ export default function FiscalPeriodDetail() {
                     { label: "Disbursements", value: transactionCounts.disbursements, icon: Receipt, link: `/lending/loans` },
                     { label: "Repayments", value: transactionCounts.repayments, icon: Receipt, link: `/lending/repayments` },
 
-                    { label: "Payments", value: transactionCounts.payments, icon: CreditCard, link: `/finance/payments` },
                     { label: "Expenses", value: transactionCounts.expenses, icon: Wallet, link: `/finance/expenses` },
                   ].map((item) => (
                     <div

@@ -29,7 +29,6 @@ export interface TransactionCounts {
   draftJournalEntries: number;
   disbursements: number;
   repayments: number;
-  payments: number;
   expenses: number;
 }
 
@@ -193,7 +192,6 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
         draftJEResult,
         disbursementsResult,
         repaymentsResult,
-        paymentsResult,
         expensesResult,
         recentJEResult,
         unreconciledResult,
@@ -262,15 +260,6 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           .eq("business_id", businessId)
           .gte("paid_on", startDate)
           .lte("paid_on", endDate),
-        // Payments count
-        supabase
-          .from("payments")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-          .eq("business_id", businessId)
-          .gte("payment_date", startDate)
-          .lte("payment_date", endDate),
         // Expenses count
         supabase
           .from("expenses")
@@ -516,7 +505,6 @@ export function useFiscalPeriodDetail(periodId: string | undefined) {
           draftJournalEntries: unpostedJE,
           disbursements: disbursementsResult.count || 0,
           repayments: repaymentsResult.count || 0,
-          payments: paymentsResult.count || 0,
           expenses: expensesResult.count || 0,
         },
         recentEntries: (recentJEResult.data || []) as RecentJournalEntry[],
@@ -621,8 +609,7 @@ function emptyDetail(): Omit<FiscalPeriodDetailData, "period"> {
     topAccounts: [],
     transactionCounts: {
       postedJournalEntries: 0, draftJournalEntries: 0,
-      disbursements: 0, repayments: 0,
-      payments: 0, expenses: 0,
+      disbursements: 0, repayments: 0, expenses: 0,
     },
     recentEntries: [],
     closeReadiness: { items: [], blockers: 0, warnings: 0, allClear: true, healthScore: 100 },
