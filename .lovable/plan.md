@@ -1,61 +1,52 @@
-# Loan Product & Loan Application Deletion — Findings and Proposed Wave
+# Loan product & application deletion — closing the two gaps
 
-## What the investigation found (verified against the live database and code)
+## Verification of the previous wave (checked just now)
 
-### Loan applications
-- Statuses actually allowed: `draft`, `submitted`, `under_review`, `approved`, `rejected`, `ready_for_disbursement`, `disbursed`, `cancelled`. Live data holds only `draft` and `rejected` (2 records).
-- Deletion **already exists in the database**: the delete rule on applications permits removal only when the record is `draft` or `cancelled`, and only for a user whose access group grants the "delete" operation on applications.
-- It is **not exposed anywhere in the interface**. The applications screen has a create dialog, an assessment dialog and an approve/decline dialog only — no row menu, no delete, no cancel.
-- There is no cancel/withdraw operation in code, even though `cancelled` is a legal state. So a submitted application today can only be declined, never withdrawn.
-- Nothing else in the database points at an application except: the assessment records (removed together with the application) and the loan created from it. Because the loan keeps a required pointer to its application, an application that became a loan can never be removed — the database refuses it.
-- Application fees are **not** application-scoped: fee collections are recorded against a client/group, never against an application. So today no accounting event can be attached to an unapproved application; the accounting boundary starts at loan creation/disbursement.
+Confirmed in the live database and in the code:
 
-### Loan products
-- Products have a lifecycle already: `draft`, `active`, `retired` (all 3 live products are `active`). `retired` is the existing archive path and is not surfaced as an action.
-- Commercial terms live in immutable published versions. A published version can never be removed — the database blocks it outright.
-- Because removing a product would try to remove its versions, **any product that has ever published a version is already undeletable**. Only a product whose versions are all unpublished drafts can physically go.
-- Applications and loans point at both the product and the exact version they were priced on, with a hard "refuse" rule — historical lending context can never be lost.
+- The four operations exist and enforce the rules server-side: delete application, withdraw application, delete loan product, retire loan product.
+- The Withdraw / Delete / Retire actions are already on the Applications and Loan products lists, permission-gated, with confirmation dialogs.
 
-### Conclusion (the real rule)
-1. Applications: removal is safe only while the record has produced nothing — i.e. it is still a draft (or was withdrawn) and no loan exists for it. Everything past that point must be declined, withdrawn or reversed, never removed.
-2. Products: a never-published, never-referenced product may be removed. A product that has been offered must be **retired**, not removed.
-3. No new accounting path, no touching of journal entries, no second reversal mechanism — none is needed, because no financial event can precede loan creation.
+So the earlier report is accurate. What it did not cover is the two situations you hit.
 
-## Proposed work
+## Gap 1 — a retired product you can never remove
 
-### 1. Backend (authoritative, one small migration per object)
-- `mf_delete_loan_application(p_id)` — verifies the record exists, is in scope (institution + branch + loan-officer scope), the caller holds the applications "delete" permission, status is `draft` or `cancelled`, and **no loan references it**; removes the application and its assessments; writes an audit entry. Clear business errors otherwise ("This application has become a loan and cannot be removed — decline or reverse the loan instead").
-- `mf_withdraw_loan_application(p_id, p_reason)` — the missing lifecycle move to `cancelled` for a submitted/under-review application, recorded with reason and actor. Approved/disbursed applications are refused.
-- `mf_delete_loan_product(p_id)` — verifies permission and scope, refuses when any published version, application or loan exists; otherwise removes the product and its draft versions.
-- `mf_retire_loan_product(p_id)` — the archive action: sets status `retired` so the product stops being offered while all history keeps its pricing context.
-- Also confirm how the lending permission checker maps the "delete" operation for applications and loan products, and wire that capability through the existing access-group framework — no new hard-coded roles.
+Your V1PROD "V1 Proof Product" is retired, has no applications and no loans — but it has one *published price version*. Both the screen and the database refuse deletion purely because a price version was once published, even though nothing in the institution's history ever used it.
 
-### 2. Interface (follows existing conventions — a row menu, not a "Delete tab")
-- Applications list: add the standard row kebab menu with Open / Assess / Decision alongside **Withdraw** (submitted, under review) and **Delete** (draft or withdrawn, no loan). Delete uses the existing confirm-delete dialog, worded with the application number and client, marked destructive and permission-gated. When deletion is not allowed the menu shows the permitted alternative (Withdraw, or nothing but Decline) instead of a dead button.
-- Products list: row kebab menu with Edit / Versions plus **Retire** (any offered product) and **Delete** (only when never published and unreferenced). Retired products remain visible under the existing status filter.
-- Buttons reflect the rule but never enforce it — every action calls the backend operation, which is the control.
+That is too strict. A published price only matters if something was priced on it. The correct rule:
 
-### 3. Testing (production-safe)
-- All scenario tests run inside a transaction that is rolled back, using fixtures created in the test itself (prefix `ZZTEST-LOANDELETE`). No existing client, application, product, fee or journal entry is read-modified or removed.
-- Matrix: unused product; product referenced by an application; product with a published version; product used by a loan; draft application; withdrawn application; submitted application; approved application; application converted to a loan; disbursed loan. Each asserts allowed/refused plus the exact message.
-- Each prohibited case is also attempted directly against the backend operation, proving the interface cannot be bypassed.
-- Record the results and the final rule in the project status file.
+> A loan product may be removed when no application and no loan reference it. If it was ever published, it must be retired first — so removal is a deliberate two-step act, not a slip.
 
-### 4. Explicitly out of scope
-No changes to pricing, schedules, approval architecture, disbursement, repayments or the accounting posting layer. Anything questionable found on the way is reported as a separate classified finding.
+A product touched by any application or loan stays undeletable and can only be retired. That is unchanged.
 
+## Gap 2 — declined applications stay forever
 
-=============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
+Today only draft and withdrawn applications can be removed; a declined one is permanently on record. You are right that a declined test application should be removable, but it is a stronger act than deleting a draft, so it gets stronger controls:
 
+- Only an administrator/owner may remove a declined application (ordinary delete permission is not enough).
+- It requires a written reason.
+- The confirmation is two-step: type the application number, then confirm.
+- Still refused outright if the application ever produced a loan.
 
-All the safety checks passed, and every test record was undone — nothing in your live data was created, changed or removed.
+Draft and withdrawn applications keep today's single-step behaviour.
 
-Results:
+## Work
 
-Unused loan product: removed. Product used by applications, or with published pricing: refused, with a message telling the user to retire it instead. Retiring works, and retiring twice is refused.
-Draft application: removed. Withdrawn application: removed. Submitted application: refused ("withdraw or decline it instead"). Declined application: both withdrawal and removal refused.
-Withdrawal without a reason: refused.
-Someone without permission: refused for both applications and products, proving the buttons aren't the control — the database is.
-The Withdraw / Delete / Retire actions were already on the Applications and Loan products lists, so nothing was missing there.
+### Database (one small migration per object, as always)
 
-everything is complete
+1. Teach the price-version freeze rule to allow removal only inside the product-removal operation (a dedicated internal marker, not the reset switch).
+2. `mf_delete_loan_product` — drop the "published pricing" refusal; instead refuse when the product is not retired while having published pricing. Keep the application/loan refusals, the permission check, the audit entry.
+3. `mf_delete_loan_application` — add a declined path: allowed only for an organisation administrator/owner, requires a non-empty reason, refused when a loan exists. Reason recorded in the audit entry. Draft/withdrawn path unchanged.
+
+### Interface
+
+- Products list: Delete is offered for any product with no applications and no loans; when it has published pricing and is still active, the menu says "Retire it first, then it can be deleted". The confirmation names the product and states that no lending history depends on it.
+- Applications list: declined rows show "Delete (administrator)" for admins only, opening a two-step dialog — reason box plus typing the application number — worded as permanent removal of a record kept for audit. Non-admins keep seeing "Declined applications stay on record".
+- Buttons remain hints; the database stays the control.
+
+### Verification
+
+- Re-run the scenario checks inside a rolled-back transaction with self-created fixtures only: retired unreferenced product with published pricing (now removable), active published product (refused — retire first), product with an application (refused), product with a loan (refused), declined application as admin with reason (removed), as non-admin (refused), without reason (refused), declined application that produced a loan (refused).
+- No production client, group, application, product or journal entry is created, changed or removed.
+- Then remove V1PROD for real, since it qualifies under the new rule, and report the result.
+- Update the status file with the final rule.
