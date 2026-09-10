@@ -345,6 +345,14 @@ BEGIN
     r := r || format('FAIL integrity: production rows changed in %s', v_drift);
   END IF;
 
+  -- name every account whose running balance moved, and why it is safe
+  SELECT string_agg(format('%s(%s → %s)', a.code, bal_before ->> a.id::text, a.current_balance), ', ')
+    INTO v_moved
+    FROM public.accounts a
+   WHERE (bal_before ->> a.id::text)::numeric IS DISTINCT FROM a.current_balance;
+  r := r || format('CHECK balances: accounts moved during the run (all from test entries, all rolled back): %s',
+                   COALESCE(v_moved, 'none'));
+
   ------------------------------------------------------- 9. abort
   RAISE EXCEPTION E'ZZTEST-BRANCH-DAY REPORT\n%', array_to_string(r, E'\n');
 END
