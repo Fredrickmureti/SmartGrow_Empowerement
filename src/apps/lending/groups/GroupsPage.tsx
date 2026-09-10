@@ -243,6 +243,28 @@ export function GroupsPage() {
         </Section>
       </PageBody>
 
+      <GroupDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        group={viewing}
+        canManage={canManage}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) openEdit(viewing);
+        }}
+        onOpenRoll={() => {
+          setDetailOpen(false);
+          if (viewing) openRoll(viewing);
+        }}
+        onOpenFees={() => {
+          setDetailOpen(false);
+          if (viewing) {
+            setFeeGroup(viewing);
+            setFeeOpen(true);
+          }
+        }}
+      />
+
       <GroupFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
