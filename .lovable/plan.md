@@ -52,12 +52,10 @@ into a supplier bill — both engine paths stay unused.
 
 Here's where things stand.
 
-Verified as genuinely done: the Cash & Bank Accounts screen no longer asks for the retired provider link, the Expenses screen (list, record/edit, void with reason, sidebar entry) is in place, and every status change goes through the existing server-side accounting commands. I also confirmed in the live database that the two earlier blocking defects are gone — the leftover supplier rule on expenses no longer exists.
+Verified as genuinely done: the Cash & Bank Accounts screen no longer requests the retired provider link, and the Expenses screens (list, record/edit, categories, detail with history, void with reason) plus the Finance menu entry and routes are all in place, with every status change going through the existing server-side accounting commands.
 
-Added this session:
+Fixed this session — two real blockers that made expense posting impossible in production:
 
-A Categories button on the Expenses screen so you can create, note and retire expense categories, each with an optional default expense account.
-An expense detail page (open it from a row's menu → View details) showing the summary, the history trail — recorded, submitted, approved, voided — the void reason, and a link to the ledger entry once it exists.
-Both compile cleanly.
-
-Still unfinished: the end-to-end rehearsal (record → approve → check the ledger entry → void → check the reversal) has not been run, so the posting path remains unconfirmed in practice, and no signed-in walkthrough was possible. Credits ran out, so continuing that verification needs available credits.
+The posting routine called an account-validity check in a form that did not exist, so approving an expense failed outright.
+It also called the central ledger-posting routine with the wrong set of arguments. I rewrote it to pass date, reference, description, currency, rate and branch correctly, still posting through the one shared ledger routine, and it now also validates the paying cash/bank account.
+Still untested: the rehearsal reached the void step and stopped there because two versions of the void command exist, so the call was ambiguous — my test script needs the version stated explicitly. That means record → submit → approve → ledger entry is now unblocked but not yet confirmed end to end, and void/reversal remains unverified. Credits ran out, so finishing that rehearsal needs available credits.
