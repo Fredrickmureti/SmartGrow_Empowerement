@@ -67,6 +67,7 @@ import { ApplicationFormDialog } from "./ApplicationFormDialog";
 import { AssessmentDialog } from "./AssessmentDialog";
 import { DecisionDialog } from "./DecisionDialog";
 import { WithdrawDialog } from "./WithdrawDialog";
+import { DeleteDeclinedDialog } from "./DeleteDeclinedDialog";
 
 const STATUS_TONE: Record<
   MfApplicationStatus,
