@@ -209,7 +209,9 @@ async function loadBankAccounts(
     () => {
       let q = supabase
         .from("bank_accounts")
-        .select(`*, provider:platform_bank_providers(*)`)
+        // The platform bank-provider catalogue was retired with the inherited
+        // ERP; accounts are plain rows now (no aggregator join).
+        .select("*")
         .eq("organization_id", orgId)
         .eq("business_id", businessId);
 

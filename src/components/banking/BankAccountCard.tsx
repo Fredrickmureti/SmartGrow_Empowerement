@@ -85,7 +85,8 @@ export function BankAccountCard({
     return formatCurrency(amount, currency);
   };
 
-  const providerLogo = (account as any).platform_bank_providers?.logo_url;
+  // Provider catalogue retired with the inherited ERP — no logo source.
+  const providerLogo: string | null = null;
   const hasProvider = !!account.provider_id;
 
   // Phase 14: feed state comes from the connection + its latest run, never from
