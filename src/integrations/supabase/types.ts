@@ -24426,6 +24426,59 @@ export type Database = {
         }
         Returns: Json
       }
+      fa_calc_period_depreciation: {
+        Args: {
+          _base_cost: number
+          _base_residual: number
+          _dep_start: string
+          _depreciation_rate: number
+          _method: string
+          _period_end: string
+          _period_start: string
+          _prior_accumulated: number
+          _useful_life_years: number
+        }
+        Returns: number
+      }
+      fa_depreciation_plan: {
+        Args: {
+          _branch_id?: string
+          _business_id: string
+          _period_date: string
+        }
+        Returns: {
+          accumulated_account_id: string
+          already_posted: boolean
+          asset_id: string
+          asset_name: string
+          asset_number: string
+          base_cost: number
+          base_residual: number
+          blocker: string
+          branch_id: string
+          business_id: string
+          category_id: string
+          category_name: string
+          depreciation_amount: number
+          depreciation_rate: number
+          depreciation_start_date: string
+          expense_account_id: string
+          method: string
+          period_end: string
+          period_start: string
+          prior_accumulated: number
+          remaining_depreciable: number
+          useful_life_years: number
+        }[]
+      }
+      fa_post_depreciation: {
+        Args: {
+          _branch_id?: string
+          _business_id: string
+          _period_date: string
+        }
+        Returns: Json
+      }
       fetch_collector_assignments_with_names: {
         Args: { _org_id: string }
         Returns: {
