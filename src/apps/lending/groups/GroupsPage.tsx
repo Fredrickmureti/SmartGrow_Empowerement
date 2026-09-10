@@ -101,6 +101,11 @@ export function GroupsPage() {
     setFormOpen(true);
   };
 
+  const openView = (group: MfGroup) => {
+    setViewing(group);
+    setDetailOpen(true);
+  };
+
   const openRoll = (group: MfGroup) => {
     setRollGroup(group);
     setRollOpen(true);
