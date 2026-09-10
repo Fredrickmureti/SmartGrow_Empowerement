@@ -44,6 +44,7 @@ import {
   type MfGroupStatus,
 } from "@/hooks/useMfGroups";
 import { GroupFormDialog } from "./GroupFormDialog";
+import { GroupDetailSheet } from "./GroupDetailSheet";
 import { GroupMembersDialog } from "./GroupMembersDialog";
 import { GroupFeeCollectionDialog } from "./GroupFeeCollectionDialog";
 
@@ -64,6 +65,9 @@ export function GroupsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfGroup | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Opening a group is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfGroup | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [rollGroup, setRollGroup] = useState<MfGroup | null>(null);
   const [rollOpen, setRollOpen] = useState(false);
   const [feeGroup, setFeeGroup] = useState<MfGroup | null>(null);
