@@ -92,6 +92,9 @@ export function ClientsPage() {
   const [editing, setEditing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [feeClient, setFeeClient] = useState<MfClient | null>(null);
+  const [bulkExportOpen, setBulkExportOpen] = useState(false);
+  const { currentBusiness } = useBusinesses();
+  const { runExport, exporting } = useKycExport();
 
   const { clients, isLoading, error, createClient, updateClient } = useMfClients({
     branchId: branchId === "all" ? null : branchId,
