@@ -26072,12 +26072,10 @@ export type Database = {
         Args: { p_sequence_key: string }
         Returns: string
       }
-      mf_delete_loan_application:
-        | { Args: { p_application_id: string }; Returns: string }
-        | {
-            Args: { p_application_id: string; p_reason?: string }
-            Returns: string
-          }
+      mf_delete_loan_application: {
+        Args: { p_application_id: string; p_reason?: string }
+        Returns: string
+      }
       mf_delete_loan_product: {
         Args: { p_product_id: string }
         Returns: string
