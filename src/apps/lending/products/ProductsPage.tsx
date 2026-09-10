@@ -248,7 +248,7 @@ export function ProductsPage() {
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem disabled>
-                                Already priced — retire it instead
+                                Retire it first, then it can be deleted
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
