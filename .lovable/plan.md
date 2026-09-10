@@ -67,10 +67,22 @@ The report you asked for: original architecture, root cause, remediation, proof 
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
+Confirmed already in place (I verified, not just took on trust)
 
-Done and confirmed:
+The browser no longer decides any depreciation amount. useDepreciationRun only asks for a preview and asks the server to post; it sends no amount.
+Three database routines exist and are the single authority: a shared calculation, a read-only preview, and a posting routine. The posting routine takes no amount from the caller, so a tampered request cannot change what reaches the ledger.
+The second, competing depreciation engine (the old edge function) is gone, and asset creation now posts its capitalisation entry server-side.
+Verified live with the temporary ZZTEST-FIXEDASSET fixtures (9 assets, 4 categories, no real assets exist in the system)
 
-The depreciation authority is now server-side: fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation and fa_create_asset all exist in the database, and I read the posting routine end to end. It takes no amount from the caller, re-checks permission, business/branch scope and the closed-period lock, serialises concurrent runs with an advisory lock, recomputes each amount itself, and posts through the existing ledger engine. The duplicate second engine is gone.
-The screens are thin callers again: the depreciation run screen shows the server's reasons for skipped assets and only totals what will actually post; the architecture test now asserts the new behaviour and passes (9/9), and the type check is clean.
-Production data is untouched: no test records were created — my first fixture attempt was rejected by an account-classification rule and rolled back completely.
-Not done (untested): the isolated ZZTEST-FIXEDASSET test run — the per-method calculation checks, the tampered-amount test, the duplicate/concurrency test, the closed-period and missing-account refusals, the end-to-end posting numbers, the cleanup and the before/after integrity comparison, and the final written report.
+Preview wrote nothing: ledger counts unchanged before and after.
+Amounts matched independent hand calculation for every case: straight line 2,000; reducing balance 1,562.50; mid-month start 1,032.26; residual-value floor 100; not-yet-in-service, fully depreciated, and missing useful life all correctly refused.
+Posting produced five balanced entries dated at month end, on the right expense and accumulated-depreciation accounts, in the right branch, with the poster recorded, all through the existing ledger engine.
+Running the same period again posted nothing — no duplicates.
+The other branch's asset was untouched when posting was scoped to one branch.
+A user without the asset permission was refused by the database itself, not just by the screen.
+One real finding: the ledger refused a current-month posting because the month-end business day isn't open yet at Headquarters, and a business day can't be opened for a future date. So depreciation for the current month can only post on or after month end — worth knowing operationally.
+Not finished
+
+Closed-period test, concurrent-run test, and the lifecycle review (disposal, retirement, transfer, reversal).
+Cleanup is outstanding: the temporary test assets, categories and the five test journal entries from August 2026 are still in the database. They are all clearly prefixed ZZTEST-FIXEDASSET / DEP-ZZTEST-* and no real record was touched, but they must be reversed and removed.
+The written engineering report.
