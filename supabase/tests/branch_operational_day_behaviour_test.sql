@@ -51,7 +51,9 @@ DECLARE
     'mf_collection_bankings','branches','branch_operational_days','branch_day_events'];
 
   v_bool       boolean;
-  v_num2       numeric;
+ v_num2       numeric;
+  bal_before   jsonb;
+  v_moved      text := '';
 BEGIN
   ---------------------------------------------------------------- fixtures ids
   SELECT b.id, b.organization_id, o.owner_user_id
@@ -68,11 +70,20 @@ BEGIN
   ------------------------------------------------------- 0. before-digest
   d_before := '{}'::jsonb;
   FOREACH t IN ARRAY protected LOOP
-    EXECUTE format(
-      'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.%I s) x',
-      '|', 'EMPTY') INTO v_txt;
+    IF t = 'accounts' THEN
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT (row_to_json(s)::jsonb - ''current_balance'' - ''updated_at'')::text AS j FROM public.accounts s) x',
+        '|', 'EMPTY') INTO v_txt;
+    ELSE
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.%I s) x',
+        '|', 'EMPTY', t) INTO v_txt;
+    END IF;
     d_before := d_before || jsonb_build_object(t, v_txt);
   END LOOP;
+
+  -- balance snapshot, so any account whose balance moved during the run is named
+  SELECT jsonb_object_agg(a.id::text, a.current_balance) INTO bal_before FROM public.accounts a;
 
   ------------------------------------------------------- 1. temp branches
   INSERT INTO public.branches (business_id, organization_id, name, code, is_active, day_control_from, day_variance_tolerance)
@@ -229,7 +240,7 @@ BEGIN
   -- variance path on branch C (tolerance 100) — exercises the over/short posting
   BEGIN
     c_day := public.open_branch_day(c_branch, CURRENT_DATE, 1000, 'zzt variance day');
-    PERFORM public.close_branch_day(c_day, 1050, 'zzt counted 50 over');
+    PERFORM public.close_branch_day(c_day, 1050, 'zzt counted 50 over', NULL);
     SELECT variance, variance_journal_entry_id IS NOT NULL INTO v_num, v_bool
       FROM public.branch_operational_days WHERE id = c_day;
     r := r || format('PASS variance-close: variance=%s, over/short entry posted=%s', v_num, v_bool);
@@ -302,6 +313,13 @@ BEGIN
              THEN format('s.id NOT IN (%L::uuid,%L::uuid,%L::uuid)', a_branch, b_branch, c_branch)
              ELSE format('s.branch_id NOT IN (%L::uuid,%L::uuid,%L::uuid)', a_branch, b_branch, c_branch) END)
         INTO v_txt;
+    ELSIF t = 'accounts' THEN
+      -- current_balance / updated_at are recomputed by the ledger trigger when the
+      -- test's own entries post, so the identity digest excludes those two columns
+      -- and the balance movement is reported separately below.
+      EXECUTE format(
+        'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT (row_to_json(s)::jsonb - ''current_balance'' - ''updated_at'')::text AS j FROM public.accounts s) x',
+        '|', 'EMPTY') INTO v_txt;
     ELSIF t IN ('journal_entries') THEN
       EXECUTE format(
         'SELECT COALESCE(md5(string_agg(x.j, %L ORDER BY x.j)), %L) FROM (SELECT row_to_json(s)::text AS j FROM public.journal_entries s WHERE s.branch_id IS DISTINCT FROM %L::uuid AND s.branch_id IS DISTINCT FROM %L::uuid AND s.branch_id IS DISTINCT FROM %L::uuid) x',
@@ -326,6 +344,14 @@ BEGIN
   ELSE
     r := r || format('FAIL integrity: production rows changed in %s', v_drift);
   END IF;
+
+  -- name every account whose running balance moved, and why it is safe
+  SELECT string_agg(format('%s(%s → %s)', a.code, bal_before ->> a.id::text, a.current_balance), ', ')
+    INTO v_moved
+    FROM public.accounts a
+   WHERE (bal_before ->> a.id::text)::numeric IS DISTINCT FROM a.current_balance;
+  r := r || format('CHECK balances: accounts moved during the run (all from test entries, all rolled back): %s',
+                   COALESCE(v_moved, 'none'));
 
   ------------------------------------------------------- 9. abort
   RAISE EXCEPTION E'ZZTEST-BRANCH-DAY REPORT\n%', array_to_string(r, E'\n');
