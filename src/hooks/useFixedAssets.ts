@@ -5,8 +5,6 @@ import { useBusinesses } from "./useBusinesses";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { usePermissions } from "./usePermissions";
-import { useGLPosting } from "./useGLPosting";
-import { useDefaultAccounts } from "./useDefaultAccounts";
 import { useAuditLog } from "./useAuditLog";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { financeKey } from "@/lib/finance/financeKey";
@@ -97,8 +95,6 @@ export function useFixedAssets() {
   const scope = useFinanceScope();
   const { user } = useAuth();
   const { can } = usePermissions();
-  const { postToGL } = useGLPosting();
-  const { getFixedAssetAccountMappings } = useDefaultAccounts();
   const { logAction } = useAuditLog();
   const [assets, setAssets] = useState<FixedAsset[]>([]);
   const [categories, setCategories] = useState<AssetCategory[]>([]);
