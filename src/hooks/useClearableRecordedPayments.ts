@@ -1,31 +1,20 @@
 /**
- * useClearableRecordedPayments — money that is already recorded and is waiting
- * for this bank line to explain it.
+ * useClearableRecordedPayments — money already recorded and waiting for this
+ * bank line to explain it.
  *
  * ADR-0147 names two kinds of resolution: *clearing* money already recorded
  * (a receipt sitting in Undeposited Funds) and *settling* a document, which
- * records new money. Clearing gets its own picker so an operator never has to
- * post the same money twice.
+ * records new money.
  *
- * Microfinance scope: only money-in receipts parked in a holding account are
- * clearable. Money-out lines reconcile through the Expenses tab, an account
- * offset or a transfer — the ERP supplier-payment branch is gone.
- *
- * Two rules keep the picker honest rather than merely helpful:
- *  - A receipt is deposited **in full** and at most once, so only recorded
- *    payments whose amount equals the bank line are offered. `_bank_match_validate`
- *    refuses anything else; the picker must not offer what the seam will refuse.
- *  - Money already spoken for by a confirmed or open match is withheld.
- *
- * `holdingAccountIds` is the set of clearing accounts this company actually
- * parks money in, derived from the payments themselves rather than from account
- * names. The Journal tab uses it to refuse a hand-post that would drain a
- * holding account without ever marking the receipt deposited.
+ * Microfinance scope: the ERP receipt register (`payments`) has been removed.
+ * Lending money-in is recorded as `mf_repayments` and reaches the bank through
+ * `mf_bank_collection_batch`, which posts the deposit and writes the matching
+ * bank line in the same transaction — so there is no unbanked receipt left for
+ * an operator to clear by hand. This hook therefore reports no candidates and
+ * no holding accounts; the Recorded tab stays inert until a money-in path that
+ * genuinely parks cash in a holding account exists.
  */
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useOrganization } from "@/hooks/useOrganization";
-import { useBusinesses } from "@/hooks/useBusinesses";
 
 export interface ClearableRecordedPayment {
   /** `payment` — a recorded receipt waiting to be banked. */
@@ -46,94 +35,16 @@ export interface ClearableRecordedPaymentsResult {
 }
 
 const EMPTY: ClearableRecordedPaymentsResult = { candidates: [], holdingAccountIds: [] };
-const EPSILON = 0.005;
 
-async function namesFor(ids: string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  const unique = [...new Set(ids.filter(Boolean))];
-  if (unique.length === 0) return out;
-  const { data } = await supabase.from("contacts").select("id, name").in("id", unique);
-  for (const row of data ?? []) out.set(row.id, row.name);
-  return out;
-}
-
-/** Document ids already claimed by a confirmed or still-open match. */
-async function spokenFor(businessId: string): Promise<Set<string>> {
-  const claimed = new Set<string>();
-  const { data } = await supabase
-    .from("bank_reconciliation_matches")
-    .select("allocations, status")
-    .eq("business_id", businessId)
-    .in("status", ["confirmed", "suggested", "to_check"]);
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-    const allocations = Array.isArray(row.allocations) ? row.allocations : [];
-    for (const a of allocations as Array<Record<string, unknown>>) {
-      const kind = String(a.document_type ?? "");
-      if (kind === "payment") claimed.add(String(a.document_id));
-    }
-  }
-  return claimed;
-}
-
-export function useClearableRecordedPayments(params: {
+export function useClearableRecordedPayments(_params: {
   amount: number;
   isCredit: boolean;
   enabled?: boolean;
 }) {
-  const { amount, isCredit, enabled = true } = params;
-  const { currentOrg } = useOrganization();
-  const { currentBusiness } = useBusinesses();
-
   return useQuery({
-    queryKey: [
-      "clearable-recorded-payments",
-      currentOrg?.id,
-      currentBusiness?.id,
-      isCredit ? "in" : "out",
-      Math.round(amount * 100),
-    ],
-    enabled: enabled && isCredit && !!currentOrg?.id && !!currentBusiness?.id,
-    staleTime: 15_000,
-    queryFn: async (): Promise<ClearableRecordedPaymentsResult> => {
-      const orgId = currentOrg!.id;
-      const businessId = currentBusiness!.id;
-      const claimed = await spokenFor(businessId);
-
-      const { data, error } = await supabase
-        .from("payments")
-        .select("id, amount, payment_date, reference, payment_method, deposit_account_id, contact_id, status")
-        .eq("organization_id", orgId)
-        .eq("business_id", businessId)
-        .not("deposit_account_id", "is", null)
-        .order("payment_date", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-
-      const live = ((data ?? []) as Array<Record<string, unknown>>).filter(
-        (r) =>
-          !["voided", "cancelled"].includes(String(r.status ?? "")) &&
-          !claimed.has(String(r.id)),
-      );
-      const names = await namesFor(live.map((r) => String(r.contact_id ?? "")));
-
-      return {
-        holdingAccountIds: [
-          ...new Set(live.map((r) => String(r.deposit_account_id)).filter(Boolean)),
-        ],
-        candidates: live
-          .filter((r) => Math.abs(Number(r.amount) - amount) < EPSILON)
-          .map((r) => ({
-            kind: "payment" as const,
-            id: String(r.id),
-            amount: Number(r.amount),
-            date: String(r.payment_date),
-            reference: (r.reference as string) ?? null,
-            method: (r.payment_method as string) ?? null,
-            partyName: names.get(String(r.contact_id ?? "")) ?? null,
-            holdingAccountId: String(r.deposit_account_id),
-          })),
-      };
-    },
+    queryKey: ["clearable-recorded-payments"],
+    enabled: false,
+    queryFn: async (): Promise<ClearableRecordedPaymentsResult> => EMPTY,
     initialData: EMPTY,
   });
 }

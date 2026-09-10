@@ -23,7 +23,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import {
   ArrowLeft, ArrowRight, Lock, Unlock, Loader2, TrendingUp, TrendingDown,
-  DollarSign, BookOpen, FileText, Receipt, CreditCard, Wallet,
+  DollarSign, BookOpen, FileText, Receipt, Wallet,
   CheckCircle2, XCircle, AlertTriangle, BarChart3, Edit3, Save,
   RefreshCw, ChevronLeft, ChevronRight, ExternalLink, Building2,
   Landmark, Package, PieChart, ClipboardCheck, LinkIcon, Shield,
@@ -336,7 +336,6 @@ export default function FiscalPeriodDetail() {
                     { label: "Disbursements", value: transactionCounts.disbursements, icon: Receipt, link: `/lending/loans` },
                     { label: "Repayments", value: transactionCounts.repayments, icon: Receipt, link: `/lending/repayments` },
 
-                    { label: "Payments", value: transactionCounts.payments, icon: CreditCard, link: `/finance/payments` },
                     { label: "Expenses", value: transactionCounts.expenses, icon: Wallet, link: `/finance/expenses` },
                   ].map((item) => (
                     <div

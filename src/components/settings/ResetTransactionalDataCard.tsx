@@ -59,7 +59,6 @@ const LABELS: Record<string, string> = {
   mf_event_postings: "Accounting postings from lending",
   journal_entries: "Journal entries",
   journal_entry_lines: "Journal entry lines",
-  payments: "Payments",
   bank_transactions: "Bank transactions",
 };
 

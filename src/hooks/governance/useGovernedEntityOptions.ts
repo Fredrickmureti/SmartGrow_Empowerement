@@ -60,21 +60,10 @@ const LOADERS: Record<SelfActionEntityType, Loader> = {
       subject_user_id: null,
     }));
   },
-  payment: async (orgId) => {
-    const { data, error } = await supabase
-      .from("payments")
-      .select("id, reference, amount, status, created_by")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(LIMIT);
-    if (error) throw error;
-    return (data ?? []).map((r: any) => ({
-      id: r.id,
-      label: r.reference ?? `Payment ${r.id.slice(0, 8)}`,
-      hint: `${fmtMoney(r.amount, null)} • ${r.status ?? ""}`,
-      subject_user_id: r.created_by ?? null,
-    }));
-  },
+  // The ERP receipt register is gone; lending money-in lives in
+  // `mf_repayments` and is governed through its own lending controls, so
+  // there is no standalone payment document to scope an approval to.
+  payment: async () => [],
   journal_entry: async (orgId) => {
     const { data, error } = await supabase
       .from("journal_entries")
