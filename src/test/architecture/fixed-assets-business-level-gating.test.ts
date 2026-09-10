@@ -42,14 +42,16 @@ describe("Fixed Assets — business-level permission gate", () => {
     expect(hook).toMatch(/branch_id:\s*stampedBranchId/);
   });
 
-  it("acquisition + disposal JEs carry the asset's branch_id", () => {
-    expect(hook).toMatch(/branch_id:\s*stampedBranchId,/);
+  it("acquisition goes through the server transaction; disposal JE carries the asset branch", () => {
+    expect(hook).toMatch(/rpc\(\s*["']fa_create_asset["']/);
     expect(hook).toMatch(/branch_id:\s*asset\.branch_id\s*\?\?\s*null,/);
   });
 
-  it("depreciation JE stamps branch_id from the asset row", () => {
-    expect(depRun).toMatch(/branch_id:\s*assetBranchId,/);
-    expect(depRun).toMatch(/business_id:\s*assetRow\?\.business_id/);
+  it("depreciation is server-authoritative: no client formula, no client JE", () => {
+    expect(depRun).toMatch(/rpc\(\s*["']fa_depreciation_plan["']/);
+    expect(depRun).toMatch(/rpc\(\s*["']fa_post_depreciation["']/);
+    expect(depRun).not.toMatch(/postToGL|journal_entry_lines|post_journal_entry_atomic/);
+    expect(depRun).not.toMatch(/from\(["']depreciation_schedules["']\)/);
   });
 
   const sqlByFile = readdirSync(MIGRATIONS_DIR)
