@@ -48,33 +48,6 @@ export interface ClearableRecordedPaymentsResult {
 const EMPTY: ClearableRecordedPaymentsResult = { candidates: [], holdingAccountIds: [] };
 const EPSILON = 0.005;
 
-async function namesFor(ids: string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  const unique = [...new Set(ids.filter(Boolean))];
-  if (unique.length === 0) return out;
-  const { data } = await supabase.from("contacts").select("id, name").in("id", unique);
-  for (const row of data ?? []) out.set(row.id, row.name);
-  return out;
-}
-
-/** Document ids already claimed by a confirmed or still-open match. */
-async function spokenFor(businessId: string): Promise<Set<string>> {
-  const claimed = new Set<string>();
-  const { data } = await supabase
-    .from("bank_reconciliation_matches")
-    .select("allocations, status")
-    .eq("business_id", businessId)
-    .in("status", ["confirmed", "suggested", "to_check"]);
-  for (const row of (data ?? []) as Array<Record<string, unknown>>) {
-    const allocations = Array.isArray(row.allocations) ? row.allocations : [];
-    for (const a of allocations as Array<Record<string, unknown>>) {
-      const kind = String(a.document_type ?? "");
-      if (kind === "payment") claimed.add(String(a.document_id));
-    }
-  }
-  return claimed;
-}
-
 export function useClearableRecordedPayments(params: {
   amount: number;
   isCredit: boolean;
