@@ -371,72 +371,180 @@ export function BranchDayPage() {
       </Dialog>
 
       {/* Close */}
-      <Dialog open={closeFormOpen} onOpenChange={setCloseFormOpen}>
+      <Dialog
+        open={closeFormOpen}
+        onOpenChange={(o) => {
+          setCloseFormOpen(o);
+          if (!o) {
+            setCloseStep(1);
+            setCountedCash("");
+            setVarianceReason("");
+            setCloseNotes("");
+            setCloseTyped("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Close the day</DialogTitle>
+            <DialogTitle>Close the day — step {closeStep} of 3</DialogTitle>
             <DialogDescription>
-              Count the cash physically in the box and enter it. Anything over or short is
-              recorded against the day.
+              {closeStep === 1 &&
+                "Count the cash physically in the box and enter it. Anything over or short is recorded against the day."}
+              {closeStep === 2 &&
+                "Check the figures before you go on. Closing the day locks it for further money entries."}
+              {closeStep === 3 && "One last confirmation so this cannot happen by accident."}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="rounded-md bg-muted/50 p-3 text-sm">
-              The books expect{" "}
-              <span className="font-medium">
-                {expectedCash == null ? "…" : formatCurrency(Number(expectedCash))}
-              </span>
+
+          {closeStep === 1 && (
+            <div className="space-y-3">
+              <div className="rounded-md bg-muted/50 p-3 text-sm">
+                The books expect{" "}
+                <span className="font-medium">
+                  {expectedCash == null ? "…" : formatCurrency(Number(expectedCash))}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="day-counted">Cash counted</Label>
+                <Input
+                  id="day-counted"
+                  type="number"
+                  inputMode="decimal"
+                  value={countedCash}
+                  onChange={(e) => setCountedCash(e.target.value)}
+                />
+              </div>
+              {liveVariance !== null && liveVariance !== 0 && (
+                <>
+                  <p className="text-sm text-destructive">
+                    {liveVariance > 0 ? "Over" : "Short"} by{" "}
+                    {formatCurrency(Math.abs(liveVariance))}. A reason is required.
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="day-reason">Reason</Label>
+                    <Textarea
+                      id="day-reason"
+                      value={varianceReason}
+                      onChange={(e) => setVarianceReason(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-1.5">
+                <Label htmlFor="day-close-notes">Notes (optional)</Label>
+                <Textarea
+                  id="day-close-notes"
+                  value={closeNotes}
+                  onChange={(e) => setCloseNotes(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="day-counted">Cash counted</Label>
-              <Input
-                id="day-counted"
-                type="number"
-                inputMode="decimal"
-                value={countedCash}
-                onChange={(e) => setCountedCash(e.target.value)}
-              />
-            </div>
-            {liveVariance !== null && liveVariance !== 0 && (
-              <>
-                <p className="text-sm text-destructive">
-                  {liveVariance > 0 ? "Over" : "Short"} by{" "}
-                  {formatCurrency(Math.abs(liveVariance))}. A reason is required.
-                </p>
-                <div className="space-y-1.5">
-                  <Label htmlFor="day-reason">Reason</Label>
-                  <Textarea
-                    id="day-reason"
-                    value={varianceReason}
-                    onChange={(e) => setVarianceReason(e.target.value)}
-                  />
+          )}
+
+          {closeStep === 2 && (
+            <div className="space-y-3">
+              <div className="rounded-md border p-3 text-sm space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Branch</span>
+                  <span className="font-medium">{branch?.name ?? "—"}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Day</span>
+                  <span className="font-medium">{openDayRow?.business_date ?? "—"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Books expect</span>
+                  <span className="font-medium">
+                    {expectedCash == null ? "…" : formatCurrency(Number(expectedCash))}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cash counted</span>
+                  <span className="font-medium">{formatCurrency(counted)}</span>
+                </div>
+                {liveVariance !== null && liveVariance !== 0 && (
+                  <div className="flex justify-between text-destructive">
+                    <span>Variance</span>
+                    <span className="font-medium">
+                      {liveVariance > 0 ? "+" : "−"}
+                      {formatCurrency(Math.abs(liveVariance))}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Once closed, no more money entries can be made against this day. A closed day can
+                only be reopened by an authorised user with a recorded reason.
+              </p>
+            </div>
+          )}
+
+          {closeStep === 3 && (
+            <div className="space-y-3">
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive">
+                This closes <span className="font-medium">{openDayRow?.business_date}</span> at{" "}
+                <span className="font-medium">{branch?.name}</span>. This cannot be undone from
+                this screen.
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="day-close-confirm">
+                  Type <span className="font-semibold">CLOSE</span> to confirm
+                </Label>
+                <Input
+                  id="day-close-confirm"
+                  value={closeTyped}
+                  onChange={(e) => setCloseTyped(e.target.value)}
+                  autoComplete="off"
+                  placeholder="CLOSE"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {closeStep === 1 && (
+              <>
+                <Button variant="outline" onClick={() => setCloseFormOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => setCloseStep(2)}
+                  disabled={
+                    Number.isNaN(counted) ||
+                    (liveVariance !== null && liveVariance !== 0 && !varianceReason.trim())
+                  }
+                >
+                  Review
+                </Button>
               </>
             )}
-            <div className="space-y-1.5">
-              <Label htmlFor="day-close-notes">Notes (optional)</Label>
-              <Textarea
-                id="day-close-notes"
-                value={closeNotes}
-                onChange={(e) => setCloseNotes(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCloseFormOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={submitClose}
-              disabled={
-                closeDay.isPending ||
-                Number.isNaN(counted) ||
-                (liveVariance !== null && liveVariance !== 0 && !varianceReason.trim())
-              }
-            >
-              Close the day
-            </Button>
+            {closeStep === 2 && (
+              <>
+                <Button variant="outline" onClick={() => setCloseStep(1)}>
+                  Back
+                </Button>
+                <Button onClick={() => setCloseStep(3)}>Continue</Button>
+              </>
+            )}
+            {closeStep === 3 && (
+              <>
+                <Button variant="outline" onClick={() => setCloseStep(2)}>
+                  Back
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={submitClose}
+                  disabled={
+                    closeDay.isPending ||
+                    closeTyped.trim().toUpperCase() !== "CLOSE" ||
+                    Number.isNaN(counted) ||
+                    (liveVariance !== null && liveVariance !== 0 && !varianceReason.trim())
+                  }
+                >
+                  Close the day
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
