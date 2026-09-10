@@ -112,6 +112,7 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [voiding, setVoiding] = useState<Expense | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
