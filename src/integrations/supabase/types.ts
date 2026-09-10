@@ -22989,15 +22989,6 @@ export type Database = {
             Args: { _business_id: string; _caller: string }
             Returns: undefined
           }
-      assert_contact_in_business: {
-        Args: {
-          _business_id: string
-          _contact_id: string
-          _label?: string
-          _organization_id: string
-        }
-        Returns: undefined
-      }
       assert_entitlement: {
         Args: { p_app_id: string; p_org_id: string }
         Returns: boolean
@@ -23751,31 +23742,6 @@ export type Database = {
         }
         Returns: number
       }
-      consolidation_diagnose_eliminations: {
-        Args: { _date_from: string; _date_to: string; _group_id: string }
-        Returns: {
-          business_a_currency: string
-          business_a_id: string
-          business_a_name: string
-          business_b_currency: string
-          business_b_id: string
-          business_b_name: string
-          cause: string
-          difference_amount: number
-          difference_signed: number
-          effective_policy: string
-          effective_tolerance: number
-          elimination_class: Database["public"]["Enums"]["consolidation_elimination_class"]
-          finding_kind: string
-          is_cross_currency: boolean
-          message: string
-          presentation_currency: string
-          remedies: string[]
-          rule_exists: boolean
-          suggested_tolerance: number
-          would_refuse: boolean
-        }[]
-      }
       consolidation_effective_tolerance: {
         Args: {
           _business_a: string
@@ -23950,23 +23916,6 @@ export type Database = {
           opening_rate: number
           prior_average_rate: number
           to_currency: string
-        }[]
-      }
-      consolidation_partner_integrity_report: {
-        Args: { _group_id: string }
-        Returns: {
-          business_id: string
-          business_name: string
-          contact_id: string
-          contact_is_company: boolean
-          contact_name: string
-          counterparty_business_id: string
-          counterparty_business_name: string
-          effective_from: string
-          effective_to: string
-          issue: string
-          message: string
-          partner_id: string
         }[]
       }
       consolidation_reverse_eliminations: {
@@ -24476,10 +24425,6 @@ export type Database = {
         Args: { p_business_id: string; p_org_id: string }
         Returns: string
       }
-      ensure_company_contact: {
-        Args: { p_business_id: string; p_name: string; p_org_id: string }
-        Returns: string
-      }
       ensure_default_account_mappings: {
         Args: { _business_id: string; _org_id: string }
         Returns: {
@@ -24752,10 +24697,6 @@ export type Database = {
         Args: { _as_of?: string; _business_id: string }
         Returns: Json
       }
-      fx_exposure_dimensions: {
-        Args: { _as_of?: string; _business_id: string; _currency?: string }
-        Returns: Json
-      }
       fx_exposure_open_items: {
         Args: { _as_of?: string; _business_id: string; _currency: string }
         Returns: Json
@@ -24794,10 +24735,6 @@ export type Database = {
           _to_currency: string
         }
         Returns: number
-      }
-      fx_realized_gain_loss: {
-        Args: { _business_id: string; _from?: string; _to?: string }
-        Returns: Json
       }
       fx_report_document_rate: {
         Args: {
@@ -25632,7 +25569,6 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: string
       }
-      get_vendor_contact_id: { Args: { _user_id: string }; Returns: string }
       governance_assert_not_self: {
         Args: {
           p_action: string
@@ -25911,7 +25847,6 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
       }
-      is_vendor_portal_user: { Args: { _user_id: string }; Returns: boolean }
       landed_cost_assert_bill_unencumbered: {
         Args: { _bill_id: string; _operation?: string }
         Returns: undefined
@@ -26940,25 +26875,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      record_advance_payment: {
-        Args: {
-          _advance_liability_account_id: string
-          _amount: number
-          _branch_id: string
-          _business_id: string
-          _contact_id: string
-          _created_by: string
-          _deposit_account_id: string
-          _notes: string
-          _org_id: string
-          _payment_date: string
-          _payment_method: string
-          _receipt_number: string
-          _reference: string
-          _request_id?: string
-        }
-        Returns: Json
-      }
       record_device_login: {
         Args: {
           p_browser?: string
@@ -27000,28 +26916,6 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
-      }
-      record_multi_invoice_payment: {
-        Args: {
-          _allocations: Json
-          _branch_id?: string
-          _business_id: string
-          _contact_id: string
-          _created_by?: string
-          _customer_credit_account_id?: string
-          _deposit_account_id?: string
-          _exchange_rate?: number
-          _notes?: string
-          _org_id: string
-          _payment_date: string
-          _payment_method?: string
-          _receipt_number?: string
-          _receivable_account_id?: string
-          _reference?: string
-          _request_id?: string
-          _total_amount: number
-        }
-        Returns: Json
       }
       record_onboarding_attempt: {
         Args: { p_idempotency_key: string; p_step?: string }
@@ -27623,10 +27517,6 @@ export type Database = {
         Args: { p_employee_id: string }
         Returns: string
       }
-      resolve_supplier_defaults: {
-        Args: { p_business_id: string; p_contact_id: string }
-        Returns: Json
-      }
       resolve_supplier_remittance: {
         Args: {
           p_business_id: string
@@ -27745,17 +27635,6 @@ export type Database = {
         Args: { p_session_id: string }
         Returns: number
       }
-      rfq_attach_quotation_document: {
-        Args: {
-          _file_name: string
-          _file_path: string
-          _file_size?: number
-          _kind?: string
-          _mime_type?: string
-          _quotation_id: string
-        }
-        Returns: string
-      }
       rfq_cancel: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
       rfq_convert_awards_to_po: { Args: { _rfq_id: string }; Returns: Json }
       rfq_expire_due: { Args: { _business_id: string }; Returns: number }
@@ -27778,28 +27657,11 @@ export type Database = {
           supplier_id: string
         }[]
       }
-      rfq_record_quotation: {
-        Args: {
-          _allow_late?: boolean
-          _header: Json
-          _invitation_id: string
-          _lines: Json
-        }
-        Returns: Json
-      }
       rfq_release: { Args: { _rfq_id: string }; Returns: Json }
-      rfq_remove_quotation_attachment: {
-        Args: { _attachment_id: string }
-        Returns: boolean
-      }
       rfq_revise: { Args: { _reason: string; _rfq_id: string }; Returns: Json }
       rfq_snapshot_assert_solicitation: {
         Args: { _snapshot: Json }
         Returns: undefined
-      }
-      rfq_withdraw_quotation: {
-        Args: { _quotation_id: string; _reason?: string }
-        Returns: Json
       }
       rls_check_feature_access: {
         Args: { p_feature_key: string; p_org_id: string }
@@ -28172,72 +28034,6 @@ export type Database = {
       }
       update_overdue_compliance_items: { Args: never; Returns: undefined }
       update_own_employee_personal: { Args: { patch: Json }; Returns: string }
-      update_portal_contact_self: {
-        Args: {
-          p_address_line1?: string
-          p_address_line2?: string
-          p_city?: string
-          p_country?: string
-          p_email?: string
-          p_name?: string
-          p_phone?: string
-          p_postal_code?: string
-          p_state?: string
-        }
-        Returns: {
-          address_line1: string | null
-          address_line2: string | null
-          business_id: string | null
-          child_address_type: string | null
-          city: string | null
-          commercial_partner_id: string | null
-          company: string | null
-          country: string | null
-          created_at: string
-          credit_hold: boolean | null
-          credit_limit: number | null
-          customer_rank: number
-          default_currency: string | null
-          default_expense_account_id: string | null
-          default_payable_account_id: string | null
-          default_payment_method_id: string | null
-          default_receivable_account_id: string | null
-          default_tax_rate_id: string | null
-          email: string | null
-          id: string
-          is_active: boolean
-          is_company: boolean
-          is_default_billing: boolean
-          is_default_shipping: boolean
-          is_pinned: boolean | null
-          is_sample_data: boolean
-          name: string
-          notes: string | null
-          opening_balance: number | null
-          opening_balance_date: string | null
-          organization_id: string
-          parent_contact_id: string | null
-          payment_term_id: string | null
-          phone: string | null
-          portal_user_id: string | null
-          postal_code: string | null
-          sms_consent: boolean | null
-          state: string | null
-          supplier_rank: number
-          tax_exemption_expiry: string | null
-          tax_exemption_number: string | null
-          tax_id: string | null
-          type: Database["public"]["Enums"]["contact_type"] | null
-          updated_at: string
-          withholding_tax_rate: number | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "contacts"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       upsert_collector_assignment: {
         Args: {
           _business_id?: string
