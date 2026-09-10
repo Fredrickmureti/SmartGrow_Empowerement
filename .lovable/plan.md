@@ -132,20 +132,17 @@ Not a fiscal period and not a replacement for one. Not bank reconciliation. Not 
 ===============IMPLEMENTATION PROGRESS=================
 
 
-I've paused here. Progress so far this session:
+Verified
 
-Done
+The branch day work the previous run claimed is real: the day table and event log, the open/close/reopen routines, the locks on ledger entries and collection batches, and the cash report are all in place, and none of them hard-code job titles — they use the existing permission system as instructed.
+Fixed this session
 
-The empty help/video panel is gone from the top bar.
-The journal-entry counterparty picker and the global search box now read from your client register instead of the old, empty contacts list.
-Document snapshots record the client name from the client register.
-Removed the leftover contacts helper files and the stale resolver; tests and type checks pass.
-Remaining
+Three summary screens were quietly broken: they were still reading sales invoices, supplier bills and shop sales, which no longer exist in this system. The executive summary now shows money still owed by borrowers and the number of registered clients; the dashboard's "outstanding" figure now counts loans still owed; and the activity feed now lists disbursements, repayments and expenses.
+Still open
 
-The old contacts table itself is still in the database. Several live reporting routines (general ledger, GL transactions, partner ledger, AR/AP aging, bank matching, dashboard and executive stats) still mention it, so it can't be removed safely until each one is checked and repointed. That verification was in progress when I stopped.
-After that: purging unused database routines, the database security review, and the remaining microfinance report and document gaps.
-
-
+The ageing report and the bank-matching routines have the same problem — they still reference the removed sales and purchase records. Bank matching is the more urgent of the two because it's used from the reconciliation screen.
+Then the older list: retiring the last unused contacts table, clearing orphaned background routines, and the security tidy-up (the leaked-password setting has to be switched on by you in Supabase).
+The signed-in branch-day walkthrough still needs a sign-in on your own Supabase before I can run it.
 
 
 
