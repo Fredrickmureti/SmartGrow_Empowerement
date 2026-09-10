@@ -51,7 +51,9 @@ DECLARE
     'mf_collection_bankings','branches','branch_operational_days','branch_day_events'];
 
   v_bool       boolean;
-  v_num2       numeric;
+ v_num2       numeric;
+  bal_before   jsonb;
+  v_moved      text := '';
 BEGIN
   ---------------------------------------------------------------- fixtures ids
   SELECT b.id, b.organization_id, o.owner_user_id
