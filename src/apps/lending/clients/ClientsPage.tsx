@@ -138,10 +138,21 @@ export function ClientsPage() {
         description="Member records with KYC identity, owning branch and loan officer."
         actions={
           canManage ? (
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="mr-1.5 h-4 w-4" />
-              Register client
-            </Button>
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={exporting || filtered.length === 0}
+                onClick={() => setBulkExportOpen(true)}
+              >
+                <Download className="mr-1.5 h-4 w-4" />
+                {exporting ? "Preparing…" : "Export KYC"}
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1.5 h-4 w-4" />
+                Register client
+              </Button>
+            </>
           ) : undefined
         }
       />
