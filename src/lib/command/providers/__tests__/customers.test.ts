@@ -2,7 +2,7 @@
  * customersProvider — smoke test
  *
  * Verifies the basic shape contract: the provider issues an `ilike`
- * search on `contacts`, respects the abort signal, returns
+ * search on `mf_clients`, respects the abort signal, returns
  * record-kind CommandEntries with stable ids, and short-circuits
  * sub-2-char queries to avoid pummelling the DB.
  *
@@ -27,8 +27,8 @@ const builder = {
     abortMock(...args);
     return Promise.resolve({
       data: [
-        { id: "c1", name: "Acme Inc", email: "ops@acme.test", company: "Acme Inc" },
-        { id: "c2", name: "Beta LLC", email: null, company: null },
+        { id: "c1", full_name: "Amina Wanjiru", client_number: "CL-001", phone: "0700000001", email: "amina@test" },
+        { id: "c2", full_name: "Brian Otieno", client_number: null, phone: null, email: null },
       ],
       error: null,
     });
@@ -60,24 +60,25 @@ describe("customersProvider", () => {
     expect(builder.select).not.toHaveBeenCalled();
   });
 
-  it("queries name / email / company with ilike and returns record entries", async () => {
-    const out = await customersProvider.fetch("acme", ctx);
+  it("queries name / number / phone / email with ilike and returns record entries", async () => {
+    const out = await customersProvider.fetch("amina", ctx);
 
     expect(builder.select).toHaveBeenCalled();
-    expect(orMock).toHaveBeenCalledWith(expect.stringContaining("name.ilike.%acme%"));
-    expect(eqMock).toHaveBeenCalledWith("is_active", true);
+    expect(orMock).toHaveBeenCalledWith(
+      expect.stringContaining("full_name.ilike.%amina%"),
+    );
     expect(limitMock).toHaveBeenCalledWith(8);
     expect(abortMock).toHaveBeenCalledWith(ctx.signal);
 
     expect(out).toHaveLength(2);
     expect(out[0]).toMatchObject({
-      id: "record:contact:c1",
+      id: "record:client:c1",
       kind: "record",
-      title: "Acme Inc",
-      to: "/contacts/c1",
+      title: "Amina Wanjiru",
+      to: "/lending?client=c1",
     });
-    // Falls back gracefully when company/email are null.
-    expect(out[1].subtitle).toBe("Contact");
+    // Falls back gracefully when number/phone/email are null.
+    expect(out[1].subtitle).toBe("Client");
   });
 
   it("escapes %/_ in user input to prevent ilike-injection", async () => {

@@ -111,7 +111,7 @@ export async function fetchAndBuildFinanceJournalEntrySnapshot(
         ? (client as any).from("accounts").select("id, code, name").in("id", accountIds)
         : Promise.resolve({ data: [] }),
       contactIds.length
-        ? (client as any).from("contacts").select("id, name").in("id", contactIds)
+        ? (client as any).from("mf_clients").select("id, full_name").in("id", contactIds)
         : Promise.resolve({ data: [] }),
       analyticIds.length
         ? (client as any).from("analytic_accounts").select("id, name").in("id", analyticIds)
@@ -146,7 +146,7 @@ export async function fetchAndBuildFinanceJournalEntrySnapshot(
   }
   const contactMap = new Map<string, string | null>();
   for (const c of (contactsRes?.data ?? []) as Array<Record<string, unknown>>) {
-    contactMap.set(String(c["id"]), str(c["name"]));
+    contactMap.set(String(c["id"]), str(c["full_name"]));
   }
   const analyticMap = new Map<string, string | null>();
   for (const a of (analyticRes?.data ?? []) as Array<Record<string, unknown>>) {

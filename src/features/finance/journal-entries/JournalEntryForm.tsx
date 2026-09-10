@@ -30,7 +30,7 @@ import {
 } from "@/components/documents/lines/JournalLineRow";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useAnalyticAccounts } from "@/hooks/useAnalyticAccounts";
-import { useContacts } from "@/hooks/useContacts";
+import { useCounterparties } from "@/hooks/useCounterparties";
 import { useCurrency } from "@/hooks/useCurrency";
 import { useFiscalPeriods } from "@/hooks/useFiscalPeriods";
 import {
@@ -59,7 +59,7 @@ export function JournalEntryForm({ mode, entry }: JournalEntryFormProps) {
   const navigate = useNavigate();
   const { accounts } = useAccounts();
   const { activeAccounts: postableAnalyticAccounts } = useAnalyticAccounts();
-  const { contacts } = useContacts();
+  const { counterparties: contacts } = useCounterparties();
   const { formatCurrency } = useCurrency();
   const { isDateLocked } = useFiscalPeriods();
   const { createJournalEntry, updateJournalEntry } = useJournalEntries();
