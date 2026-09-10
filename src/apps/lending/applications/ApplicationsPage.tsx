@@ -122,7 +122,11 @@ function WorkflowTrail({
 }
 
 export function ApplicationsPage() {
-  const { can } = usePermissions();
+  const { can, role } = usePermissions();
+  // Removing a declined application is an administrator act. The database
+  // (`is_org_admin` inside `mf_delete_loan_application`) is the control; this
+  // only decides whether to offer the action.
+  const isAdmin = role === "owner" || role === "admin";
   const canManage = can("manageApplications");
   const canApprove = can("approveApplications");
   const [status, setStatus] = useState<MfApplicationStatus | "all" | "open">("all");
