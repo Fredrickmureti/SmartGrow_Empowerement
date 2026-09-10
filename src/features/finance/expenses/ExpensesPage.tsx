@@ -66,6 +66,7 @@ import {
 import { normalizeError } from "@/services/resilience";
 import { ExpenseFormDialog, type ExpenseFormValues } from "./ExpenseFormDialog";
 import { VoidExpenseDialog } from "./VoidExpenseDialog";
+import { ExpenseCategoriesDialog } from "./ExpenseCategoriesDialog";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   draft: "outline",
