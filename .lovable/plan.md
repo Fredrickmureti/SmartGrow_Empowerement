@@ -67,21 +67,15 @@ The report you asked for: original architecture, root cause, remediation, proof 
 
 =============IMPLEMENTATION PROGRESS AND WHERE THINGS STAND================
 
-Work stopped partway because the workspace ran out of credits.
+Done so far (verified against the live database and code):
 
-What is done
+Confirmed the finding: depreciation amounts were decided in the browser, in three separate places (useDepreciationRun, useDepreciationSchedule, and the run-depreciation edge function), with acquisition posting also browser-side and failures silently swallowed. No real asset or depreciation records exist yet, so nothing in production is affected.
+The authoritative database routines (fa_calc_period_depreciation, fa_depreciation_plan, fa_post_depreciation) exist and were reviewed line by line.
+Applied a migration just now that: hardens fa_post_depreciation so a pre-generated projected row is finalised rather than skipped after a journal is written (a true duplicate now aborts the whole run); adds fa_create_asset, which creates the asset and its acquisition journal in one transaction and refuses on closed periods, missing account mappings, or foreign category/branch; and removes direct insert/update/delete access on depreciation records so only the server routines can write them.
+Unfinished / untested:
 
-The audit is complete and confirmed the finding: depreciation amounts were decided in the browser (useDepreciationRun), which also wrote the depreciation records and asset balances directly, with a second, differently-behaving copy in the run-depreciation edge function, and the asset's depreciation start date ignored by both. The Fixed Assets tables were empty (no assets, categories, depreciation records or depreciation journals), so no real accounting data was ever at risk.
-
-The database now holds the authoritative seam, applied successfully:
-
-one calculation routine that decides the amount from the asset's own cost, residual value, useful life, method, rate and depreciation start date, with first-part-month proration, a residual floor, and a stop once fully depreciated;
-a read-only preview routine that writes nothing;
-a posting routine that accepts no amount from the caller, refuses on a closed period, missing account mappings, insufficient permission or an already-depreciated month, locks against simultaneous runs, and posts through the existing journal engine. It also fixes a defect that would have made every later month reuse the first month's journal entry.
-What is unfinished and untested
-
-The screens still call the old browser calculation — until they are switched over, the new routines are not yet in use, so the browser remains authoritative in the running app.
-The acquisition journal is still posted from the browser with failures only logged.
-The duplicate edge-function engine is still in place.
-None of the verification was run: no test category or asset, no preview/posting proof, no manipulated-amount test, no duplicate/concurrency test, no cleanup or integrity comparison. No test fixtures were created, so nothing needs cleaning up.
-Continuing this requires available credits; the plan is saved and I can resume exactly at the frontend switch-over.
+The screens still call the old browser code: useDepreciationRun.ts, useDepreciationSchedule.ts, DepreciationRunSheet.tsx, useFixedAssets.ts (create path) have not yet been switched to the new routines, and the duplicate edge function has not been removed.
+The architecture test fixed-assets-business-level-gating.test.ts will need its stale browser-posting assertions updated.
+No ZZTEST-FIXEDASSET fixtures, manipulated-input test, concurrency test, preview no-write digest, accounting chain check, or cleanup/integrity proof has been run yet.
+The linter output after the migration is the pre-existing project-wide baseline (security-definer function grants, extensions in public, leaked-password protection); the new functions are explicitly granted to signed-in users only and revoked from anonymous access. Disposal remains a browser-computed posting and should be classified as a future-wave item.
+The earlier contacts-cleanup migration is also still mid-way (command provider rewrite, old-file deletion, DB drop, verification).  the next step is the coherent frontend pass to route preview, posting, and asset creation through the new database routines, then the isolated fixture verification and final report.
