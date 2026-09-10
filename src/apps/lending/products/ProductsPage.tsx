@@ -195,8 +195,8 @@ export function ProductsPage() {
                 {filtered.map((p) => (
                   <TableRow
                     key={p.id}
-                    className={canManage ? "cursor-pointer" : undefined}
-                    onClick={canManage ? () => openEdit(p) : undefined}
+                    className="cursor-pointer"
+                    onClick={() => openView(p)}
                   >
                     <TableCell className="font-mono text-xs">{p.code}</TableCell>
                     <TableCell className="font-medium">{p.name}</TableCell>
