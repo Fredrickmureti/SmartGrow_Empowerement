@@ -103,6 +103,8 @@ export function ClientDetailSheet({
   const { getUserName } = useOrgMembers();
   const { group } = useMfClientActiveGroup(open ? (client?.id ?? null) : null);
   const [controlled, setControlled] = useState<ControlledField | null>(null);
+  const [confirmExport, setConfirmExport] = useState(false);
+  const { runExport, exporting } = useKycExport();
 
   const branchName = useMemo(
     () => branches.find((b) => b.id === client?.branch_id)?.name ?? "—",
