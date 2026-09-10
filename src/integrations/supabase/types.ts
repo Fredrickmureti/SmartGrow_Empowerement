@@ -12326,6 +12326,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mf_client_charge_payments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mf_client_charge_payments_journal_entry_id_fkey"
             columns: ["journal_entry_id"]
             isOneToOne: false
@@ -12469,6 +12476,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_client_charges_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -12770,6 +12784,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_collection_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -13246,6 +13267,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mf_group_members_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mf_group_members_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -13435,6 +13463,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loan_applications_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -14024,6 +14059,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mf_loans_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
@@ -14128,6 +14170,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_meeting_attendance_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -14351,6 +14400,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_repayments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -14661,6 +14717,13 @@ export type Database = {
             columns: ["matched_client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mpesa_c2b_transactions_matched_client_id_fkey"
+            columns: ["matched_client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
           {
@@ -20787,6 +20850,13 @@ export type Database = {
             referencedRelation: "mf_clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
+            referencedColumns: ["id"]
+          },
         ]
       }
       mf_loan_balances: {
@@ -20829,6 +20899,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "mf_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_loans_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "party_register"
             referencedColumns: ["id"]
           },
         ]
@@ -20963,6 +21040,71 @@ export type Database = {
           org_slug: string | null
         }
         Relationships: []
+      }
+      party_register: {
+        Row: {
+          business_id: string | null
+          company: string | null
+          default_tax_rate_id: string | null
+          display_name: string | null
+          email: string | null
+          id: string | null
+          is_active: boolean | null
+          is_company: boolean | null
+          name: string | null
+          organization_id: string | null
+          payment_term_id: string | null
+          phone: string | null
+          sms_consent: boolean | null
+          tax_exemption_expiry: string | null
+          tax_exemption_number: string | null
+          type: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          company?: never
+          default_tax_rate_id?: never
+          display_name?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: never
+          is_company?: never
+          name?: string | null
+          organization_id?: never
+          payment_term_id?: never
+          phone?: string | null
+          sms_consent?: never
+          tax_exemption_expiry?: never
+          tax_exemption_number?: never
+          type?: never
+        }
+        Update: {
+          business_id?: string | null
+          company?: never
+          default_tax_rate_id?: never
+          display_name?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: never
+          is_company?: never
+          name?: string | null
+          organization_id?: never
+          payment_term_id?: never
+          phone?: string | null
+          sms_consent?: never
+          tax_exemption_expiry?: never
+          tax_exemption_number?: never
+          type?: never
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_admins: {
         Row: {
