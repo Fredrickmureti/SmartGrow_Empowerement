@@ -49,11 +49,23 @@ Employee payroll reimbursement queueing (no payroll in this system) and converti
 into a supplier bill — both engine paths stay unused.
 
 =================IMPLEMENTATION PROGRESS/WHERE THINGS STAND================
-Work is paused because your workspace ran out of credits.
 
-Done so far:
+Done and verified:
+- Cash & bank accounts: the retired `platform_bank_providers` join is gone from
+  `useBankAccounts` (comment at the former join site) and no source file queries that
+  relation any more. `useBankProviders` remains an inert stub.
+- Void reason codes for expenses exist and are read from `reversal_reason_codes`.
+- `ExpenseFormDialog` (capture/edit) and `VoidExpenseDialog` exist.
+- NEW: `src/features/finance/expenses/ExpensesPage.tsx` — list with search, status
+  filter, totals, "New expense", and row actions Submit / Approve / Reject / Void /
+  Delete / View ledger entry. Every transition calls the existing server command in
+  `src/lib/finance/expenseCommands.ts`; the browser writes commercial fields only.
+- NEW: route `/finance/expenses` registered in `src/apps/finance/routes.tsx` and
+  "Expenses" added to the Finance sidebar Operations group (`src/apps/finance/nav.ts`).
+- Typecheck clean for the new/edited files.
 
-Fixed the "Cash & bank accounts" error — the leftover link to the old bank-provider list was removed, so the page can load again.
-Added the reasons a recorded expense can be cancelled (recorded in error, wrong amount, wrong account/category, duplicate).
-Built the expense capture/edit form and the void-with-reason dialog.
-Not finished: the expenses list/detail screen, the /finance/expenses link in the Finance menu, and any real testing of recording, approving or voiding an expense. Continuing needs available credits.
+Remaining:
+- Live end-to-end rehearsal (record → submit → approve → check ledger/trial balance →
+  void → check reversal register) has NOT been run.
+- No dedicated detail page; the list drawer/detail view and lifecycle timeline are still
+  open. Ledger entry is reachable via the row action.

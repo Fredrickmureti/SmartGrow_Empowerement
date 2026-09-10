@@ -37,6 +37,7 @@ export const FINANCE_NAV: WorkspaceNav = {
       items: [
         { to: "/finance/dashboard", label: "Overview", icon: LayoutGrid, end: true },
         { to: "/finance/journal-entries", label: "Journal entries", icon: BookOpen },
+        { to: "/finance/expenses", label: "Expenses", icon: Receipt },
         { to: "/finance/banking", label: "Cash & bank accounts", icon: Landmark },
         { to: "/finance/reconciliation", label: "Reconciliation", icon: GitCompare },
         { to: "/finance/bank-feeds", label: "Statement lines", icon: Rss },
