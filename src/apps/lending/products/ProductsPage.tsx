@@ -119,6 +119,11 @@ export function ProductsPage() {
     setFormOpen(true);
   };
 
+  const openView = (product: MfLoanProduct) => {
+    setViewing(product);
+    setDetailOpen(true);
+  };
+
   const openVersions = (product: MfLoanProduct) => {
     setVersionProduct(product);
     setVersionOpen(true);
