@@ -53,6 +53,7 @@ import {
 } from "@/hooks/useMfLoanProducts";
 import { ProductFormDialog } from "./ProductFormDialog";
 import { ProductVersionDialog } from "./ProductVersionDialog";
+import { ProductDetailSheet } from "./ProductDetailSheet";
 
 const STATUS_TONE: Record<MfProductStatus, "neutral" | "success" | "warning" | "danger"> = {
   draft: "warning",
@@ -67,6 +68,9 @@ export function ProductsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<MfLoanProduct | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // Opening a product is a read: the row shows the record, never a form.
+  const [viewing, setViewing] = useState<MfLoanProduct | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [versionProduct, setVersionProduct] = useState<MfLoanProduct | null>(null);
   const [versionOpen, setVersionOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<MfLoanProduct | null>(null);
