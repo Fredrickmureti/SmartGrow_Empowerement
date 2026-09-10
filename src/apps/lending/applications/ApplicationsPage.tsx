@@ -445,7 +445,17 @@ export function ApplicationsPage() {
                             {/* Removal is only for a record that never became
                                 lending history. The database decides; this is a
                                 hint, not the control. */}
-                            {deletable(a) ? (
+                            {a.status === "rejected" && isAdmin && !loanNumberFor(a.id) ? (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setDeclinedTarget(a);
+                                  setDeclinedOpen(true);
+                                }}
+                              >
+                                Delete (administrator)…
+                              </DropdownMenuItem>
+                            ) : deletable(a) ? (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => {
