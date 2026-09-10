@@ -10,6 +10,7 @@ import { useDefaultAccounts } from "./useDefaultAccounts";
 import { useAuditLog } from "./useAuditLog";
 import { useFinanceScope } from "@/hooks/finance/useFinanceScope";
 import { financeKey } from "@/lib/finance/financeKey";
+import { normalizeError } from "@/services/resilience";
 
 export interface AssetCategory {
   id: string;
