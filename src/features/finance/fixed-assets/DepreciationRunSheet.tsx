@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { normalizeError } from "@/services/resilience";
 import {
   useDepreciationRun,
+  DEPRECIATION_BLOCKER_LABEL,
   type DepreciationPreviewItem,
 } from "@/hooks/useDepreciationRun";
 import { useCurrency } from "@/hooks/useCurrency";
@@ -42,6 +43,8 @@ export function DepreciationRunSheet({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const [period, setPeriod] = useState(format(new Date(), "yyyy-MM"));
   const [preview, setPreview] = useState<DepreciationPreviewItem[]>([]);
+  // The server decides which assets are eligible; the screen only reports it.
+  const postable = preview.filter((p) => !p.blocker && p.monthlyDepreciation > 0);
 
   const loadPreview = async (p: string) => {
     try {
