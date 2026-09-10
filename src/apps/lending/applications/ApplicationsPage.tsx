@@ -486,6 +486,24 @@ export function ApplicationsPage() {
         </Section>
       </PageBody>
 
+      <ApplicationDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        application={viewing}
+        canManage={canManage}
+        hasAssessment={viewing ? assessedIds.has(viewing.id) : false}
+        loanNumber={viewing ? loanNumberFor(viewing.id) : null}
+        clientLabel={viewing ? clientName(viewing.client_id) : ""}
+        productLabel={viewing ? pricedOn(viewing) : ""}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) {
+            setEditing(viewing);
+            setFormOpen(true);
+          }
+        }}
+      />
+
       <ApplicationFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
