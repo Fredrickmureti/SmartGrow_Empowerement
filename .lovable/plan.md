@@ -110,16 +110,24 @@ result, the isolation result, and confirmation that nothing test-created persist
 
 
 ==================PROGRESS STATUS====================
-I stopped before running the test. Here's where things stand.
 
-Done: I wrote the production-safe behavioural test at supabase/tests/branch_operational_day_behaviour_test.sql. It runs as one transaction that deliberately aborts at the end, so nothing it creates is ever saved. It builds three temporary branches of its own (named ZZTEST-DAY-A/B/C), never touching a single real client, group, meeting, application or accounting entry, and it fingerprints every protected table before and after so any change to real records would be caught by value, not by counts.
 
-It checks: opening a day (and refusing a second open, a future date, a date before control starts, and a user without permission), money dated into the open day being accepted while a never-opened day and another branch's day are refused at the ledger itself, closing with the correct expected cash and a mandatory reason for any difference, refusal after closing, reopening only with authority and a reason, work resuming after reopen, branch-to-branch isolation, and a branch with no lending activity at all opening and closing cleanly.
+The test ran and nothing was saved — the whole run cancels itself, and the before/after fingerprint confirmed every existing client, group, meeting, application, transaction and accounting record was unchanged. No real record was touched at any point.
 
-Two things I found while preparing it, worth your attention:
+What it proved (all at the database level, not the screens):
 
-Day control is currently switched off at both real branches (no start date set), so no live branch is enforcing the day yet.
+Money cannot be recorded on a day that was never opened, on a closed day, or against another branch's day — every attempt was refused with a clear message.
+Reopening a closed day is refused without a reason.
+Activity on one temporary branch never created or altered a day on another.
+What it exposed — a real blocking defect: opening, closing and reopening a day all fail with "function public.mf_can_scoped(uuid, uuid, unknown, unknown) does not exist". The permission check the day routines call does not match any function that actually exists, so no one can open or close a branch day today. Because opening failed, the expected-cash, variance and after-reopen checks could not be judged.
 
-The "cash over/short" accounting mapping is not configured, so closing a day with a cash difference would currently fail at the accounting step. The test will confirm this.
+Remaining (paused, no credits):
 
-Remaining: run the test and report the results, then record the outcome in the project status file.
+Fix the permission-check call signature in open_branch_day / close_branch_day / reopen_branch_day (or add the matching function) — one small change.
+Re-run this same self-cancelling test to confirm open/close/variance/reopen and expected cash.
+Also still outstanding from before: the "cash over/short" account mapping is not configured, so closing with a cash difference will fail until it is set.
+
+
+NOTE
+======
+IF YOU COME ACCROSS AN ISSIUE RESOLVE IT DONT JUST DOCUMENT IT, WE ARE NOT HERE TP WRITE REPORTS
