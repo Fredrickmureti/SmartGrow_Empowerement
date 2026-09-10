@@ -272,6 +272,21 @@ export function ProductsPage() {
         </Section>
       </PageBody>
 
+      <ProductDetailSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        product={viewing}
+        canManage={canManage}
+        onEdit={() => {
+          setDetailOpen(false);
+          if (viewing) openEdit(viewing);
+        }}
+        onOpenVersions={() => {
+          setDetailOpen(false);
+          if (viewing) openVersions(viewing);
+        }}
+      />
+
       <ProductFormDialog
         open={formOpen}
         onOpenChange={setFormOpen}
