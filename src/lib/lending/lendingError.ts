@@ -69,8 +69,11 @@ export function lendingErrorMessage(error: unknown, fallback: string): string {
     return "You do not have permission to perform this action.";
   }
 
-  // Deliberate business refusals raised by the lending guards.
-  if (code === "P0001" || (!code && raw && !looksTechnical(raw))) {
+  // Deliberate business refusals raised by the lending guards. Some guards
+  // (branch operational day, fiscal period, trial balance) raise with
+  // ERRCODE = 'check_violation' (23514) on purpose, so their sentence must be
+  // kept too — otherwise "the day is not open" reads as "bad values entered".
+  if (code === "P0001" || code === "23514" || (!code && raw && !looksTechnical(raw))) {
     const sentence = text(asPg(error).message) || raw;
     if (sentence && !looksTechnical(sentence)) {
       let out = sentence.replace(/^ERROR:\s*/i, "");
