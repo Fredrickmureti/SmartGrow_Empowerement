@@ -223,6 +223,72 @@ export function DisburseDialog({
               rows={3}
             />
           </div>
+
+          {/* Identity evidence: the registration portrait beside a photo of the
+              person actually collecting the money. Never blocks the payout. */}
+          <div className="space-y-2 rounded-md border p-3">
+            <span className="text-sm font-medium leading-none">
+              Identity at the payout desk
+            </span>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">On file (registration)</p>
+                <div className="aspect-[3/4] overflow-hidden rounded-lg border bg-muted/40">
+                  {registrationUrl ? (
+                    <img
+                      src={registrationUrl}
+                      alt={`Registration photo of ${clientName ?? "the client"}`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground">
+                      <User className="h-5 w-5" />
+                      <span className="text-[11px] leading-snug">No photo on file</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Photo now</p>
+                <button
+                  type="button"
+                  onClick={() => setCameraOpen(true)}
+                  className="block aspect-[3/4] w-full overflow-hidden rounded-lg border bg-muted/40 transition-colors hover:border-primary/50"
+                >
+                  {payoutUrl ? (
+                    <img
+                      src={payoutUrl}
+                      alt="Photo taken at the payout desk"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground">
+                      <Camera className="h-5 w-5" />
+                      <span className="text-[11px] leading-snug">Take photo</span>
+                    </span>
+                  )}
+                </button>
+                {payoutPhoto && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-full text-xs"
+                    onClick={() => setCameraOpen(true)}
+                  >
+                    Retake
+                  </Button>
+                )}
+              </div>
+            </div>
+            {!payoutPhoto && (
+              <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                No photo of the person collecting this money has been taken. The payout can
+                still go ahead, but there will be no evidence of who received it.
+              </p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
@@ -230,9 +296,21 @@ export function DisburseDialog({
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving || !date || dayGate.blocked}>
-            {saving ? "Disbursing…" : "Confirm disbursement"}
+            {saving
+              ? "Disbursing…"
+              : payoutPhoto
+                ? "Confirm disbursement"
+                : "Disburse without photo"}
           </Button>
         </DialogFooter>
+
+        <CameraCaptureDialog
+          open={cameraOpen}
+          onOpenChange={setCameraOpen}
+          title="Photo at the payout desk"
+          frame="portrait"
+          onCapture={(blob) => setPayoutPhoto(blob)}
+        />
       </DialogContent>
     </Dialog>
   );
