@@ -102,16 +102,19 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 
 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
-Done so far (both applied to the database):
 
-Loan products and loans now carry an interest-recognition setting: interest withheld at payout is earned either when the customer's repayment is received (the default, matching the client's note) or when the instalment falls due.
-When an approved application becomes a loan, that setting is frozen onto the loan with the other contractual terms.
-Not yet done:
 
-The weekly interest recognition still does not run automatically after a repayment — this is the core gap and it is the next step.
-Reversing a receipt does not yet unwind the matching interest entry.
+I confirmed the two changes the previous session reported were genuinely applied (the interest-recognition setting on loan products and its freezing onto new loans), then continued with the next item in the plan.
+
+Done in this session:
+
+Interest withheld at payout is now earned automatically when a customer's receipt fully settles an instalment — recorded in the same transaction as the receipt, so both stand or fall together, and never twice for the same instalment.
+Each recognition now records which receipt caused it, and reversing that receipt unwinds the matching interest entry.
+The due-date recognition run now only touches loans set to "recognise on due date", so the two modes can't double-count.
+A payout can no longer be reversed while interest recognised on it is still standing.
+Unfinished / untested:
+
+No end-to-end test run yet (the 10,000 / 2,000 / 12-week walkthrough: payout 8,000, twelve receipts, closing balances).
 The repayment schedule still shows the instalment as principal only, not split into 666.67 principal + 166.67 interest.
-Nothing has been tested end to end yet, and no existing loan, schedule, journal or repayment has been touched.
-Nothing is in a broken state — the two applied changes are inert until the recognition step is wired up. To continue, credits need to be topped up and then just tell me to resume.
-
-
+Remaining open items from the plan: early settlement, write-off and restructuring treatment of unearned interest, plus reporting alignment.
+No existing loan, schedule, receipt or journal entry was touched. Credits ran out at this point — resuming needs credits topped up, and the next step is the end-to-end verification followed by the schedule split.
