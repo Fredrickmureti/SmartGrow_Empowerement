@@ -20891,6 +20891,42 @@ export type Database = {
           },
         ]
       }
+      mf_loan_schedule_display: {
+        Row: {
+          business_id: string | null
+          closing_balance: number | null
+          due_date: string | null
+          fees_due: number | null
+          id: string | null
+          installment_no: number | null
+          interest_component: number | null
+          interest_due: number | null
+          interest_recognised: number | null
+          is_grace: boolean | null
+          is_interest_recognised: boolean | null
+          loan_id: string | null
+          opening_balance: number | null
+          principal_component: number | null
+          principal_due: number | null
+          total_due: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_loan_schedule_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_par_aging: {
         Row: {
           branch_id: string | null
