@@ -100,6 +100,41 @@ export const MF_VALID_RATE_PERIODS: Record<MfInterestMethod, MfInterestRatePerio
   declining_balance_equal_installments: ["per_annum", "per_month", "per_installment"],
 };
 
+/**
+ * When the interest on a loan is collected. Mirrors the database check on
+ * `mf_loan_product_versions.interest_collection`, which also restricts upfront
+ * collection to flat interest — a declining-balance schedule prices each period
+ * off the outstanding balance, so its interest cannot be known at payout.
+ */
+export type MfInterestCollection = "with_installments" | "deducted_upfront";
+
+export const MF_INTEREST_COLLECTIONS: MfInterestCollection[] = [
+  "with_installments",
+  "deducted_upfront",
+];
+
+export const MF_INTEREST_COLLECTION_LABELS: Record<MfInterestCollection, string> = {
+  with_installments: "Collected with the installments",
+  deducted_upfront: "Deducted upfront at disbursement",
+};
+
+export const MF_INTEREST_COLLECTION_HELP: Record<MfInterestCollection, string> = {
+  with_installments:
+    "Interest is charged across the repayment schedule and earned as repayments come in.",
+  deducted_upfront:
+    "The whole term's interest is taken out of the payout, so the client receives less cash and the schedule carries principal only. Flat interest only.",
+};
+
+/** Interest may only be taken upfront when the whole term is priced flat. */
+export const MF_VALID_INTEREST_COLLECTIONS: Record<
+  MfInterestMethod,
+  MfInterestCollection[]
+> = {
+  flat: ["with_installments", "deducted_upfront"],
+  declining_balance: ["with_installments"],
+  declining_balance_equal_installments: ["with_installments"],
+};
+
 export const MF_PENALTY_BASIS_LABELS: Record<MfPenaltyBasis, string> = {
   overdue_installment: "Overdue installment total",
   overdue_principal: "Overdue principal",
@@ -118,7 +153,10 @@ export interface MfProductFee {
   basis: "percent_of_principal" | "fixed";
   value: number;
   /** How the fee is collected. */
-  collection: "deducted_from_disbursement" | "added_to_first_installment";
+  collection:
+    | "deducted_from_disbursement"
+    | "added_to_first_installment"
+    | "paid_at_disbursement";
 }
 
 export const MF_FEE_BASES: MfProductFee["basis"][] = ["percent_of_principal", "fixed"];
@@ -131,11 +169,13 @@ export const MF_FEE_BASIS_LABELS: Record<MfProductFee["basis"], string> = {
 export const MF_FEE_COLLECTIONS: MfProductFee["collection"][] = [
   "deducted_from_disbursement",
   "added_to_first_installment",
+  "paid_at_disbursement",
 ];
 
 export const MF_FEE_COLLECTION_LABELS: Record<MfProductFee["collection"], string> = {
   deducted_from_disbursement: "Deducted from disbursement",
   added_to_first_installment: "Added to first installment",
+  paid_at_disbursement: "Paid by the client at disbursement",
 };
 
 
@@ -175,6 +215,7 @@ export interface MfLoanProductVersion {
   interest_method: MfInterestMethod;
   interest_rate: number;
   interest_rate_period: MfInterestRatePeriod;
+  interest_collection: MfInterestCollection;
   grace_period_installments: number;
   fees: MfProductFee[];
   penalty_rate: number;
@@ -209,7 +250,7 @@ const PRODUCT_SELECT =
   "id,business_id,code,name,description,status,current_version_id,created_at,updated_at";
 
 const VERSION_SELECT =
-  "id,business_id,product_id,version_no,currency_code,min_amount,max_amount,min_term_installments,max_term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,fees,penalty_rate,penalty_basis,eligibility,effective_from,is_published,published_at,created_at,updated_at";
+  "id,business_id,product_id,version_no,currency_code,min_amount,max_amount,min_term_installments,max_term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,interest_collection,grace_period_installments,fees,penalty_rate,penalty_basis,eligibility,effective_from,is_published,published_at,created_at,updated_at";
 
 
 export function useMfLoanProducts(options?: { status?: MfProductStatus | "all" }) {
