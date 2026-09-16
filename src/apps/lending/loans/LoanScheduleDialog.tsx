@@ -21,17 +21,20 @@ import {
 } from "@/components/ui/table";
 import { LoadingState, EmptyState } from "@/design-system";
 import { useMfLoanSchedule, type MfLoan } from "@/hooks/useMfLoans";
+import { DisbursementPhotoPanel } from "./DisbursementPhotoPanel";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loan: MfLoan | null;
+  /** Registration portrait of the borrowing client, for payout comparison. */
+  clientPhotoPath?: string | null;
 }
 
 const money = (v: number) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
+export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }: Props) {
   const { schedule, events, penalties, isLoading } = useMfLoanSchedule(
     open ? loan?.id : undefined,
   );
@@ -63,6 +66,12 @@ export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
             payment ledger.
           </DialogDescription>
         </DialogHeader>
+
+        <DisbursementPhotoPanel
+          loanId={loan?.id ?? null}
+          clientPhotoPath={clientPhotoPath}
+          enabled={open && !!loan?.disbursed_at}
+        />
 
         {isLoading ? (
           <LoadingState />
