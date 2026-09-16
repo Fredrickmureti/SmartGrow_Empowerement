@@ -195,19 +195,26 @@ function termsBlock(ctx: LoanContext): Record<string, unknown> {
   };
 }
 
+/**
+ * Schedule rows as handed to the borrower. `principal_component` /
+ * `interest_component` come from the display view: identical to the stored
+ * amounts for ordinary loans, and the re-split of the installment for loans
+ * whose interest was deducted upfront.
+ */
 function scheduleRows(ctx: LoanContext): Array<Record<string, unknown>> {
   return ctx.schedule.map((s) => ({
     installment_no: num(s["installment_no"]),
     due_date: str(s["due_date"]),
     opening_balance: num(s["opening_balance"]),
-    principal_due: num(s["principal_due"]),
-    interest_due: num(s["interest_due"]),
+    principal_due: num(s["principal_component"] ?? s["principal_due"]),
+    interest_due: num(s["interest_component"] ?? s["interest_due"]),
     fees_due: num(s["fees_due"]),
     total_due: num(s["total_due"]),
     closing_balance: num(s["closing_balance"]),
     is_grace: s["is_grace"] === true,
   }));
 }
+
 
 function scheduleTotals(rows: Array<Record<string, unknown>>) {
   return {
