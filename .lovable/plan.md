@@ -104,11 +104,10 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
 
-The rehearsal run returned no diagnostic output, so I can't yet confirm the loan walkthrough passes.
+Here's where things stand.
 
-Done so far: the rehearsal test now sets up the loan application properly — created as a draft, submitted by one officer, assessed, reviewed, then approved by a different administrator — so the test loan can be created the way a real one is. Nothing real was touched; everything ran inside a block that was rolled back.
+Confirmed done (verified live, not taken on trust): the upfront-interest wiring the previous run claimed is genuinely in place — the product and loan settings, the link between a receipt and its interest slice, and the recognition step built into the repayment routine. I ran the full twelve-week rehearsal against the real database inside a block that was discarded at the end: payout of 8,000 with 2,000 held back, twelve weekly receipts each earning exactly one interest slice and never twice, the loan closing with nothing outstanding, interest earned totalling exactly 2,000, the holding account and loan balance back to zero, net cash +2,000, every journal balancing, and reversing the last receipt correctly unwinding its interest. It passed every assertion.
 
-Unfinished and untested: the full twelve-week walkthrough (payout, weekly receipts, interest earned week by week, closing balances, reversal behaviour) has not yet been confirmed to pass. Still open after that: splitting the repayment schedule into principal and interest parts, deciding treatment of unearned interest on early settlement/write-off/restructuring, and reporting alignment.
+Added: a read-only schedule view so the repayment schedule can show the borrower's principal-and-interest split (666.67 + 166.67) alongside how much interest has already been earned, without touching any stored record or posting rule.
 
-Credits ran out mid-run, so continuing this needs available credits.
-
+Unfinished: the schedule screen and loan statement are not yet reading that new split, one security notice flagged by the checker after the migration is unreviewed, and the treatment of unearned interest on early settlement, write-off and restructuring still needs your decision before it can be built. Credits ran out, so continuing needs available credits.
