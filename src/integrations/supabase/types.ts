@@ -12652,6 +12652,85 @@ export type Database = {
           },
         ]
       }
+      mf_deferred_interest_releases: {
+        Row: {
+          account_id: string
+          amount: number
+          business_id: string
+          created_at: string
+          id: string
+          installment_no: number
+          loan_event_id: string
+          loan_id: string
+          released_on: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          business_id: string
+          created_at?: string
+          id?: string
+          installment_no: number
+          loan_event_id: string
+          loan_id: string
+          released_on: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          business_id?: string
+          created_at?: string
+          id?: string
+          installment_no?: number
+          loan_event_id?: string
+          loan_id?: string
+          released_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mf_deferred_interest_releases_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "v_unidentified_system_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_loan_event_id_fkey"
+            columns: ["loan_event_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_balances"
+            referencedColumns: ["loan_id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mf_event_postings: {
         Row: {
           business_id: string
@@ -26422,6 +26501,14 @@ export type Database = {
           p_term_installments?: number
         }
         Returns: string
+      }
+      mf_release_deferred_interest: {
+        Args: { p_as_of?: string; p_loan_id: string; p_release_all?: boolean }
+        Returns: number
+      }
+      mf_release_deferred_interest_due: {
+        Args: { p_as_of?: string; p_business_id: string }
+        Returns: number
       }
       mf_resolve_account: {
         Args: { p_branch_id: string; p_business_id: string; p_key: string }
