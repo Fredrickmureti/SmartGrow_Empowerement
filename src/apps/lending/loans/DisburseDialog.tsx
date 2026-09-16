@@ -35,6 +35,7 @@ import {
 import {
   MF_DISBURSEMENT_METHODS,
   useMfLoanFeePreview,
+  useMfLoanUpfrontInterest,
   type MfLoan,
 } from "@/hooks/useMfLoans";
 
@@ -74,10 +75,10 @@ export function DisburseDialog({
   const [payoutPhoto, setPayoutPhoto] = useState<Blob | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const dayGate = useBranchDayGate();
-  // Fees are resolved server-side; this dialog only displays them.
-  const { fees, deductedTotal, isLoading: feesLoading } = useMfLoanFeePreview(
-    open ? (loan?.id ?? null) : null,
-  );
+  // Fees and interest are resolved server-side; this dialog only displays them.
+  const { fees, deductedTotal, clientPaidTotal, isLoading: feesLoading } =
+    useMfLoanFeePreview(open ? (loan?.id ?? null) : null);
+  const { upfrontInterest } = useMfLoanUpfrontInterest(open ? (loan?.id ?? null) : null);
   const { data: registrationUrl } = useKycImageUrl(open ? clientPhotoPath : null);
   const payoutUrl = useMemo(
     () => (payoutPhoto ? URL.createObjectURL(payoutPhoto) : null),
@@ -87,7 +88,10 @@ export function DisburseDialog({
     if (payoutUrl) URL.revokeObjectURL(payoutUrl);
   }, [payoutUrl]);
   const principal = Number(loan?.principal ?? 0);
-  const netPayable = principal - deductedTotal;
+  /** Cash the client walks away with: principal less what is taken at payout. */
+  const netPayable = principal - deductedTotal - upfrontInterest;
+  /** What actually leaves the till once the client's own fee is taken in. */
+  const netTillMovement = netPayable - clientPaidTotal;
   const money = (n: number) =>
     `${loan?.currency_code ?? ""} ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -140,6 +144,14 @@ export function DisburseDialog({
                 <span className="text-muted-foreground">Gross principal</span>
                 <span className="font-medium">{money(principal)}</span>
               </div>
+              {upfrontInterest > 0 ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">
+                    Interest deducted upfront — the schedule carries principal only
+                  </span>
+                  <span>−{money(upfrontInterest)}</span>
+                </div>
+              ) : null}
               {feesLoading ? (
                 <p className="text-xs text-muted-foreground">Resolving fees…</p>
               ) : (
@@ -151,20 +163,33 @@ export function DisburseDialog({
                       {fee.collection === "added_to_first_installment"
                         ? " — added to first installment"
                         : ""}
+                      {fee.collection === "paid_at_disbursement"
+                        ? " — collected from the client now"
+                        : ""}
                     </span>
                     <span>
                       {fee.collection === "deducted_from_disbursement" ? "−" : ""}
+                      {fee.collection === "paid_at_disbursement" ? "+" : ""}
                       {money(fee.amount)}
                     </span>
                   </div>
                 ))
               )}
               <div className="flex items-center justify-between border-t pt-1.5 font-semibold">
-                <span>Net cash payable</span>
+                <span>Cash to hand over</span>
                 <span>{money(netPayable)}</span>
               </div>
+              {clientPaidTotal > 0 ? (
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Net movement out of the till after the fee received</span>
+                  <span>{money(netTillMovement)}</span>
+                </div>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 The client's obligation remains the full principal of {money(principal)}.
+                {upfrontInterest > 0
+                  ? " Interest for the whole term has already been collected at payout."
+                  : ""}
               </p>
             </div>
           ) : null}
