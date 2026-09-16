@@ -21,11 +21,14 @@ import {
 } from "@/components/ui/table";
 import { LoadingState, EmptyState } from "@/design-system";
 import { useMfLoanSchedule, type MfLoan } from "@/hooks/useMfLoans";
+import { DisbursementPhotoPanel } from "./DisbursementPhotoPanel";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loan: MfLoan | null;
+  /** Registration portrait of the borrowing client, for payout comparison. */
+  clientPhotoPath?: string | null;
 }
 
 const money = (v: number) =>
