@@ -13316,6 +13316,7 @@ export type Database = {
           disbursed_on: string
           fee_breakdown: Json
           fees_deducted: number
+          fees_paid_by_client: number
           id: string
           loan_id: string
           method: string
@@ -13329,6 +13330,7 @@ export type Database = {
           reversed_by: string | null
           source_account_id: string | null
           updated_at: string
+          upfront_interest: number
         }
         Insert: {
           amount: number
@@ -13339,6 +13341,7 @@ export type Database = {
           disbursed_on: string
           fee_breakdown?: Json
           fees_deducted?: number
+          fees_paid_by_client?: number
           id?: string
           loan_id: string
           method: string
@@ -13352,6 +13355,7 @@ export type Database = {
           reversed_by?: string | null
           source_account_id?: string | null
           updated_at?: string
+          upfront_interest?: number
         }
         Update: {
           amount?: number
@@ -13362,6 +13366,7 @@ export type Database = {
           disbursed_on?: string
           fee_breakdown?: Json
           fees_deducted?: number
+          fees_paid_by_client?: number
           id?: string
           loan_id?: string
           method?: string
@@ -13375,6 +13380,7 @@ export type Database = {
           reversed_by?: string | null
           source_account_id?: string | null
           updated_at?: string
+          upfront_interest?: number
         }
         Relationships: [
           {
@@ -13462,6 +13468,7 @@ export type Database = {
           fees: Json
           grace_period_installments: number
           id: string
+          interest_collection: string
           interest_method: string
           interest_rate: number
           interest_rate_period: string
@@ -13488,6 +13495,7 @@ export type Database = {
           fees?: Json
           grace_period_installments?: number
           id?: string
+          interest_collection?: string
           interest_method: string
           interest_rate: number
           interest_rate_period?: string
@@ -13514,6 +13522,7 @@ export type Database = {
           fees?: Json
           grace_period_installments?: number
           id?: string
+          interest_collection?: string
           interest_method?: string
           interest_rate?: number
           interest_rate_period?: string
@@ -13684,6 +13693,7 @@ export type Database = {
           grace_period_installments: number
           group_id: string | null
           id: string
+          interest_collection: string
           interest_method: string
           interest_rate: number
           interest_rate_period: string
@@ -13718,6 +13728,7 @@ export type Database = {
           grace_period_installments?: number
           group_id?: string | null
           id?: string
+          interest_collection?: string
           interest_method: string
           interest_rate?: number
           interest_rate_period: string
@@ -13752,6 +13763,7 @@ export type Database = {
           grace_period_installments?: number
           group_id?: string | null
           id?: string
+          interest_collection?: string
           interest_method?: string
           interest_rate?: number
           interest_rate_period?: string
@@ -26237,6 +26249,7 @@ export type Database = {
         Returns: number
       }
       mf_loan_in_scope: { Args: { p_loan_id: string }; Returns: boolean }
+      mf_loan_upfront_interest: { Args: { p_loan_id: string }; Returns: number }
       mf_method_mapping_key: { Args: { p_method: string }; Returns: string }
       mf_next_fee_collection_number: {
         Args: { p_attempt?: number; p_business_id: string; p_on: string }
