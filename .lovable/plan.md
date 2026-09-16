@@ -1,89 +1,41 @@
-# Client KYC Export — single client and bulk
+# Passport photo capture at loan disbursement
 
-## What exists today (verified)
+## Current state (verified)
 
-- A client record (`mf_clients`, 6 rows live) holds all KYC data: client number, name, national ID, date of birth, gender, phone, email, address, occupation, business type/location, next-of-kin details, branch, loan officer, status, joined date, cycles, notes.
-- KYC images are **not** in a separate documents table. Each client row stores up to five file paths — photo, ID front, ID back, next-of-kin ID front, next-of-kin ID back — pointing into a **private** file bucket (`mf-kyc`, 8 MB per file), laid out as `business/client/kind.jpg`.
-- Access rules already exist and are enforced by the database: reading a client requires business access, and reading its files requires the same "clients read" permission plus branch/own-portfolio scope. Loan officers restricted to their own portfolio only see their own clients' files.
-- The app has a PDF library (`pdf-lib`) and spreadsheet/CSV helpers, but **no ZIP support** anywhere.
-- Audit trail: the shared `audit_logs` table (organization, business, user, action, entity, summary). No export-specific audit table.
-- The clients screen (list, detail sheet with Edit) reads Supabase directly from the browser; there is one existing server-side function pattern in the codebase to follow.
+- Every client already carries a passport photo and identity images captured at registration. All 10 live clients have both a photo and an ID front image on file. They live in the private `mf-kyc` store, filed per institution and client, and are shown only through short-lived signed links.
+- Registration already has a working in-app camera (take a photo or pick one from the device, auto-resized before upload).
+- Disbursement today asks only for value date, method, reference, "received by" name and notes. It never shows the client's photo and never captures one. The payout record keeps no image at all.
+- The payout itself is fully server-controlled: it checks institution access, role (admin, branch manager, cashier), that the loan is awaiting disbursement, that it hasn't already been paid, and that the amount equals the approved principal, then posts the accounting entries. None of that is touched by this change.
+
+## Gap
+
+There is no evidence of the person who actually collected the cash. The only identity evidence is the registration photo taken earlier, and the disbursing officer never even sees it.
 
 ## What will be built
 
-### 1. A secure server-side export endpoint
+A fresh photo taken at the payout desk, attached to that specific disbursement.
 
-A single new backend endpoint that produces the ZIP file. It:
+1. **In the Disburse dialog**: the client's registration photo is shown side by side with a new "Photo at payout" slot using the same camera the registration screen uses. Officer takes the photo of the client collecting the money.
+2. **Warn, never block**: if no photo is taken, a clear warning appears and the confirm button changes to "Disburse without photo". The payout still goes through — no cash operation is ever stopped by this.
+3. **Storage**: the photo goes into the existing private KYC store under the loan's own folder, keyed to the disbursement record. Same visibility rules as existing KYC images — no new bucket, no public access.
+4. **Persistence**: the payout record gains one field holding the photo's location. It is written only by a guarded server routine, only for a payout that has no photo yet and is not reversed, and only by someone allowed to disburse. Once set it cannot be silently swapped.
+5. **Where it shows afterwards**: the loan's disbursement details show the payout photo alongside the registration photo, so a reviewer can compare them later.
 
-- Requires the signed-in user's token; unauthenticated requests are rejected.
-- Reads clients and downloads their files **as that user**, so the existing database access rules decide what can be exported. No service-role/bypass access is used, and the file bucket stays private.
-- Never trusts a business or branch id sent from the browser: the business comes from the user's own access record, and the database re-checks every client and every file.
-- Refuses a single-client export when the database returns no row for that id (covers cross-branch and cross-organization attempts).
+## Financial safety
 
-### 2. Single client package
-
-`CL-0007_Jane-Doe.zip`
-
-```text
-client-profile.pdf      readable KYC summary
-client-profile.json     same data, machine readable
-manifest.json           every file listed, with status
-photo.jpg
-identification/id-front.jpg
-identification/id-back.jpg
-next-of-kin/id-front.jpg
-next-of-kin/id-back.jpg
-```
-
-Original stored files are copied byte-for-byte — never re-rendered or recompressed. The PDF is an added summary, not a replacement.
-
-### 3. Bulk package
-
-`kyc-export-2026-09-10.zip` containing `manifest.csv` (client reference, name, branch, status, document type, stored filename, exported path, result) plus one folder per client with the same structure as above.
-
-Scope choices offered are only those the user already has: current branch filter, current status filter, or the clients currently listed/selected. The backend re-derives the client set itself from the user's permitted scope. A cap of 300 clients per run (current population is 6) with a clear message if exceeded.
-
-### 4. Missing or unreadable files
-
-The export completes and reports exceptions rather than failing silently: each missing file is marked in `manifest.json`/`manifest.csv` with a reason, an `exceptions.txt` is added when any exist, and the UI shows "Exported 12 clients — 3 documents could not be retrieved". No empty placeholder files, no storage paths or credentials exposed.
-
-### 5. Audit
-
-One entry per export in the existing `audit_logs` table: actor, time, action `exported`, entity `mf_client` (single) or `mf_client_bulk`, the client reference or the scope and client count, plus success/partial status and the export identifier. No document contents are recorded.
-
-### 6. UI
-
-- Client detail sheet footer: `Close` `Export KYC` `Edit client` — visible only with the manage-clients permission, with a short confirmation explaining that personal identity documents will be downloaded and that the action is logged.
-- Clients page header: `Export KYC` opening a small dialog showing the scope (branch/status from the current filters) and the number of clients, then downloading the ZIP.
+Nothing in the amount, fees, schedule, accounting entries or status transitions changes. The photo is written after the payout succeeds, in a separate step; if the photo upload fails, the disbursement stands and the officer is told the photo did not attach and can retry attaching it.
 
 ## Technical notes
 
-- New backend route `src/routes/api/kyc-export.ts` (raw binary response; not under `/api/public`). Bearer token verified in the handler, then a user-scoped Supabase client performs all reads — RLS (`mf_can_scoped`) is the security boundary, matching the KYC view path exactly.
-- Add `fflate` (pure JS, edge/Worker-safe) for ZIP assembly; reuse `pdf-lib` for the profile PDF. No new report/print infrastructure and no changes to the existing document-render pipeline.
-- Register the generated `attachSupabaseAuth` client middleware in `src/start.ts` (currently absent) so authenticated server calls carry the token; append, do not replace existing middleware.
-- Frontend: `src/apps/lending/clients/useKycExport.ts` (fetch + save file + toast summary) plus small additions to `ClientDetailSheet.tsx` and `ClientsPage.tsx`. Permission check via existing `usePermissions().can("manageClients")` for UI only.
-- No database migration is required; no schema, storage or client data is modified. `audit_logs` accepts the new action/entity values as-is.
+- Migration 1: `ALTER TABLE public.mf_loan_disbursements ADD COLUMN payout_photo_path text` (nullable, additive; no data touched).
+- Migration 2: `public.mf_attach_disbursement_photo(p_disbursement_id uuid, p_path text)` — SECURITY DEFINER, mirrors the role/business checks in `mf_disburse_loan`, rejects a reversed row or one that already has a path, validates the path is under `<business_id>/<loan_id>/`, writes an `mf_loan_events` entry (`disbursement_photo_attached`) for audit. No accounting hook.
+- Migration 3: storage policies on `storage.objects` for the `mf-kyc` bucket allowing insert/select of `disbursements/<business_id>/...` objects by users with business access and the disburse roles — modelled on the existing client KYC object policies, not replacing them.
+- Frontend: reuse `CameraCaptureDialog` + the image-normalising helper from `KycCaptureField`; add a compact capture block to `DisburseDialog.tsx`; extend `useMfLoans` disburse mutation with an optional blob → upload → `mf_attach_disbursement_photo`; extend the loan/disbursement type and select list.
+- `mf_disburse_loan` is not modified.
 
-## Testing
+## Verification
 
-- Unit tests (vitest) for package assembly: folder layout, manifest contents, missing-file handling, and that a client's files can only be placed under its own folder.
-- PDF visual check on a generated sample.
-- Read-only run against the 6 live clients — export only, no writes to client records or stored documents.
-- Authorization tests: unauthenticated request rejected; single-client export of an id outside the caller's scope rejected; bulk export returns only clients the caller can already see (verified by comparing against the same RLS-backed read used by the clients list).
-- Cross-branch/own-portfolio behaviour is exercised against the existing scope function rather than by creating new production users; if a second scoped test account is needed, this is called out rather than faked.
-
-## Out of scope
-
-No loan, accounting, banking or journal data enters the export. No KYC redesign, no bucket permission changes, no background job system.
-
-
-=================IMPLEMENTATION PROGRESS/WHERE THINGS STAND===============
-
-The KYC export is now complete and working end to end.
-
-One client: open a client, then Export KYC in the footer — you get a ZIP with their profile summary, the machine-readable profile, and the actual stored photo and identity documents.
-Many clients: Export KYC in the Clients page header exports everyone currently listed (respecting your branch, status and search), one folder per client plus a manifest listing every file.
-Both ask for confirmation, note that this is personal data, and are recorded in the activity log under your name.
-Anything that can't be retrieved is listed in the package's exceptions file and flagged to you — never faked or silently skipped.
-The server decides what you may export, so nobody can reach another branch's or institution's clients; the document store stays private.
-Two things I couldn't do here: run a real signed-in export against your live records, and test a second branch-restricted user — this project's Supabase is externally managed so no test sign-in can be created in my environment. Please try one client export in the app and tell me what you get.
+- Disburse a test loan with a photo: confirm the row carries the path, the object exists, the signed link renders, and the ledger entries are identical in shape to an existing disbursement.
+- Disburse without a photo: warning shown, payout succeeds, path stays empty.
+- Attempt to attach a photo to an already-photographed or reversed payout, and as a user without the disburse role: both refused by the server.
+- Confirm existing loans and disbursements are unchanged and the new column is empty for them.
