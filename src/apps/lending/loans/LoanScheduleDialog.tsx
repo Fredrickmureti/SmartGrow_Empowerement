@@ -46,15 +46,26 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
   );
   const penaltyCharged = penalties.reduce((acc, p) => acc + Number(p.penalty_charged ?? 0), 0);
 
+  /**
+   * Upfront-interest loans carry zero stored interest, so the display view
+   * re-splits the installment. Showing the earned column only when the split
+   * differs keeps ordinary loans looking exactly as before.
+   */
+  const hasDeferredInterest = schedule.some(
+    (r) => Number(r.interest_component ?? 0) !== Number(r.interest_due ?? 0),
+  );
+
   const totals = schedule.reduce(
     (acc, r) => ({
-      principal: acc.principal + Number(r.principal_due),
-      interest: acc.interest + Number(r.interest_due),
+      principal: acc.principal + Number(r.principal_component ?? r.principal_due),
+      interest: acc.interest + Number(r.interest_component ?? r.interest_due),
       fees: acc.fees + Number(r.fees_due),
       total: acc.total + Number(r.total_due),
+      recognised: acc.recognised + Number(r.interest_recognised ?? 0),
     }),
-    { principal: 0, interest: 0, fees: 0, total: 0 },
+    { principal: 0, interest: 0, fees: 0, total: 0, recognised: 0 },
   );
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

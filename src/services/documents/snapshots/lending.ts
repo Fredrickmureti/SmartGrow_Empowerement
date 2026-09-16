@@ -113,10 +113,11 @@ async function loadLoanContext(
         : Promise.resolve({ data: null }),
       db.from("mf_loan_balances").select("*").eq("loan_id", loanId).maybeSingle(),
       db
-        .from("mf_loan_schedule")
+        .from("mf_loan_schedule_display")
         .select("*")
         .eq("loan_id", loanId)
         .order("installment_no", { ascending: true }),
+
       db
         .from("mf_loan_disbursements")
         .select("*")
