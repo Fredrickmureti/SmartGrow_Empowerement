@@ -469,3 +469,69 @@ export function useMfLoanFeePreview(loanId: string | null | undefined) {
     error: query.error as Error | null,
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Payout-desk photo — identity evidence for one disbursement.        */
+/* Stored in the private `mf-kyc` bucket under business/loan, and      */
+/* linked to the payout row only by the guarded server routine.       */
+/* ------------------------------------------------------------------ */
+
+const KYC_BUCKET = "mf-kyc";
+
+export async function attachDisbursementPhoto(input: {
+  businessId: string;
+  loanId: string;
+  disbursementId: string;
+  file: Blob;
+}): Promise<string> {
+  const path = `${input.businessId}/${input.loanId}/payout-${input.disbursementId}.jpg`;
+  const { error: upErr } = await supabase.storage
+    .from(KYC_BUCKET)
+    .upload(path, input.file, {
+      upsert: false,
+      contentType: "image/jpeg",
+      cacheControl: "0",
+    });
+  if (upErr) throw upErr;
+
+  const { error } = await supabase.rpc("mf_attach_disbursement_photo", {
+    p_disbursement_id: input.disbursementId,
+    p_path: path,
+  });
+  if (error) throw error;
+  return path;
+}
+
+export interface MfLoanDisbursementRow {
+  id: string;
+  loan_id: string;
+  disbursed_on: string;
+  amount: number;
+  method: string;
+  reference: string | null;
+  received_by_name: string | null;
+  net_amount: number | null;
+  fees_deducted: number | null;
+  reversed_at: string | null;
+  payout_photo_path: string | null;
+}
+
+/** The live (non-reversed) payout record for a loan, if any. */
+export function useMfLoanDisbursement(loanId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["mf-loan-disbursement", loanId ?? null],
+    enabled: !!loanId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mf_loan_disbursements")
+        .select(
+          "id,loan_id,disbursed_on,amount,method,reference,received_by_name,net_amount,fees_deducted,reversed_at,payout_photo_path",
+        )
+        .eq("loan_id", loanId!)
+        .is("reversed_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return (data ?? null) as MfLoanDisbursementRow | null;
+    },
+  });
+}
