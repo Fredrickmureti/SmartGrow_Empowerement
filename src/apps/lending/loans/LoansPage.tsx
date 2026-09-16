@@ -383,6 +383,8 @@ export function LoansPage() {
         open={disburseOpen}
         onOpenChange={setDisburseOpen}
         loan={disburseTarget}
+        clientPhotoPath={clientPhotoPath(disburseTarget?.client_id)}
+        clientName={disburseTarget ? clientName(disburseTarget.client_id) : null}
         onDisburse={async (input) => {
           await disburse.mutateAsync(input);
         }}
@@ -392,6 +394,7 @@ export function LoansPage() {
         open={scheduleOpen}
         onOpenChange={setScheduleOpen}
         loan={scheduleTarget}
+        clientPhotoPath={clientPhotoPath(scheduleTarget?.client_id)}
       />
 
       <LoanLifecycleDialog
