@@ -1,64 +1,78 @@
-# Passport photo capture at loan disbursement
+# Upfront interest & processing fee paid at disbursement
 
-## Current state (verified)
+## What I found today (verified against the live database)
 
-- Every client already carries a passport photo and identity images captured at registration. All 10 live clients have both a photo and an ID front image on file. They live in the private `mf-kyc` store, filed per institution and client, and are shown only through short-lived signed links.
-- Registration already has a working in-app camera (take a photo or pick one from the device, auto-resized before upload).
-- Disbursement today asks only for value date, method, reference, "received by" name and notes. It never shows the client's photo and never captures one. The payout record keeps no image at all.
-- The payout itself is fully server-controlled: it checks institution access, role (admin, branch manager, cashier), that the loan is awaiting disbursement, that it hasn't already been paid, and that the amount equals the approved principal, then posts the accounting entries. None of that is touched by this change.
+**1. Loan product model.** A product (`mf_loan_products`) holds only name/code/status; all money rules live in versioned rows (`mf_loan_product_versions`): amount range, term range, repayment frequency, interest method, interest rate, rate period, grace, a `fees` list, penalty rules. Versions are published and the loan copies the rules at creation time.
 
-## Gap
+**2. Interest model.** Configurable per product: method `flat`, `declining_balance`, or `declining_balance_equal_installments`; rate basis `per_annum`, `per_month`, `per_installment`, or `flat_on_principal`. The schedule builder prices every installment from these. There is **no** "deduct interest upfront" option anywhere — interest is always spread across installments and is only turned into income when a repayment is received.
 
-There is no evidence of the person who actually collected the cash. The only identity evidence is the registration photo taken earlier, and the disbursing officer never even sees it.
+**3. Processing fee model.** Fees are a list on the product version: a name, a basis (fixed amount or percent of principal), and a collection mode. Only two collection modes exist: **deducted from the payout** or **added to the first installment**. A fee the client hands over in cash at disbursement is **not** a supported mode.
 
-## What will be built
+**4. Disbursement today.** Payout must equal the approved principal. Fees marked "deducted from payout" are subtracted, and the client receives the remainder. Interest is never touched at disbursement.
 
-A fresh photo taken at the payout desk, attached to that specific disbursement.
+**5. Accounting today.** Disbursement posts: principal receivable debited with the full principal, fee income credited with any deducted fee, cash/bank/mobile money credited with the net paid out. Interest income is credited only as repayments are allocated. Balanced double entry, using existing account mappings (`principal_receivable`, `interest_income`, `interest_receivable`, `fee_income`, cash keys).
 
-1. **In the Disburse dialog**: the client's registration photo is shown side by side with a new "Photo at payout" slot using the same camera the registration screen uses. Officer takes the photo of the client collecting the money.
-2. **Warn, never block**: if no photo is taken, a clear warning appears and the confirm button changes to "Disburse without photo". The payout still goes through — no cash operation is ever stopped by this.
-3. **Storage**: the photo goes into the existing private KYC store under the loan's own folder, keyed to the disbursement record. Same visibility rules as existing KYC images — no new bucket, no public access.
-4. **Persistence**: the payout record gains one field holding the photo's location. It is written only by a guarded server routine, only for a payout that has no photo yet and is not reversed, and only by someone allowed to disburse. Once set it cannot be silently swapped.
-5. **Where it shows afterwards**: the loan's disbursement details show the payout photo alongside the registration photo, so a reviewer can compare them later.
+**6. Loan terms are frozen.** Each loan stores its own copy of principal, interest method, rate, basis, grace and the fee list, and a freeze rule stops those changing after the loan leaves the application stage. Changing a product later does not touch existing loans.
 
-## Financial safety
+**7. Root cause / gap.** The client's request is two separate capabilities and **neither exists yet**:
+- Interest deducted upfront at disbursement — not configurable at all.
+- Processing fee paid in cash by the client at disbursement (money in, recognised as income) — the only "at disbursement" fee mode nets the fee off the payout instead.
 
-Nothing in the amount, fees, schedule, accounting entries or status transitions changes. The photo is written after the payout succeeds, in a separate step; if the photo upload fails, the disbursement stands and the officer is told the photo did not attach and can retry attaching it.
+**8. Risk position.** There are 4 loans, 0 active, and **0 disbursement records**. No historical payout or ledger entry is affected by this work.
 
-## Technical notes
+## What I will build
 
-- Migration 1: `ALTER TABLE public.mf_loan_disbursements ADD COLUMN payout_photo_path text` (nullable, additive; no data touched).
-- Migration 2: `public.mf_attach_disbursement_photo(p_disbursement_id uuid, p_path text)` — SECURITY DEFINER, mirrors the role/business checks in `mf_disburse_loan`, rejects a reversed row or one that already has a path, validates the path is under `<business_id>/<loan_id>/`, writes an `mf_loan_events` entry (`disbursement_photo_attached`) for audit. No accounting hook.
-- Migration 3: storage policies on `storage.objects` for the `mf-kyc` bucket allowing insert/select of `disbursements/<business_id>/...` objects by users with business access and the disburse roles — modelled on the existing client KYC object policies, not replacing them.
-- Frontend: reuse `CameraCaptureDialog` + the image-normalising helper from `KycCaptureField`; add a compact capture block to `DisburseDialog.tsx`; extend `useMfLoans` disburse mutation with an optional blob → upload → `mf_attach_disbursement_photo`; extend the loan/disbursement type and select list.
-- `mf_disburse_loan` is not modified.
+Two new **product-level options**, both defaulting to today's behaviour so no existing product or loan changes.
 
-## Verification
+**A. Interest collection (per product)**
+- `with_installments` (default, exactly as today)
+- `deducted_upfront` — interest for the whole term is computed at the same rate/method already configured, deducted from the payout, and the repayment schedule then carries **principal only**.
 
-- Disburse a test loan with a photo: confirm the row carries the path, the object exists, the signed link renders, and the ledger entries are identical in shape to an existing disbursement.
-- Disburse without a photo: warning shown, payout succeeds, path stays empty.
-- Attempt to attach a photo to an already-photographed or reversed payout, and as a user without the disburse role: both refused by the server.
-- Confirm existing loans and disbursements are unchanged and the new column is empty for them.
+**B. Fee collection (third mode, per fee)**
+- existing: deducted from payout / added to first installment
+- new: **paid by the client at disbursement** — not netted off the payout; recorded as cash received and fee income on the same day.
 
+Worked example, product set to upfront interest + client-paid fee, principal 10,000, flat 20% on principal, fee 200:
+- Contractual principal: 10,000 / Upfront interest: 2,000 / Fee: 200
+- Client hands over 200; cashier pays out 8,000; net cash out of till 7,800
+- Principal outstanding: 10,000; interest receivable: 0 (already collected)
+- Interest income 2,000 and fee income 200 recognised at disbursement
+- Schedule: principal only, 10,000 across the term
 
-==================IMPLEMENTATION STATUS===============
-Complete (pending a signed-in UI walkthrough).
+Ledger for that disbursement (balanced):
+```text
+Dr Principal receivable   10,000
+   Cr Interest income               2,000
+   Cr Fee income                      200
+   Cr Cash/Bank/M-Pesa              7,800
+```
 
-Verified in place from the earlier session
-- Payout photo field on the payout record (all existing payout records unaffected; none carry a photo).
-- Guarded server routine attaching the photo: institution access, disburse roles only, refuses a reversed payout or one already photographed, path must sit under that loan, writes a loan-history entry. Money, fees, schedule, accounting untouched.
-- Private-store access rules for payout photos (insert by disbursing staff, view by anyone who can read the loan).
-- Disburse screen capture block, warning and "Disburse without photo" button.
+## Technical changes
 
-Finished in this session
-- The Disburse screen was never actually given the client's registration photo or name; both are now passed in, so the comparison photo appears.
-- New read-only "Payout identity evidence" panel showing the registration photo beside the payout photo; it appears in the loan details (schedule) view for disbursed loans, with a note when no photo was taken.
+*Database (one additive migration, no destructive statements)*
+- `mf_loan_product_versions.interest_collection text not null default 'with_installments'` (check: `with_installments | deducted_upfront`), plus the same snapshot column on `mf_loans`; extend the freeze trigger so it is immutable after approval.
+- `mf_compute_loan_fees`: accept and pass through the `paid_at_disbursement` collection mode.
+- New `mf_loan_upfront_interest(loan_id)`: returns the full-term interest from the loan's own frozen terms when `interest_collection = 'deducted_upfront'`, else 0.
+- `mf_generate_schedule`: when upfront interest applies, price installments with zero interest due (principal + any first-installment fees only). All other methods untouched.
+- `mf_disburse_loan`: net payout = principal − deducted fees − upfront interest; fee paid at disbursement is recorded separately (cash in), not netted. Store `upfront_interest` and the fee split on the disbursement row and in the `loan_disbursed` event payload.
+- `mf_post_event` (`loan_disbursed` branch): add an interest income credit when upfront interest > 0, and a client-paid fee credit with matching cash debit. Existing branches untouched.
+- `mf_reverse_disbursement`: mirror the new components in the reversal so a reversed payout unwinds interest and fee cleanly.
 
-Verification done
-- Server routine reviewed line by line; guards confirmed. The only trigger on the payout table fires on creation only, so attaching a photo cannot disturb it.
-- Storage access rules confirmed present and scoped to the loan.
-- Existing data confirmed untouched: there are no payout records at all yet, so nothing historic changed.
-- Build and type checks pass on the changed screens.
+*Frontend*
+- `ProductVersionDialog`: interest collection selector; third option in the fee collection selector, with plain-language helper text.
+- `ProductDetailSheet`: show both settings.
+- `DisburseDialog`: itemise principal, upfront interest, fee deducted, fee collected from client, and cash to hand over.
+- `useMfLoanProducts` / `useMfLoans` types and labels updated to match.
 
-Remaining uncertainty
-- No signed-in UI walkthrough was possible: this workspace connects to an external Supabase project, so a test session cannot be created here. A staff member should open a pending loan, take a payout photo, disburse, and confirm the photo appears in the loan details afterwards.
+*Untouched:* repayment allocation, collections, penalties, accounting for every other event, other modules.
+
+## Test plan
+
+1. Product with upfront interest: 10,000 / 20% flat / fee 200 → payout 7,800, principal outstanding 10,000, schedule principal-only.
+2. Existing flat and declining products unchanged — same schedule and same payout as today.
+3. Fee set to "paid by client" → not netted off the payout; cash received recorded.
+4. Fee income lands in the mapped fee income account; interest in the mapped interest income account.
+5. Disbursement journal balances to zero on every variant.
+6. Reversal of an upfront-interest payout unwinds all components.
+7. Change the product after disbursement → the disbursed loan's terms and schedule do not move.
+8. A user without disbursement rights is still refused; branch scoping unchanged.
