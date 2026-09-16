@@ -46,15 +46,26 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
   );
   const penaltyCharged = penalties.reduce((acc, p) => acc + Number(p.penalty_charged ?? 0), 0);
 
+  /**
+   * Upfront-interest loans carry zero stored interest, so the display view
+   * re-splits the installment. Showing the earned column only when the split
+   * differs keeps ordinary loans looking exactly as before.
+   */
+  const hasDeferredInterest = schedule.some(
+    (r) => Number(r.interest_component ?? 0) !== Number(r.interest_due ?? 0),
+  );
+
   const totals = schedule.reduce(
     (acc, r) => ({
-      principal: acc.principal + Number(r.principal_due),
-      interest: acc.interest + Number(r.interest_due),
+      principal: acc.principal + Number(r.principal_component ?? r.principal_due),
+      interest: acc.interest + Number(r.interest_component ?? r.interest_due),
       fees: acc.fees + Number(r.fees_due),
       total: acc.total + Number(r.total_due),
+      recognised: acc.recognised + Number(r.interest_recognised ?? 0),
     }),
-    { principal: 0, interest: 0, fees: 0, total: 0 },
+    { principal: 0, interest: 0, fees: 0, total: 0, recognised: 0 },
   );
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,6 +97,9 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 <TableHead className="text-right">Opening</TableHead>
                 <TableHead className="text-right">Principal</TableHead>
                 <TableHead className="text-right">Interest</TableHead>
+                {hasDeferredInterest && (
+                  <TableHead className="text-right">Interest earned</TableHead>
+                )}
                 <TableHead className="text-right">Fees</TableHead>
                 <TableHead className="text-right">Penalty due</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -101,11 +115,16 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                     {money(r.opening_balance)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {money(r.principal_due)}
+                    {money(r.principal_component ?? r.principal_due)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {money(r.interest_due)}
+                    {money(r.interest_component ?? r.interest_due)}
                   </TableCell>
+                  {hasDeferredInterest && (
+                    <TableCell className="text-right tabular-nums">
+                      {money(r.interest_recognised ?? 0)}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right tabular-nums">{money(r.fees_due)}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {money(penaltyByInstallment.get(r.installment_no)?.penalty_outstanding ?? 0)}
@@ -128,6 +147,11 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 <TableCell className="text-right font-medium tabular-nums">
                   {money(totals.interest)}
                 </TableCell>
+                {hasDeferredInterest && (
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {money(totals.recognised)}
+                  </TableCell>
+                )}
                 <TableCell className="text-right font-medium tabular-nums">
                   {money(totals.fees)}
                 </TableCell>
@@ -140,6 +164,7 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 <TableCell />
               </TableRow>
             </TableBody>
+
           </Table>
         )}
 

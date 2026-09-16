@@ -100,7 +100,18 @@ export interface MfLoanScheduleRow {
   total_due: number;
   closing_balance: number;
   is_grace: boolean;
+  /**
+   * Borrower-facing split. For loans whose interest is deducted upfront the
+   * stored `interest_due` is zero, so the server-side display view re-splits
+   * the installment into its principal and interest components.
+   */
+  principal_component: number;
+  interest_component: number;
+  /** Interest already released from the holding account to income. */
+  interest_recognised: number;
+  is_interest_recognised: boolean;
 }
+
 
 export interface MfLoanEvent {
   id: string;
@@ -375,14 +386,15 @@ export function useMfLoanSchedule(loanId?: string) {
     queryFn: async () => {
       if (!loanId) return [] as MfLoanScheduleRow[];
       const { data, error } = await supabase
-        .from("mf_loan_schedule")
+        .from("mf_loan_schedule_display")
         .select(
-          "id,loan_id,installment_no,due_date,opening_balance,principal_due,interest_due,fees_due,total_due,closing_balance,is_grace",
+          "id,loan_id,installment_no,due_date,opening_balance,principal_due,interest_due,fees_due,total_due,closing_balance,is_grace,principal_component,interest_component,interest_recognised,is_interest_recognised",
         )
         .eq("loan_id", loanId)
         .order("installment_no");
       if (error) throw error;
-      return (data ?? []) as MfLoanScheduleRow[];
+      return (data ?? []) as unknown as MfLoanScheduleRow[];
+
     },
     enabled: !!loanId,
   });
