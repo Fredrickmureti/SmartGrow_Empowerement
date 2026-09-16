@@ -79,15 +79,17 @@ Dr Principal receivable   10,000
 
 
 =================WHERE THINGS STAND/IMPLEMENATTION PROGRESS====================
-Where things stand:
 
-Done (investigation only, nothing changed):
+Done now (database side, applied successfully):
 
-Confirmed loan products store interest method, rate, basis and a fee list on versioned records, and that each loan freezes its own copy of those terms at creation.
-Confirmed interest is always spread across installments and only becomes income when a repayment is received — there is no upfront-interest option anywhere.
-Confirmed a processing fee can only be netted off the payout or added to the first installment; "client pays it in cash at disbursement" is not a supported option.
-Confirmed the disbursement ledger entries and the reversal mechanism (reversals void the original entry, so they will follow any new lines automatically).
-Confirmed there are no disbursement records at all yet, so nothing historical is at risk.
-Not done: every change in the approved plan — the two new product settings, the payout calculation, the principal-only schedule, the ledger lines, and the screens that show them. No database or code change was made, so the system behaves exactly as it did before.
+Loan products and loans gained an interest collection setting: interest spread across installments (today's behaviour, the default everywhere) or interest deducted upfront at payout. Upfront interest is only permitted on flat-interest products, and the setting is frozen onto each loan once it leaves the application stage.
+Processing fees gained a third option: paid by the client at disbursement — not netted off the payout, recorded as cash received and fee income.
+Payout calculation now separates principal, upfront interest, fees deducted and the fee handed over by the client, and stores each on the disbursement record.
+The repayment schedule carries principal only when interest was taken upfront.
+The disbursement ledger now credits interest income for upfront interest and records the client-paid fee as cash in plus fee income; every variant still balances. Reversals void the original entry, so they unwind the new components automatically.
+Existing products, loans and past entries are untouched: every new setting defaults to exactly the old behaviour.
+Not done — credits ran out:
 
-To continue, the workspace needs credits topped up; the approved plan is saved and I can pick it up from step one without repeating the investigation.
+The screens still don't show or let you choose the new settings: the product version form, the product detail view, and the disbursement dialog's breakdown.
+The worked verification (10,000 / 20% flat / fee 200 → payout 7,800, principal outstanding 10,000, principal-only schedule, balanced journal) and the rest of the test plan have not been run.
+Because the screens aren't updated yet, nobody can switch a product to upfront interest or the client-paid fee from the app — so live behaviour is unchanged and safe. Top up credits and I'll continue from the screens, then run the verification, without redoing any of the above.
