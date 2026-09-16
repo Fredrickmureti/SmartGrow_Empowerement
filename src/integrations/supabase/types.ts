@@ -13551,6 +13551,7 @@ export type Database = {
           interest_method: string
           interest_rate: number
           interest_rate_period: string
+          interest_recognition: string
           is_published: boolean
           max_amount: number
           max_term_installments: number
@@ -13578,6 +13579,7 @@ export type Database = {
           interest_method: string
           interest_rate: number
           interest_rate_period?: string
+          interest_recognition?: string
           is_published?: boolean
           max_amount: number
           max_term_installments: number
@@ -13605,6 +13607,7 @@ export type Database = {
           interest_method?: string
           interest_rate?: number
           interest_rate_period?: string
+          interest_recognition?: string
           is_published?: boolean
           max_amount?: number
           max_term_installments?: number
@@ -13776,6 +13779,7 @@ export type Database = {
           interest_method: string
           interest_rate: number
           interest_rate_period: string
+          interest_recognition: string
           lineage_kind: string
           loan_number: string
           loan_officer_id: string | null
@@ -13811,6 +13815,7 @@ export type Database = {
           interest_method: string
           interest_rate?: number
           interest_rate_period: string
+          interest_recognition?: string
           lineage_kind?: string
           loan_number: string
           loan_officer_id?: string | null
@@ -13846,6 +13851,7 @@ export type Database = {
           interest_method?: string
           interest_rate?: number
           interest_rate_period?: string
+          interest_recognition?: string
           lineage_kind?: string
           loan_number?: string
           loan_officer_id?: string | null
