@@ -1,93 +1,73 @@
-# Upfront interest & processing fee paid at disbursement
+# Lending Cleanup — Investigation Report (no changes made)
 
-## What I found today (verified against the live database)
+Everything below was read from the live database (schema, foreign keys, triggers, security policies, stored procedures) and the app source. Nothing was modified.
 
-**1. Loan product model.** A product (`mf_loan_products`) holds only name/code/status; all money rules live in versioned rows (`mf_loan_product_versions`): amount range, term range, repayment frequency, interest method, interest rate, rate period, grace, a `fees` list, penalty rules. Versions are published and the loan copies the rules at creation time.
+## Headline finding
 
-**2. Interest model.** Configurable per product: method `flat`, `declining_balance`, or `declining_balance_equal_installments`; rate basis `per_annum`, `per_month`, `per_installment`, or `flat_on_principal`. The schedule builder prices every installment from these. There is **no** "deduct interest upfront" option anywhere — interest is always spread across installments and is only turned into income when a repayment is received.
+The system **already has** a complete pre-financial lifecycle for lending, including delete operations, and both are already wired into the screens. Nothing is missing architecturally. The owner cannot delete the current applications because the rules are deliberately refusing — not because a button is absent.
 
-**3. Processing fee model.** Fees are a list on the product version: a name, a basis (fixed amount or percent of principal), and a collection mode. Only two collection modes exist: **deducted from the payout** or **added to the first installment**. A fee the client hands over in cash at disbursement is **not** a supported mode.
+## What is actually in the institution's data today
 
-**4. Disbursement today.** Payout must equal the approved principal. Fees marked "deducted from payout" are subtracted, and the client receives the remainder. Interest is never touched at disbursement.
+| Records | Count | Notes |
+|---|---:|---|
+| Loan products | 1 | status `retired` |
+| Product versions | 2 | |
+| Applications | 6 | 4 `ready_for_disbursement`, 2 `under_review` |
+| Loans | 4 | all `pending_disbursement` |
+| Disbursements / repayments / loan fees | 0 | no lending money has moved |
+| Repayment schedules | 48 | belong to the 4 loans |
+| Client admission fees | 10 (KES 5,000, all paid & posted) | client-level, not loan-level |
+| Journal entries | 24 (10 admission fees, 13 manual, 1 expense) | none from lending |
 
-**5. Accounting today.** Disbursement posts: principal receivable debited with the full principal, fee income credited with any deducted fee, cash/bank/mobile money credited with the net paid out. Interest income is credited only as repayments are allocated. Balanced double entry, using existing account mappings (`principal_receivable`, `interest_income`, `interest_receivable`, `fee_income`, cash keys).
+So: no lending money has moved. The only posted money is client admission fees and manual/expense entries, none of which are tied to an application or loan.
 
-**6. Loan terms are frozen.** Each loan stores its own copy of principal, interest method, rate, basis, grace and the fee list, and a freeze rule stops those changing after the loan leaves the application stage. Changing a product later does not touch existing loans.
+## Why deletion is being refused (exact reason)
 
-**7. Root cause / gap.** The client's request is two separate capabilities and **neither exists yet**:
-- Interest deducted upfront at disbursement — not configurable at all.
-- Processing fee paid in cash by the client at disbursement (money in, recognised as income) — the only "at disbursement" fee mode nets the fee off the payout instead.
+1. **The 2 `under_review` applications** — delete is allowed only for `draft`, withdrawn, or declined applications. Fix path: withdraw (with a reason) first, then delete. The withdraw action already exists in the app.
+2. **The 4 `ready_for_disbursement` applications** — each has already produced a loan (LN-000001..4). The rule refuses outright: an application that produced a loan is lending history.
+3. **The loan product** — refused because 6 applications and 4 loans reference it. Once those are gone and the product stays `retired`, deletion is allowed and it removes its versions with it.
+4. **The 4 loans themselves** — there is *no* delete permission on loans at all for normal users. Loans can never be individually deleted through the app; only the controlled reset procedure can remove them.
 
-**8. Risk position.** There are 4 loans, 0 active, and **0 disbursement records**. No historical payout or ledger entry is affected by this work.
+## Financial vs pre-financial: the distinction exists
 
-## What I will build
+- **Pre-financial and safely removable:** draft/withdrawn/declined applications and their assessments (assessments cascade automatically), unused or retired products with no applications/loans, and their versions.
+- **Financially committed / never physically deleted:** disbursements, repayments, fee collections, journal entries, event postings. Published product versions are also immutable and undeletable, so historical loans keep their frozen terms.
+- **In between (this institution's case):** a loan at `pending_disbursement` carries no money yet, but the design still refuses individual deletion, because a loan number has been issued and reserved in the numbering sequence.
 
-Two new **product-level options**, both defaulting to today's behaviour so no existing product or loan changes.
+## Recommended lifecycle matrix
 
-**A. Interest collection (per product)**
-- `with_installments` (default, exactly as today)
-- `deducted_upfront` — interest for the whole term is computed at the same rate/method already configured, deducted from the payout, and the repayment schedule then carries **principal only**.
+| Entity | State | Financial activity | Safe physical delete | Correct operation | Why |
+|---|---|---|---|---|---|
+| Application | Draft | No | Yes | DELETE (existing action) | Nothing depends on it; assessments cascade |
+| Application | Under review / assessed | No | No (blocked) | WITHDRAW, then DELETE | Two-step, keeps a reason and audit trail |
+| Application | Approved, no loan yet | No | No | WITHDRAW, then DELETE | Same rule as above |
+| Application | Declined | No | Yes, admin + reason | DELETE (admin only) | Requires organisation admin and a written reason |
+| Application | Produced a loan | Indirect | No | BLOCK — act on the loan | It is lending history |
+| Loan | Pending disbursement | No | No individually | Controlled lending reset | No per-loan delete permission exists |
+| Loan | Disbursed / repaying / repaid | Yes | Never | REVERSE / CLOSE / WRITE-OFF | Reversal procedures already exist |
+| Product | Draft, unused | No | Yes | DELETE | No published version, no applications |
+| Product | Published, never used | No | Yes after retiring | RETIRE, then DELETE | Publication must be retired first |
+| Product | Used by applications or loans | History | No | RETIRE (keep versions) | Historical loans depend on frozen versions |
+| Product version | Published | History | Never | New version instead | Immutable by design |
+| Admission fees / journal entries | Paid, posted | Yes | Never | Reverse if wrong | Real posted money, unrelated to lending |
 
-**B. Fee collection (third mode, per fee)**
-- existing: deducted from payout / added to first installment
-- new: **paid by the client at disbursement** — not netted off the payout; recorded as cash received and fee income on the same day.
+## "Start fresh" already exists as a business operation
 
-Worked example, product set to upfront interest + client-paid fee, principal 10,000, flat 20% on principal, fee 200:
-- Contractual principal: 10,000 / Upfront interest: 2,000 / Fee: 200
-- Client hands over 200; cashier pays out 8,000; net cash out of till 7,800
-- Principal outstanding: 10,000; interest receivable: 0 (already collected)
-- Interest income 2,000 and fee income 200 recognised at disbursement
-- Schedule: principal only, 10,000 across the term
+There is a controlled, organisation-scoped lending cleanup procedure that deletes lending records in the correct dependency order — collections, repayments, fees, schedules, disbursements, loan events, loans, assessments, applications — with clients and loan products as separate opt-in switches, products removed only after everything referencing them is gone. It is restricted to organisation owners/admins (or platform admins), and there is already a settings screen that previews the counts before running it. Clients, staff, branches, chart of accounts, financial configuration and audit infrastructure are untouched by it.
 
-Ledger for that disbursement (balanced):
-```text
-Dr Principal receivable   10,000
-   Cr Interest income               2,000
-   Cr Fee income                      200
-   Cr Cash/Bank/M-Pesa              7,800
-```
+This is the correct instrument for the owner's request. No new deletion mechanism, no new status, and no database change is needed.
 
-## Technical changes
+## Audit
 
-*Database (one additive migration, no destructive statements)*
-- `mf_loan_product_versions.interest_collection text not null default 'with_installments'` (check: `with_installments | deducted_upfront`), plus the same snapshot column on `mf_loans`; extend the freeze trigger so it is immutable after approval.
-- `mf_compute_loan_fees`: accept and pass through the `paid_at_disbursement` collection mode.
-- New `mf_loan_upfront_interest(loan_id)`: returns the full-term interest from the loan's own frozen terms when `interest_collection = 'deducted_upfront'`, else 0.
-- `mf_generate_schedule`: when upfront interest applies, price installments with zero interest due (principal + any first-installment fees only). All other methods untouched.
-- `mf_disburse_loan`: net payout = principal − deducted fees − upfront interest; fee paid at disbursement is recorded separately (cash in), not netted. Store `upfront_interest` and the fee split on the disbursement row and in the `loan_disbursed` event payload.
-- `mf_post_event` (`loan_disbursed` branch): add an interest income credit when upfront interest > 0, and a client-paid fee credit with matching cash debit. Existing branches untouched.
-- `mf_reverse_disbursement`: mirror the new components in the reversal so a reversed payout unwinds interest and fee cleanly.
+Every deletion path writes to the audit log before removing the row, capturing who, when, the entity, the action, the full previous record, and the reason where one is required. Withdrawals are logged the same way. Audit history is never deleted by these operations.
 
-*Frontend*
-- `ProductVersionDialog`: interest collection selector; third option in the fee collection selector, with plain-language helper text.
-- `ProductDetailSheet`: show both settings.
-- `DisburseDialog`: itemise principal, upfront interest, fee deducted, fee collected from client, and cash to hand over.
-- `useMfLoanProducts` / `useMfLoans` types and labels updated to match.
+## Recommended way forward (for your approval, not yet implemented)
 
-*Untouched:* repayment allocation, collections, penalties, accounting for every other event, other modules.
+1. Confirm with the owner that the 4 pending loans, their 48 schedule rows, and all 6 applications are test data to be discarded.
+2. Use the existing controlled lending cleanup from the settings screen: preview first, then run with the loan-products option on and the clients option off (or on, if the 10 admission-fee clients are also test data — note their KES 5,000 of posted fees would then need separate accounting treatment, since fee reversal is a financial action).
+3. Nothing else. No migration, no new buttons, no policy changes.
 
-## Test plan
+## Open questions
 
-1. Product with upfront interest: 10,000 / 20% flat / fee 200 → payout 7,800, principal outstanding 10,000, schedule principal-only.
-2. Existing flat and declining products unchanged — same schedule and same payout as today.
-3. Fee set to "paid by client" → not netted off the payout; cash received recorded.
-4. Fee income lands in the mapped fee income account; interest in the mapped interest income account.
-5. Disbursement journal balances to zero on every variant.
-6. Reversal of an upfront-interest payout unwinds all components.
-7. Change the product after disbursement → the disbursed loan's terms and schedule do not move.
-8. A user without disbursement rights is still refused; branch scoping unchanged.
-
-
-=================WHERE THINGS STAND/IMPLEMENATTION PROGRESS====================
-
-Done in this session (screens):
-
-The product version form now has an "Interest collection" choice — collected with the installments (unchanged default) or deducted upfront at disbursement — offered only on flat-interest products, with plain-language help.
-Processing fees now offer the third option, "Paid by the client at disbursement", with a worked example alongside the existing two.
-The product detail view shows how interest is collected.
-The disbursement dialog now itemises the payout: principal, interest deducted upfront, each fee (deducted, added to the first installment, or collected from the client now), the cash to hand over, and the net movement out of the till.
-Not finished — credits ran out:
-
-The build check on these screen edits has not been run, so the changes are unverified.
-The worked verification (10,000 / 20% flat / fee 200 → 7,800 handed over, 10,000 still owed, principal-only schedule, balanced entry) and the rest of the test plan have not been run.
-Live behaviour is still unchanged and safe: no existing product has been switched to upfront interest or the client-paid fee. Continuing needs available credits — top up and I'll verify the screens build, then run the verification, without redoing any of the above.
+- Are the 10 clients with paid admission fees (KES 5,000 posted) test data too? If yes, those fees need reversal by accounting rather than deletion.
+- Should the single retired loan product be deleted, or kept as the institution's genuine offer?
