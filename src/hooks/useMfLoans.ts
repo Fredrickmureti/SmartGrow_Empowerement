@@ -170,7 +170,12 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     onError: (e) => toast.error(lendingErrorMessage(e, "Could not create the loan")),
   });
 
-  /** Guarded, single-shot disbursement event. */
+  /**
+   * Guarded, single-shot disbursement event.
+   *
+   * An optional payout-desk photo is attached *after* the money event has
+   * succeeded: identity evidence must never be able to fail a cash movement.
+   */
   const disburse = useMutation({
     mutationFn: async (input: {
       loanId: string;
@@ -181,6 +186,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
       sourceAccountId?: string | null;
       receivedByName?: string | null;
       notes?: string | null;
+      payoutPhoto?: Blob | null;
     }) => {
       const { data, error } = await supabase.rpc("mf_disburse_loan", {
         p_loan_id: input.loanId,
@@ -193,10 +199,30 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
         p_notes: input.notes ?? null,
       });
       if (error) throw error;
-      return data as string;
+      const disbursementId = data as string;
+
+      if (input.payoutPhoto && businessId) {
+        try {
+          await attachDisbursementPhoto({
+            businessId,
+            loanId: input.loanId,
+            disbursementId,
+            file: input.payoutPhoto,
+          });
+        } catch (e) {
+          toast.error(
+            lendingErrorMessage(
+              e,
+              "The loan was disbursed, but the payout photo could not be saved",
+            ),
+          );
+        }
+      }
+      return disbursementId;
     },
     onSuccess: () => {
       invalidate();
+      queryClient.invalidateQueries({ queryKey: ["mf-loan-disbursement"] });
       toast.success("Loan disbursed");
     },
     onError: (e) => toast.error(lendingErrorMessage(e, "The disbursement was refused")),
