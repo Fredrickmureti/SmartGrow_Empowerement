@@ -127,6 +127,12 @@ export function LoansPage() {
     return (id: string) => map.get(id) ?? "—";
   }, [clients]);
 
+  /** Registration portrait of a client, for payout identity comparison. */
+  const clientPhotoPath = useMemo(() => {
+    const map = new Map(clients.map((c) => [c.id, c.photo_path]));
+    return (id: string | null | undefined) => (id ? (map.get(id) ?? null) : null);
+  }, [clients]);
+
   const loanNumber = useMemo(() => {
     const map = new Map(loans.map((l) => [l.id, l.loan_number]));
     return (id: string | null) => (id ? (map.get(id) ?? "—") : null);

@@ -34,7 +34,7 @@ interface Props {
 const money = (v: number) =>
   Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
+export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }: Props) {
   const { schedule, events, penalties, isLoading } = useMfLoanSchedule(
     open ? loan?.id : undefined,
   );
@@ -66,6 +66,12 @@ export function LoanScheduleDialog({ open, onOpenChange, loan }: Props) {
             payment ledger.
           </DialogDescription>
         </DialogHeader>
+
+        <DisbursementPhotoPanel
+          loanId={loan?.id ?? null}
+          clientPhotoPath={clientPhotoPath}
+          enabled={open && !!loan?.disbursed_at}
+        />
 
         {isLoading ? (
           <LoadingState />
