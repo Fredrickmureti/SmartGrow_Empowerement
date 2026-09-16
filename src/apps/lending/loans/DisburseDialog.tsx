@@ -39,6 +39,9 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loan: MfLoan | null;
+  /** Registration portrait of the borrowing client, for comparison. */
+  clientPhotoPath?: string | null;
+  clientName?: string | null;
   onDisburse: (input: {
     loanId: string;
     disbursedOn: string;
@@ -47,6 +50,7 @@ interface Props {
     reference: string | null;
     receivedByName: string | null;
     notes: string | null;
+    payoutPhoto: Blob | null;
   }) => Promise<void>;
 }
 
