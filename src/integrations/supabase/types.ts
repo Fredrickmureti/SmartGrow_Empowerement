@@ -26119,6 +26119,10 @@ export type Database = {
         Args: { p_date: string; p_freq: string; p_n: number }
         Returns: string
       }
+      mf_attach_disbursement_photo: {
+        Args: { p_disbursement_id: string; p_path: string }
+        Returns: undefined
+      }
       mf_bank_collection_batch: {
         Args: {
           p_bank_account_id: string
