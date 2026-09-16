@@ -40,8 +40,11 @@ import {
   MF_FEE_BASIS_LABELS,
   MF_FEE_COLLECTIONS,
   MF_FEE_COLLECTION_LABELS,
+  MF_INTEREST_COLLECTION_HELP,
+  MF_INTEREST_COLLECTION_LABELS,
   MF_INTEREST_METHODS,
   MF_INTEREST_METHOD_LABELS,
+  MF_VALID_INTEREST_COLLECTIONS,
   MF_PENALTY_BASES,
   MF_PENALTY_BASIS_LABELS,
   MF_RATE_PERIOD_HELP,
@@ -50,6 +53,7 @@ import {
   MF_VALID_RATE_PERIODS,
 
   useMfLoanProductVersions,
+  type MfInterestCollection,
   type MfInterestMethod,
   type MfInterestRatePeriod,
   type MfLoanProduct,
@@ -84,6 +88,7 @@ interface FormState {
   interest_method: MfInterestMethod;
   interest_rate: string;
   interest_rate_period: MfInterestRatePeriod;
+  interest_collection: MfInterestCollection;
   grace_period_installments: string;
   fees: FeeDraft[];
   penalty_rate: string;
@@ -103,6 +108,7 @@ const EMPTY: FormState = {
   interest_method: "flat",
   interest_rate: "20",
   interest_rate_period: "per_annum",
+  interest_collection: "with_installments",
   grace_period_installments: "0",
   fees: [],
   penalty_rate: "0",
@@ -150,6 +156,7 @@ export function ProductVersionDialog({
             interest_method: latest.interest_method,
             interest_rate: String(latest.interest_rate),
             interest_rate_period: latest.interest_rate_period,
+            interest_collection: latest.interest_collection ?? "with_installments",
             grace_period_installments: String(latest.grace_period_installments),
             fees: (latest.fees ?? []).map((f) => ({
               name: f.name ?? "",
@@ -185,6 +192,9 @@ export function ProductVersionDialog({
   /** Bases the schedule engine will accept for the chosen interest method. */
   const allowedRatePeriods = MF_VALID_RATE_PERIODS[form.interest_method];
 
+  /** Upfront collection is only priceable on a flat-interest product. */
+  const allowedInterestCollections = MF_VALID_INTEREST_COLLECTIONS[form.interest_method];
+
   /** A basis only means something once a late charge is actually priced. */
   const penaltyEnabled = Number(form.penalty_rate) > 0;
 
@@ -195,6 +205,14 @@ export function ProductVersionDialog({
       setForm((prev) => ({ ...prev, interest_rate_period: "per_annum" }));
     }
   }, [allowedRatePeriods, form.interest_rate_period]);
+
+  // Likewise for interest collection: switching away from flat interest must
+  // fall back to collecting interest with the installments.
+  useEffect(() => {
+    if (!allowedInterestCollections.includes(form.interest_collection)) {
+      setForm((prev) => ({ ...prev, interest_collection: "with_installments" }));
+    }
+  }, [allowedInterestCollections, form.interest_collection]);
 
   const invalid = useMemo(() => {
     const min = Number(form.min_amount);
@@ -207,6 +225,10 @@ export function ProductVersionDialog({
     if (Number(form.interest_rate) < 0) return "Interest rate cannot be negative.";
     if (!MF_VALID_RATE_PERIODS[form.interest_method].includes(form.interest_rate_period))
       return "That rate basis cannot be used with the selected interest method.";
+    if (
+      !MF_VALID_INTEREST_COLLECTIONS[form.interest_method].includes(form.interest_collection)
+    )
+      return "Interest can only be deducted upfront on a flat-interest product.";
     if (!(grace >= 0)) return "Grace installments cannot be negative.";
     if (grace >= minT)
       return "Grace installments must be fewer than the minimum number of installments.";
@@ -245,6 +267,7 @@ export function ProductVersionDialog({
           interest_method: form.interest_method,
           interest_rate: Number(form.interest_rate),
           interest_rate_period: form.interest_rate_period,
+          interest_collection: form.interest_collection,
           grace_period_installments: Number(form.grace_period_installments),
           fees: form.fees.map<MfProductFee>((f) => ({
             name: f.name.trim(),
@@ -397,6 +420,31 @@ export function ProductVersionDialog({
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="v-interest-collection">Interest collection</Label>
+              <Select
+                value={form.interest_collection}
+                onValueChange={(v) => set("interest_collection", v as MfInterestCollection)}
+                disabled={allowedInterestCollections.length < 2}
+              >
+                <SelectTrigger id="v-interest-collection">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedInterestCollections.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {MF_INTEREST_COLLECTION_LABELS[c]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {allowedInterestCollections.length < 2
+                  ? "Interest can only be deducted upfront on a flat-interest product."
+                  : MF_INTEREST_COLLECTION_HELP[form.interest_collection]}
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="v-grace">Grace installments</Label>
               <Input
                 id="v-grace"
@@ -495,6 +543,12 @@ export function ProductVersionDialog({
                 <span className="font-medium">Added to first installment</span> — the client
                 takes home the full loan amount and the fee is collected with the first
                 repayment. They receive 10,000 and repay 10,500 plus interest.
+              </li>
+              <li>
+                <span className="font-medium">Paid by the client at disbursement</span> — the
+                client hands the fee over in cash at the payout desk, so it is not taken off
+                the payout. On a 10,000 loan with a 500 fee they pay 500 in, receive 10,000
+                and repay 10,000 plus interest.
               </li>
             </ul>
 
