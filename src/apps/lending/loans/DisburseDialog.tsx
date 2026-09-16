@@ -5,7 +5,10 @@
  * integrity against the approved principal, then realigns the contractual
  * schedule to the actual value date.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Camera, TriangleAlert, User } from "lucide-react";
+import { CameraCaptureDialog } from "@/apps/lending/clients/CameraCaptureDialog";
+import { useKycImageUrl } from "@/hooks/useMfClients";
 import {
   Dialog,
   DialogContent,
