@@ -82,7 +82,6 @@ BEGIN;
     v_status text; v_caught boolean := false;
     i integer;
 
-    FUNCTION_placeholder boolean;
   BEGIN
     SELECT ur.user_id INTO v_user FROM public.user_roles ur WHERE ur.role = 'admin' LIMIT 1;
     SELECT b.id INTO v_biz FROM public.businesses b LIMIT 1;
