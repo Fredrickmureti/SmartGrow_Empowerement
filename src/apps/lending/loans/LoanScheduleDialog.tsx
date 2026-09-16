@@ -165,7 +165,6 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
               </TableRow>
             </TableBody>
 
-            </TableBody>
           </Table>
         )}
 
