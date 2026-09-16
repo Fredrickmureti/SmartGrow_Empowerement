@@ -12663,6 +12663,10 @@ export type Database = {
           loan_event_id: string
           loan_id: string
           released_on: string
+          repayment_id: string | null
+          reversal_event_id: string | null
+          reversed_at: string | null
+          reversed_by: string | null
         }
         Insert: {
           account_id: string
@@ -12674,6 +12678,10 @@ export type Database = {
           loan_event_id: string
           loan_id: string
           released_on: string
+          repayment_id?: string | null
+          reversal_event_id?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
         }
         Update: {
           account_id?: string
@@ -12685,6 +12693,10 @@ export type Database = {
           loan_event_id?: string
           loan_id?: string
           released_on?: string
+          repayment_id?: string | null
+          reversal_event_id?: string | null
+          reversed_at?: string | null
+          reversed_by?: string | null
         }
         Relationships: [
           {
@@ -12727,6 +12739,20 @@ export type Database = {
             columns: ["loan_id"]
             isOneToOne: false
             referencedRelation: "mf_loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_repayment_id_fkey"
+            columns: ["repayment_id"]
+            isOneToOne: false
+            referencedRelation: "mf_repayments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mf_deferred_interest_releases_reversal_event_id_fkey"
+            columns: ["reversal_event_id"]
+            isOneToOne: false
+            referencedRelation: "mf_loan_events"
             referencedColumns: ["id"]
           },
         ]
@@ -26391,6 +26417,10 @@ export type Database = {
         Args: { p_charged_on?: string; p_client_id: string; p_notes?: string }
         Returns: string
       }
+      mf_recognise_repayment_interest: {
+        Args: { p_loan_id: string; p_repayment_id: string }
+        Returns: number
+      }
       mf_record_repayment: {
         Args: {
           p_amount: number
@@ -26509,7 +26539,13 @@ export type Database = {
         Returns: string
       }
       mf_release_deferred_interest: {
-        Args: { p_as_of?: string; p_loan_id: string; p_release_all?: boolean }
+        Args: {
+          p_as_of?: string
+          p_installments?: number[]
+          p_loan_id: string
+          p_release_all?: boolean
+          p_repayment_id?: string
+        }
         Returns: number
       }
       mf_release_deferred_interest_due: {
