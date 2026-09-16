@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   MF_FEE_BASIS_LABELS,
   MF_FEE_COLLECTION_LABELS,
+  MF_INTEREST_COLLECTION_LABELS,
   MF_INTEREST_METHOD_LABELS,
   MF_PENALTY_BASIS_LABELS,
   MF_RATE_PERIOD_LABELS,
@@ -133,6 +134,14 @@ export function ProductDetailSheet({
               <Field label="Method" value={MF_INTEREST_METHOD_LABELS[v.interest_method]} />
               <Field label="Rate" value={`${v.interest_rate}%`} />
               <Field label="Rate basis" value={MF_RATE_PERIOD_LABELS[v.interest_rate_period]} />
+              <Field
+                label="Collected"
+                value={
+                  MF_INTEREST_COLLECTION_LABELS[
+                    v.interest_collection ?? "with_installments"
+                  ]
+                }
+              />
             </Block>
 
             <Separator />
