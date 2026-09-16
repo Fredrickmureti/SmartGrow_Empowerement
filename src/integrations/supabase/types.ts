@@ -13321,6 +13321,7 @@ export type Database = {
           method: string
           net_amount: number | null
           notes: string | null
+          payout_photo_path: string | null
           received_by_name: string | null
           reference: string | null
           reversal_reason: string | null
@@ -13343,6 +13344,7 @@ export type Database = {
           method: string
           net_amount?: number | null
           notes?: string | null
+          payout_photo_path?: string | null
           received_by_name?: string | null
           reference?: string | null
           reversal_reason?: string | null
@@ -13365,6 +13367,7 @@ export type Database = {
           method?: string
           net_amount?: number | null
           notes?: string | null
+          payout_photo_path?: string | null
           received_by_name?: string | null
           reference?: string | null
           reversal_reason?: string | null
@@ -26115,6 +26118,10 @@ export type Database = {
       mf_add_period: {
         Args: { p_date: string; p_freq: string; p_n: number }
         Returns: string
+      }
+      mf_attach_disbursement_photo: {
+        Args: { p_disbursement_id: string; p_path: string }
+        Returns: undefined
       }
       mf_bank_collection_batch: {
         Args: {

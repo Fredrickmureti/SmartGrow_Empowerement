@@ -1,0 +1,1 @@
+ALTER TABLE public.mf_loan_disbursements ADD COLUMN IF NOT EXISTS payout_photo_path text;
