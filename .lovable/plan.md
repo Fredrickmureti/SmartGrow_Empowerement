@@ -103,11 +103,12 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
+I verified the previous agent's claims against the live database, then corrected the books.
 
-Here's where things stand.
+Confirmed genuinely done: new payouts now park the withheld interest in Unearned Loan Interest (2440) instead of income; the weekly earning step runs when a receipt is recorded and unwinds when a receipt is reversed; reversing a payout voids the whole original entry cleanly.
 
-Verified as genuinely done (checked against the live database, not taken on trust): the interest-holding wiring at payout, the step that earns one week's interest when a receipt is recorded, and the new read-only schedule view that produces the borrower's principal-and-interest split. The one security notice flagged after that migration turned out to be pre-existing and unrelated — the new view already runs under the caller's own permissions, so nothing to fix there.
+Done now: the two real loans that had wrongly recognised interest at payout are corrected with dated correction entries — KSh 3,000 (LN-000005) and KSh 2,000 (LN-000006) moved out of Loan Interest Income into Unearned Loan Interest. Loan interest income for those payouts is now nil, and KSh 5,000 sits as unearned interest that will become income week by week as clients pay. Nothing was deleted and the original entries remain for audit.
 
-Done this session: the repayment schedule screen now shows the split (666.67 principal + 166.67 interest) and, for loans whose interest was held back, a new "Interest earned" column showing what has already become income. The printed loan agreement, repayment schedule and loan statement now show the same split, so the borrower never receives two differently shaped versions of the plan. Ordinary loans look exactly as before. The code compiles cleanly.
+Unfinished / untested: the borrower's schedule split still shows KSh 833.33 principal with zero interest for these upfront-interest loans instead of 666.67 + 166.67 — the split view exists but is not yet computing the interest column, so the printed schedule and statement will still show the wrong shape. Portfolio and balance-sheet reports also have not been checked for showing the receivable net of unearned interest. I did not create a test disbursement, to avoid touching real books.
 
-Unfinished: the screens have not been opened and viewed against a real loan, and the treatment of unearned interest on early settlement, write-off and restructuring still needs your decision before it can be built. Credits ran out, so continuing needs available credits.
+Credits ran out before I could finish those items; continuing needs available credits.
