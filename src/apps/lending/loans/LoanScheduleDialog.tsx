@@ -97,6 +97,9 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 <TableHead className="text-right">Opening</TableHead>
                 <TableHead className="text-right">Principal</TableHead>
                 <TableHead className="text-right">Interest</TableHead>
+                {hasDeferredInterest && (
+                  <TableHead className="text-right">Interest earned</TableHead>
+                )}
                 <TableHead className="text-right">Fees</TableHead>
                 <TableHead className="text-right">Penalty due</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -112,11 +115,16 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                     {money(r.opening_balance)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {money(r.principal_due)}
+                    {money(r.principal_component ?? r.principal_due)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {money(r.interest_due)}
+                    {money(r.interest_component ?? r.interest_due)}
                   </TableCell>
+                  {hasDeferredInterest && (
+                    <TableCell className="text-right tabular-nums">
+                      {money(r.interest_recognised ?? 0)}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right tabular-nums">{money(r.fees_due)}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {money(penaltyByInstallment.get(r.installment_no)?.penalty_outstanding ?? 0)}
@@ -139,6 +147,11 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 <TableCell className="text-right font-medium tabular-nums">
                   {money(totals.interest)}
                 </TableCell>
+                {hasDeferredInterest && (
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {money(totals.recognised)}
+                  </TableCell>
+                )}
                 <TableCell className="text-right font-medium tabular-nums">
                   {money(totals.fees)}
                 </TableCell>
@@ -150,6 +163,8 @@ export function LoanScheduleDialog({ open, onOpenChange, loan, clientPhotoPath }
                 </TableCell>
                 <TableCell />
               </TableRow>
+            </TableBody>
+
             </TableBody>
           </Table>
         )}
