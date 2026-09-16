@@ -42,17 +42,23 @@ Nothing in the amount, fees, schedule, accounting entries or status transitions 
 
 
 ==================IMPLEMENTATION STATUS===============
-Work stopped partway because the workspace ran out of credits.
+Complete (pending a signed-in UI walkthrough).
 
-Done so far
+Verified in place from the earlier session
+- Payout photo field on the payout record (all existing payout records unaffected; none carry a photo).
+- Guarded server routine attaching the photo: institution access, disburse roles only, refuses a reversed payout or one already photographed, path must sit under that loan, writes a loan-history entry. Money, fees, schedule, accounting untouched.
+- Private-store access rules for payout photos (insert by disbursing staff, view by anyone who can read the loan).
+- Disburse screen capture block, warning and "Disburse without photo" button.
 
-Confirmed the current behaviour: every client already has a registration passport photo and ID images in the private KYC store, but disbursement never showed or captured any photo, and the payout record kept no image.
-Added a place on each payout record to hold a photo taken at the payout desk (existing payouts untouched, field empty).
-Added a guarded server routine that attaches that photo: only staff allowed to disburse, only for a payout that isn't reversed and has no photo yet, the file must be filed under that loan, and the action is recorded in the loan's history. Money, fees, schedule and accounting are untouched.
-Added access rules so those photos stay in the existing private store, visible only to people who can already see that loan.
-Updated the Disburse screen: the registration photo and a "Photo now" camera slot side by side, a clear warning when no photo is taken, and the button reading "Disburse without photo" in that case. The photo is saved after the payout succeeds, so a photo problem can never block cash.
-Not finished / untested
+Finished in this session
+- The Disburse screen was never actually given the client's registration photo or name; both are now passed in, so the comparison photo appears.
+- New read-only "Payout identity evidence" panel showing the registration photo beside the payout photo; it appears in the loan details (schedule) view for disbursed loans, with a note when no photo was taken.
 
-Showing the saved payout photo afterwards in the loan details view.
-No verification at all was run: no live disbursement test, no check that the photo persists or that permission rules refuse the wrong user, and no build check on the screen changes. Please treat the disbursement screen as unverified until that is done.
-Continuing this needs credits to be topped up.
+Verification done
+- Server routine reviewed line by line; guards confirmed. The only trigger on the payout table fires on creation only, so attaching a photo cannot disturb it.
+- Storage access rules confirmed present and scoped to the loan.
+- Existing data confirmed untouched: there are no payout records at all yet, so nothing historic changed.
+- Build and type checks pass on the changed screens.
+
+Remaining uncertainty
+- No signed-in UI walkthrough was possible: this workspace connects to an external Supabase project, so a test session cannot be created here. A staff member should open a pending loan, take a payout photo, disburse, and confirm the photo appears in the loan details afterwards.
