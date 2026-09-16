@@ -13321,6 +13321,7 @@ export type Database = {
           method: string
           net_amount: number | null
           notes: string | null
+          payout_photo_path: string | null
           received_by_name: string | null
           reference: string | null
           reversal_reason: string | null
@@ -13343,6 +13344,7 @@ export type Database = {
           method: string
           net_amount?: number | null
           notes?: string | null
+          payout_photo_path?: string | null
           received_by_name?: string | null
           reference?: string | null
           reversal_reason?: string | null
@@ -13365,6 +13367,7 @@ export type Database = {
           method?: string
           net_amount?: number | null
           notes?: string | null
+          payout_photo_path?: string | null
           received_by_name?: string | null
           reference?: string | null
           reversal_reason?: string | null
