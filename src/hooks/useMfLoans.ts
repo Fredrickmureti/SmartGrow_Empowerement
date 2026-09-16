@@ -71,6 +71,8 @@ export interface MfLoan {
   interest_method: string;
   interest_rate: number;
   interest_rate_period: string;
+  /** Frozen on the loan: how its interest is collected. */
+  interest_collection: "with_installments" | "deducted_upfront";
   grace_period_installments: number;
   penalty_rate: number;
   penalty_basis: string | null;
@@ -111,7 +113,7 @@ export interface MfLoanEvent {
 }
 
 const LOAN_SELECT =
-  "id,business_id,branch_id,loan_number,application_id,client_id,group_id,product_id,product_version_id,loan_officer_id,currency_code,principal,term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,grace_period_installments,penalty_rate,penalty_basis,expected_disbursement_date,first_installment_date,status,disbursed_at,closed_at,parent_loan_id,lineage_kind,settled_by_loan_id,created_at,updated_at";
+  "id,business_id,branch_id,loan_number,application_id,client_id,group_id,product_id,product_version_id,loan_officer_id,currency_code,principal,term_installments,repayment_frequency,interest_method,interest_rate,interest_rate_period,interest_collection,grace_period_installments,penalty_rate,penalty_basis,expected_disbursement_date,first_installment_date,status,disbursed_at,closed_at,parent_loan_id,lineage_kind,settled_by_loan_id,created_at,updated_at";
 
 
 /** Loans for the institution, newest first. */
@@ -434,7 +436,10 @@ export interface MfLoanFeeLine {
   name: string;
   basis: "percent_of_principal" | "fixed";
   value: number;
-  collection: "deducted_from_disbursement" | "added_to_first_installment";
+  collection:
+    | "deducted_from_disbursement"
+    | "added_to_first_installment"
+    | "paid_at_disbursement";
   amount: number;
 }
 
@@ -458,13 +463,40 @@ export function useMfLoanFeePreview(loanId: string | null | undefined) {
   });
 
   const fees = query.data ?? [];
-  const deductedTotal = fees
-    .filter((f) => f.collection === "deducted_from_disbursement")
-    .reduce((sum, f) => sum + f.amount, 0);
+  const totalFor = (collection: MfLoanFeeLine["collection"]) =>
+    fees.filter((f) => f.collection === collection).reduce((sum, f) => sum + f.amount, 0);
 
   return {
     fees,
-    deductedTotal,
+    /** Netted off the payout: the client takes home less cash. */
+    deductedTotal: totalFor("deducted_from_disbursement"),
+    /** Handed over in cash by the client at the payout desk. */
+    clientPaidTotal: totalFor("paid_at_disbursement"),
+    isLoading: query.isLoading,
+    error: query.error as Error | null,
+  };
+}
+
+/**
+ * The whole term's interest when the loan's frozen terms say it is taken at
+ * payout, otherwise zero. Resolved by `mf_loan_upfront_interest` — the browser
+ * never prices interest itself.
+ */
+export function useMfLoanUpfrontInterest(loanId: string | null | undefined) {
+  const query = useQuery({
+    queryKey: ["mf-loan-upfront-interest", loanId ?? null],
+    enabled: !!loanId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("mf_loan_upfront_interest", {
+        p_loan_id: loanId!,
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+  });
+
+  return {
+    upfrontInterest: query.data ?? 0,
     isLoading: query.isLoading,
     error: query.error as Error | null,
   };
@@ -512,6 +544,10 @@ export interface MfLoanDisbursementRow {
   received_by_name: string | null;
   net_amount: number | null;
   fees_deducted: number | null;
+  /** Interest taken out of this payout, if the terms collect it upfront. */
+  upfront_interest: number | null;
+  /** Fee the client handed over in cash, never netted off the payout. */
+  fees_paid_by_client: number | null;
   reversed_at: string | null;
   payout_photo_path: string | null;
 }
@@ -525,7 +561,7 @@ export function useMfLoanDisbursement(loanId: string | null | undefined) {
       const { data, error } = await supabase
         .from("mf_loan_disbursements")
         .select(
-          "id,loan_id,disbursed_on,amount,method,reference,received_by_name,net_amount,fees_deducted,reversed_at,payout_photo_path",
+          "id,loan_id,disbursed_on,amount,method,reference,received_by_name,net_amount,fees_deducted,upfront_interest,fees_paid_by_client,reversed_at,payout_photo_path",
         )
         .eq("loan_id", loanId!)
         .is("reversed_at", null)
