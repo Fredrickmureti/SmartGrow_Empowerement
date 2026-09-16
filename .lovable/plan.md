@@ -104,17 +104,11 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
 
-Verified as genuinely done (checked directly against the live database, not the notes):
+The rehearsal run returned no diagnostic output, so I can't yet confirm the loan walkthrough passes.
 
-Loan products and individual loans both carry the "when is interest earned" setting, frozen onto each loan.
-Interest withheld at payout is now earned automatically when a receipt fully settles an instalment, in the same transaction as the receipt, and never twice for the same instalment.
-Each earning entry records the receipt that caused it, and reversing that receipt unwinds it.
-The due-date run only touches loans set to "earn on due date", so the two modes cannot double-count.
-A payout cannot be reversed while earned interest on it is still standing.
-Started but not finished: the end-to-end walkthrough (10,000 with 2,000 interest over 12 weeks: payout 8,000, twelve receipts, closing balances, reversal). I wrote it as a repeatable rehearsal test at supabase/tests/mf_upfront_interest_lifecycle_test.sql; it runs entirely inside a rolled-back block so it never changes real records. Two fixture problems surfaced while running it: a test loan needs an application attached, and that application must be walked through draft → submitted → under review → approved before payout. Those fixture steps still need adding to the file, then one clean run. No real loan, receipt, schedule or accounting entry was touched.
+Done so far: the rehearsal test now sets up the loan application properly — created as a draft, submitted by one officer, assessed, reviewed, then approved by a different administrator — so the test loan can be created the way a real one is. Nothing real was touched; everything ran inside a block that was rolled back.
 
-I also restarted the preview, which was showing an error from a stale dependency reload; it is serving normally again.
+Unfinished and untested: the full twelve-week walkthrough (payout, weekly receipts, interest earned week by week, closing balances, reversal behaviour) has not yet been confirmed to pass. Still open after that: splitting the repayment schedule into principal and interest parts, deciding treatment of unearned interest on early settlement/write-off/restructuring, and reporting alignment.
 
-Still open on the plan, in order: finish the walkthrough run, then split the repayment schedule into its principal and interest parts, then early settlement / write-off / restructuring treatment of unearned interest, then reporting alignment.
+Credits ran out mid-run, so continuing this needs available credits.
 
-Credits ran out here — picking this back up needs credits topped up.
