@@ -80,16 +80,14 @@ Dr Principal receivable   10,000
 
 =================WHERE THINGS STAND/IMPLEMENATTION PROGRESS====================
 
-Done now (database side, applied successfully):
+Done in this session (screens):
 
-Loan products and loans gained an interest collection setting: interest spread across installments (today's behaviour, the default everywhere) or interest deducted upfront at payout. Upfront interest is only permitted on flat-interest products, and the setting is frozen onto each loan once it leaves the application stage.
-Processing fees gained a third option: paid by the client at disbursement — not netted off the payout, recorded as cash received and fee income.
-Payout calculation now separates principal, upfront interest, fees deducted and the fee handed over by the client, and stores each on the disbursement record.
-The repayment schedule carries principal only when interest was taken upfront.
-The disbursement ledger now credits interest income for upfront interest and records the client-paid fee as cash in plus fee income; every variant still balances. Reversals void the original entry, so they unwind the new components automatically.
-Existing products, loans and past entries are untouched: every new setting defaults to exactly the old behaviour.
-Not done — credits ran out:
+The product version form now has an "Interest collection" choice — collected with the installments (unchanged default) or deducted upfront at disbursement — offered only on flat-interest products, with plain-language help.
+Processing fees now offer the third option, "Paid by the client at disbursement", with a worked example alongside the existing two.
+The product detail view shows how interest is collected.
+The disbursement dialog now itemises the payout: principal, interest deducted upfront, each fee (deducted, added to the first installment, or collected from the client now), the cash to hand over, and the net movement out of the till.
+Not finished — credits ran out:
 
-The screens still don't show or let you choose the new settings: the product version form, the product detail view, and the disbursement dialog's breakdown.
-The worked verification (10,000 / 20% flat / fee 200 → payout 7,800, principal outstanding 10,000, principal-only schedule, balanced journal) and the rest of the test plan have not been run.
-Because the screens aren't updated yet, nobody can switch a product to upfront interest or the client-paid fee from the app — so live behaviour is unchanged and safe. Top up credits and I'll continue from the screens, then run the verification, without redoing any of the above.
+The build check on these screen edits has not been run, so the changes are unverified.
+The worked verification (10,000 / 20% flat / fee 200 → 7,800 handed over, 10,000 still owed, principal-only schedule, balanced entry) and the rest of the test plan have not been run.
+Live behaviour is still unchanged and safe: no existing product has been switched to upfront interest or the client-paid fee. Continuing needs available credits — top up and I'll verify the screens build, then run the verification, without redoing any of the above.
