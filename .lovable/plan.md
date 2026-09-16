@@ -104,17 +104,17 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
 
-I confirmed the two changes the previous session reported were genuinely applied (the interest-recognition setting on loan products and its freezing onto new loans), then continued with the next item in the plan.
+Verified as genuinely done (checked directly against the live database, not the notes):
 
-Done in this session:
+Loan products and individual loans both carry the "when is interest earned" setting, frozen onto each loan.
+Interest withheld at payout is now earned automatically when a receipt fully settles an instalment, in the same transaction as the receipt, and never twice for the same instalment.
+Each earning entry records the receipt that caused it, and reversing that receipt unwinds it.
+The due-date run only touches loans set to "earn on due date", so the two modes cannot double-count.
+A payout cannot be reversed while earned interest on it is still standing.
+Started but not finished: the end-to-end walkthrough (10,000 with 2,000 interest over 12 weeks: payout 8,000, twelve receipts, closing balances, reversal). I wrote it as a repeatable rehearsal test at supabase/tests/mf_upfront_interest_lifecycle_test.sql; it runs entirely inside a rolled-back block so it never changes real records. Two fixture problems surfaced while running it: a test loan needs an application attached, and that application must be walked through draft → submitted → under review → approved before payout. Those fixture steps still need adding to the file, then one clean run. No real loan, receipt, schedule or accounting entry was touched.
 
-Interest withheld at payout is now earned automatically when a customer's receipt fully settles an instalment — recorded in the same transaction as the receipt, so both stand or fall together, and never twice for the same instalment.
-Each recognition now records which receipt caused it, and reversing that receipt unwinds the matching interest entry.
-The due-date recognition run now only touches loans set to "recognise on due date", so the two modes can't double-count.
-A payout can no longer be reversed while interest recognised on it is still standing.
-Unfinished / untested:
+I also restarted the preview, which was showing an error from a stale dependency reload; it is serving normally again.
 
-No end-to-end test run yet (the 10,000 / 2,000 / 12-week walkthrough: payout 8,000, twelve receipts, closing balances).
-The repayment schedule still shows the instalment as principal only, not split into 666.67 principal + 166.67 interest.
-Remaining open items from the plan: early settlement, write-off and restructuring treatment of unearned interest, plus reporting alignment.
-No existing loan, schedule, receipt or journal entry was touched. Credits ran out at this point — resuming needs credits topped up, and the next step is the end-to-end verification followed by the schedule split.
+Still open on the plan, in order: finish the walkthrough run, then split the repayment schedule into its principal and interest parts, then early settlement / write-off / restructuring treatment of unearned interest, then reporting alignment.
+
+Credits ran out here — picking this back up needs credits topped up.
