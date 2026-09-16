@@ -73,8 +73,8 @@ BEGIN;
   --------------------------------------------------------------------------
   DO $$
   DECLARE
-    v_user uuid; v_biz uuid; v_branch uuid; v_client uuid;
-    v_ver uuid; v_prod uuid; v_ccy text;
+    v_user uuid; v_officer uuid; v_biz uuid; v_branch uuid; v_client uuid;
+    v_ver uuid; v_prod uuid; v_ccy text; v_app uuid;
     v_loan uuid; v_disb uuid; v_rep uuid; v_last_rep uuid;
     v_prin numeric; v_int numeric; v_net numeric; v_up numeric;
     v_due numeric; v_released numeric; v_slices integer;
@@ -83,13 +83,20 @@ BEGIN;
     i integer;
 
   BEGIN
+    -- Approver and originator must be two different people: the segregation
+    -- of duties guard refuses a decision taken on one's own submission.
     SELECT ur.user_id INTO v_user FROM public.user_roles ur WHERE ur.role = 'admin' LIMIT 1;
+    SELECT ur.user_id INTO v_officer FROM public.user_roles ur
+     WHERE ur.user_id <> v_user ORDER BY ur.user_id LIMIT 1;
     SELECT b.id INTO v_biz FROM public.businesses b LIMIT 1;
     SELECT br.id INTO v_branch FROM public.branches br WHERE br.business_id = v_biz LIMIT 1;
     SELECT c.id INTO v_client FROM public.mf_clients c WHERE c.business_id = v_biz LIMIT 1;
     SELECT v.id, v.product_id INTO v_ver, v_prod
-      FROM public.mf_loan_product_versions v LIMIT 1;
-    IF v_user IS NULL OR v_biz IS NULL OR v_client IS NULL OR v_ver IS NULL THEN
+      FROM public.mf_loan_product_versions v
+     WHERE v.business_id = v_biz AND v.is_published AND v.effective_from <= CURRENT_DATE
+     ORDER BY v.version_no DESC LIMIT 1;
+    IF v_user IS NULL OR v_officer IS NULL OR v_biz IS NULL OR v_branch IS NULL
+       OR v_client IS NULL OR v_ver IS NULL THEN
       RAISE NOTICE 'fixtures unavailable; skipping lifecycle checks';
       RETURN;
     END IF;
@@ -103,16 +110,38 @@ BEGIN;
     v_di   := public.mf_resolve_account(v_biz, v_branch, 'deferred_interest');
     v_cash := public.mf_resolve_account(v_biz, v_branch, public.mf_method_mapping_key('cash'));
 
+    -- (0b) A loan only exists behind an approved application. Walk the
+    -- application through its real stages rather than forcing a status.
+    INSERT INTO public.mf_loan_applications (
+      business_id, branch_id, client_id, product_id, product_version_id,
+      requested_amount, requested_term_installments, status)
+    VALUES (v_biz, v_branch, v_client, v_prod, v_ver, 10000, 12, 'draft')
+    RETURNING id INTO v_app;
+
+    UPDATE public.mf_loan_applications
+       SET status = 'submitted', submitted_by = v_officer
+     WHERE id = v_app;
+
+    INSERT INTO public.mf_application_assessments (business_id, application_id, assessed_by)
+    VALUES (v_biz, v_app, v_officer);
+
+    UPDATE public.mf_loan_applications SET status = 'under_review' WHERE id = v_app;
+    UPDATE public.mf_loan_applications
+       SET status = 'approved', approved_amount = 10000, approved_term_installments = 12
+     WHERE id = v_app;
+
     INSERT INTO public.mf_loans (
-      business_id, branch_id, loan_number, client_id, product_id, product_version_id,
+      business_id, branch_id, loan_number, client_id, application_id,
+      product_id, product_version_id,
       currency_code, principal, term_installments, repayment_frequency,
       interest_method, interest_rate, interest_rate_period, interest_collection,
       interest_recognition, fees, expected_disbursement_date, first_installment_date,
       status, created_by)
-    VALUES (v_biz, v_branch, 'TEST-UPFRONT-LIFE', v_client, v_prod, v_ver,
+    VALUES (v_biz, v_branch, 'TEST-UPFRONT-LIFE', v_client, v_app,
+      v_prod, v_ver,
       v_ccy, 10000, 12, 'weekly', 'flat', 20, 'flat_on_principal', 'deducted_upfront',
       'on_repayment', '[]'::jsonb, CURRENT_DATE, CURRENT_DATE + 7,
-      'pending_disbursement', v_user)
+      'pending_disbursement', v_officer)
     RETURNING id INTO v_loan;
 
     -- (1) Schedule: gross principal only
