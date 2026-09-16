@@ -57,18 +57,35 @@ interface Props {
   }) => Promise<void>;
 }
 
-export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) {
+export function DisburseDialog({
+  open,
+  onOpenChange,
+  loan,
+  clientPhotoPath,
+  clientName,
+  onDisburse,
+}: Props) {
   const [date, setDate] = useState("");
   const [method, setMethod] = useState<string>("cash");
   const [reference, setReference] = useState("");
   const [receivedBy, setReceivedBy] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [payoutPhoto, setPayoutPhoto] = useState<Blob | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const dayGate = useBranchDayGate();
   // Fees are resolved server-side; this dialog only displays them.
   const { fees, deductedTotal, isLoading: feesLoading } = useMfLoanFeePreview(
     open ? (loan?.id ?? null) : null,
   );
+  const { data: registrationUrl } = useKycImageUrl(open ? clientPhotoPath : null);
+  const payoutUrl = useMemo(
+    () => (payoutPhoto ? URL.createObjectURL(payoutPhoto) : null),
+    [payoutPhoto],
+  );
+  useEffect(() => () => {
+    if (payoutUrl) URL.revokeObjectURL(payoutUrl);
+  }, [payoutUrl]);
   const principal = Number(loan?.principal ?? 0);
   const netPayable = principal - deductedTotal;
   const money = (n: number) =>
@@ -81,6 +98,7 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
     setReference("");
     setReceivedBy("");
     setNotes("");
+    setPayoutPhoto(null);
   }, [open, loan]);
 
   const submit = async () => {
@@ -95,6 +113,7 @@ export function DisburseDialog({ open, onOpenChange, loan, onDisburse }: Props) 
         reference: reference.trim() || null,
         receivedByName: receivedBy.trim() || null,
         notes: notes.trim() || null,
+        payoutPhoto,
       });
       onOpenChange(false);
     } finally {
