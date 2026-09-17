@@ -1,0 +1,77 @@
+# Loan Repayment Schedule — Borrower-Facing Export & Internal Schedule Views
+
+## Audit findings (verified against code and the live database)
+
+Most of the machinery already exists. This is a completion job, not a build-from-scratch.
+
+What is already in place:
+
+- **Authoritative schedule storage**: `mf_loan_schedule` (one row per installment: `installment_no`, `due_date`, `opening_balance`, `principal_due`, `interest_due`, `fees_due`, `total_due`, `closing_balance`, `is_grace`). Generated server-side at origination; the frontend never recalculates.
+- **Upfront-interest presentation is already solved in the database**, by the view `mf_loan_schedule_display`. It adds `principal_component` / `interest_component` (the borrower-facing re-split, applied only when the loan's `interest_collection = 'deducted_upfront'` and a non-reversed disbursement carries `upfront_interest`), plus `interest_recognised` / `is_interest_recognised` from `mf_deferred_interest_releases`. Ordinary loans are untouched — the split equals the stored amounts.
+- **Assessed penalties** live in the view `mf_loan_penalty_status` (`penalty_charged`, `penalty_paid`, `penalty_outstanding` per installment) — actual assessed amounts, not rule existence.
+- **Internal schedule UI**: `LoanScheduleDialog` shows the full operational ladder, including an "Interest earned" column that appears only when the re-split differs, a penalty-due column, penalty summary and loan events.
+- **Document engine**: `repayment_schedule` is already a registered document kind — snapshot builder (`snapshots/lending.ts`), registry entry (`resolveSourceDocumentRecord`), frozen `document_records` row and archived `document_artifacts`, PDF layout (`generateRepaymentSchedulePdf`, sheet-only, multi-page table, branded masthead, generated stamp).
+- **Actions today**: `LendingDocumentsMenu` on the loans list offers **Preview** and **Download PDF** for loan agreement / repayment schedule / loan statement.
+- **Scoping**: RLS is enabled on `mf_loans`, `mf_loan_schedule`, `mf_loan_disbursements`, `document_records`, `document_artifacts`; all three schedule views are `security_invoker`, so a user reading a schedule reads it under their own policies. Nothing in the export path uses elevated privileges.
+
+Gaps this plan closes:
+
+1. **No Print action** for lending documents — the project's own document-action rule is that Preview, Print and Download are three distinct verbs. Lending has only two.
+2. **No export action on the schedule screen itself.** The only entry point is the loans-list row menu; a user who has the schedule open has no download/print button.
+3. **Borrower document is missing summary facts** the borrower needs: net cash actually disbursed, upfront interest withheld and its plain-language explanation, fees deducted, repayment frequency, number of installments, maturity date, total scheduled repayment.
+4. **Assessed penalties are absent from the borrower schedule document** — the penalty view is read on screen but never reaches the snapshot, so a printed schedule cannot show an assessed penalty even where it is appropriate.
+5. **No internal spreadsheet extract** of the schedule, although `csv` / `xlsx` are already supported dispositions of the same frozen snapshot.
+
+No gap was found in reproducing historical schedules: the stored rows plus the frozen disbursement row are sufficient, so nothing needs recalculating.
+
+## What will be built
+
+### 1. Borrower schedule document — richer summary, same data authority
+
+Extend the `repayment_schedule` snapshot builder to carry, from rows already fetched:
+
+- maturity date (last installment due date), number of installments, repayment frequency
+- gross contractual amount, net cash disbursed, upfront interest withheld, fees deducted (all from the non-reversed `mf_loan_disbursements` row)
+- assessed penalty per installment and in total, from `mf_loan_penalty_status` — zero when nothing is assessed
+- total scheduled repayment from the schedule totals
+
+The PDF layout gains: a fuller borrower "Loan" facts block, a penalty column shown only when a penalty is actually assessed, and a short explanatory note when interest was withheld at disbursement ("interest of X was deducted from the disbursement; the installments below still show principal and interest separately").
+
+Internal-only values stay out: no journal ids, GL codes, deferred-release ids, posting status, `interest_recognised`, `lineage_kind`.
+
+### 2. Print action for lending documents
+
+Add a lending print path mirroring the finance one (build snapshot → freeze record → submit routing intent), and add **Print** to `LendingDocumentsMenu` alongside Preview and Download.
+
+### 3. Actions on the schedule screen
+
+`LoanScheduleDialog` gets a header action cluster with the same menu, so the borrower schedule can be previewed, downloaded and printed from where the officer is already looking. An internal spreadsheet extract (XLSX) of the same frozen snapshot is offered there for authorized staff.
+
+### 4. Permissions
+
+No new permission surface. Because the export path reads the loan and its schedule through `security_invoker` views under the caller's own session, a user who cannot read the loan cannot freeze or render its document — changing an id in a request yields no rows and the render fails. This will be asserted with a test rather than assumed, and no privileged client is introduced anywhere in the path.
+
+### 5. Historical integrity
+
+Nothing regenerates or mutates a schedule. The document is projected from the stored rows and the frozen disbursement; a later product-version change cannot alter an existing loan's document.
+
+## Testing
+
+- Flat interest with interest collected through installments; upfront-interest loan (principal/interest shown separately, gross total reconciles); declining balance; declining balance equal installment.
+- Loan with fees; loan with assessed penalties; loan with none assessed (no penalty column).
+- Partial repayments and overdue installments; long schedule spanning pages.
+- Currency and rounding: totals equal the sum of stored rows exactly.
+- Cross-branch / unauthorized access denied at the data layer, not by hiding a button.
+- Snapshot totals reconcile with the authoritative schedule.
+
+No financial transaction or ledger posting is touched by document generation.
+
+## Technical notes
+
+- Files: `src/services/documents/snapshots/lending.ts`, `supabase/functions/_shared/pdf/layouts/lending.ts`, `src/apps/lending/documents/LendingDocumentsMenu.tsx`, a new lending print hook under `src/apps/lending/documents/`, `src/apps/lending/loans/LoanScheduleDialog.tsx`, tests under `src/test/lending/`.
+- No database migration is required; no new table, view or column.
+- No interest method, product capability or existing document kind is removed or altered.
+
+## Roadmap effect
+
+Closes part of the open "M10 — Microfinance document gaps" item; remaining M10 items stay open.
