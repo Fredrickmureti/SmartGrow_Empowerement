@@ -203,7 +203,12 @@ export function AssetCategorySheet({ open, onOpenChange }: Props) {
                   </SelectTrigger>
                   <SelectContent>
                     {accounts
-                      .filter((a) => a.account_type === type && a.is_active)
+                      .filter(
+                        (a) =>
+                          a.account_type === type &&
+                          a.is_active &&
+                          !a.is_header,
+                      )
                       .map((a) => (
                         <SelectItem key={a.id} value={a.id}>
                           {a.code} — {a.name}
