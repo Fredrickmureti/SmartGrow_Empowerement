@@ -471,15 +471,44 @@ export async function generateRepaymentSchedulePdf(
   const builder = await startSheet(snapshot, organization, options, "REPAYMENT SCHEDULE");
   const currency = str(snapshot["currency"]);
 
+  /**
+   * Borrower-facing facts only. Every value comes from the frozen snapshot
+   * (schedule rows + the recorded disbursement); nothing here is recomputed
+   * and no accounting identifier is printed.
+   */
+  const upfront = num(snapshot["upfront_interest_withheld"]);
+  const netCash = snapshot["net_cash_disbursed"];
+  const feesDeducted = snapshot["fees_deducted"];
+  const installments = num(snapshot["installment_count"]) || num(snapshot["term_installments"]);
+
   drawFactsGrid(builder, "Loan", [
     ["Client", str(snapshot["client_name"])],
     ["Client number", str(snapshot["client_number"])],
     ["Loan number", str(snapshot["loan_number"])],
     ["Product", str(snapshot["product_name"])],
-    ["Principal", money(snapshot["principal"], currency)],
-    ["Disbursed on", date(snapshot["disbursed_at"])],
     ["Branch", str(snapshot["branch_name"])],
     ["Loan officer", str(snapshot["officer_name"])],
+    ["Loan amount", money(snapshot["principal"], currency)],
+    ["Disbursed on", date(snapshot["disbursed_at"])],
+    ["Net cash disbursed", netCash === null || netCash === undefined ? null : money(netCash, currency)],
+    [
+      "Interest withheld at disbursement",
+      upfront ? money(upfront, currency) : null,
+    ],
+    [
+      "Fees deducted",
+      feesDeducted === null || feesDeducted === undefined || !num(feesDeducted)
+        ? null
+        : money(feesDeducted, currency),
+    ],
+    ["Repayment frequency", humanise(snapshot["repayment_frequency"])],
+    ["Installments", installments ? String(installments) : null],
+    ["First installment", date(snapshot["first_installment_date"])],
+    ["Maturity date", date(snapshot["maturity_date"])],
+    [
+      "Total scheduled repayment",
+      money(snapshot["total_scheduled_repayment"] ?? (snapshot["schedule_totals"] as Snapshot | undefined)?.["total"], currency),
+    ],
   ]);
 
   drawSectionLabel(builder, "Installments");
@@ -493,6 +522,23 @@ export async function generateRepaymentSchedulePdf(
     },
     { label: "Outstanding", value: money(snapshot["total_outstanding"], currency) },
   ]);
+
+  /**
+   * Upfront-interest loans: the borrower received less cash than the loan
+   * amount, so the page says so in plain language rather than leaving the
+   * difference to be inferred from the installment table.
+   */
+  if (upfront) {
+    drawNotesBlock(builder, builder.page, {
+      title: "Interest deducted at disbursement",
+      body:
+        `Interest of ${money(upfront, currency)} was deducted from this loan at ` +
+        `disbursement, so the cash paid out was ${money(netCash, currency)}. ` +
+        "The installments above still show the principal and interest portions " +
+        "of each repayment separately, and the total repayable is unchanged.",
+    });
+  }
+
 
   drawFinalFooter(builder, builder.page, {
     footerNote:

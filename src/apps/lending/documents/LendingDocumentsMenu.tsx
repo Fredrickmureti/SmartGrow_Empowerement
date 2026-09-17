@@ -8,7 +8,8 @@
  * PDF is drawn from. No second renderer, no bespoke PDF path.
  */
 import { useState } from "react";
-import { Download, FileSearch, FileText, Loader2 } from "lucide-react";
+import { Download, FileSearch, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
+
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { downloadExport } from "@/services/exports/documentExport";
+import { useLendingDocumentPrint } from "./useLendingDocumentPrint";
 
 export interface LendingDocumentTarget {
   /** Registered source document type, e.g. `loan_agreement`. */
@@ -30,6 +32,11 @@ export interface LendingDocumentTarget {
   title: string;
   /** Filename offered to the browser; extension is appended by the exporter. */
   filename: string;
+  /**
+   * Offer an internal spreadsheet extract of the SAME frozen snapshot.
+   * Staff-only convenience — never part of the borrower's paperwork.
+   */
+  spreadsheet?: boolean;
 }
 
 interface LendingDocumentsMenuProps {
@@ -37,21 +44,25 @@ interface LendingDocumentsMenuProps {
   label?: string;
 }
 
+
 export function LendingDocumentsMenu({
   documents,
   label = "Documents",
 }: LendingDocumentsMenuProps) {
   const { preview } = useDocumentPreview();
+  const { print, printing } = useLendingDocumentPrint();
   const [busy, setBusy] = useState<string | null>(null);
 
   if (documents.length === 0) return null;
 
-  const download = async (doc: LendingDocumentTarget) => {
+  const spreadsheets = documents.filter((d) => d.spreadsheet);
+
+  const download = async (doc: LendingDocumentTarget, format: "pdf" | "xlsx" = "pdf") => {
     setBusy(doc.documentType);
     const result = await downloadExport({
       documentType: doc.documentType,
       documentId: doc.documentId,
-      format: "pdf",
+      format,
       filename: doc.filename,
     });
     setBusy(null);
@@ -60,17 +71,19 @@ export function LendingDocumentsMenu({
     }
   };
 
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant="outline">
-          {busy ? (
+          {busy || printing ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
           ) : (
             <FileText className="mr-1.5 h-3.5 w-3.5" />
           )}
           {label}
         </Button>
+
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Preview</DropdownMenuLabel>
@@ -105,9 +118,44 @@ export function LendingDocumentsMenu({
             {doc.title}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Print</DropdownMenuLabel>
+        {documents.map((doc) => (
+          <DropdownMenuItem
+            key={`print-${doc.documentType}`}
+            disabled={printing === doc.documentType}
+            onSelect={(event) => {
+              event.preventDefault();
+              void print(doc.documentType, doc.documentId, doc.title);
+            }}
+          >
+            <Printer className="mr-2 h-3.5 w-3.5" />
+            {doc.title}
+          </DropdownMenuItem>
+        ))}
+        {spreadsheets.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Spreadsheet (internal)</DropdownMenuLabel>
+            {spreadsheets.map((doc) => (
+              <DropdownMenuItem
+                key={`xlsx-${doc.documentType}`}
+                disabled={busy === doc.documentType}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void download(doc, "xlsx");
+                }}
+              >
+                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                {doc.title}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
 
 export default LendingDocumentsMenu;
