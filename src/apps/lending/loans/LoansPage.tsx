@@ -118,6 +118,7 @@ export function LoansPage() {
     writeOff,
     closeLoan,
     reissueLoan,
+    cancelPendingLoan,
   } = useMfLoans({ status });
   const { clients } = useMfClients();
 
@@ -308,10 +309,21 @@ export function LoansPage() {
                         </Button>
                       )}
                       {canManage && loan.status === "pending_disbursement" && (
-                        <span className="text-xs text-muted-foreground">
-                          Top-up, restructure, closure and write-off become available once the
-                          loan has been disbursed.
-                        </span>
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => openLifecycle(loan, "cancel")}
+                          >
+                            <Ban className="mr-1.5 h-3.5 w-3.5" />
+                            Cancel loan
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            Wrong amount, term or client? Cancel the loan and book a corrected
+                            application. Top-up, restructure, closure and write-off become
+                            available once the loan has been disbursed.
+                          </span>
+                        </>
                       )}
                       {canManage && loan.status === "active" && !loan.settled_by_loan_id && (
                         <>
@@ -413,6 +425,9 @@ export function LoansPage() {
         }}
         onReverseDisbursement={async (input) => {
           await reverseDisbursement.mutateAsync(input);
+        }}
+        onCancelLoan={async (input) => {
+          await cancelPendingLoan.mutateAsync(input);
         }}
       />
 

@@ -26327,6 +26327,10 @@ export type Database = {
             }
             Returns: boolean
           }
+      mf_cancel_pending_loan: {
+        Args: { p_loan_id: string; p_reason: string }
+        Returns: string
+      }
       mf_close_loan: {
         Args: { p_closed_on?: string; p_loan_id: string; p_notes?: string }
         Returns: string
