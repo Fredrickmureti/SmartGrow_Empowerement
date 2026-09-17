@@ -103,12 +103,13 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
-I verified the previous agent's claims against the live database, then corrected the books.
 
-Confirmed genuinely done: new payouts now park the withheld interest in Unearned Loan Interest (2440) instead of income; the weekly earning step runs when a receipt is recorded and unwinds when a receipt is reversed; reversing a payout voids the whole original entry cleanly.
+Here's where things stand.
 
-Done now: the two real loans that had wrongly recognised interest at payout are corrected with dated correction entries — KSh 3,000 (LN-000005) and KSh 2,000 (LN-000006) moved out of Loan Interest Income into Unearned Loan Interest. Loan interest income for those payouts is now nil, and KSh 5,000 sits as unearned interest that will become income week by week as clients pay. Nothing was deleted and the original entries remain for audit.
+Verified as genuinely done (checked against the live database, not the notes): new payouts park withheld interest in Unearned Loan Interest (2440); the weekly earning step runs when a receipt is recorded and unwinds when a receipt is reversed; the two real loans' correction entries (KSh 3,000 on LN-000005, KSh 2,000 on LN-000006) are in place with interest income back to nil. The borrower schedule split is also already correct — LN-000006 now shows 666.66 principal + 166.67 interest per week with 166.63 on the last row, and that split flows through to the printed schedule and statement. The previous note about it being unfinished was out of date.
 
-Unfinished / untested: the borrower's schedule split still shows KSh 833.33 principal with zero interest for these upfront-interest loans instead of 666.67 + 166.67 — the split view exists but is not yet computing the interest column, so the printed schedule and statement will still show the wrong shape. Portfolio and balance-sheet reports also have not been checked for showing the receivable net of unearned interest. I did not create a test disbursement, to avoid touching real books.
+Done now: the loan balances figures behind the Portfolio report gained two server-calculated amounts — unearned interest and net principal outstanding. For LN-000005 that reads 15,000 owed less 3,000 unearned = 12,000 net; LN-000006 reads 10,000 less 2,000 = 8,000 net. The same view was also tightened to respect each signed-in user's own access rules, matching every other lending view.
+
+Unfinished: the Portfolio report screen itself still shows only the gross "Principal o/s" — the two new columns are available but not yet displayed, so the report still overstates what clients effectively owe. Also outstanding: the Unearned Loan Interest account is currently filed under "notes payable" rather than unearned revenue, which mis-groups it slightly on the balance sheet, and no test disbursement was run (deliberately, to keep the real books clean).
 
 Credits ran out before I could finish those items; continuing needs available credits.
