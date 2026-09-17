@@ -353,6 +353,27 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     onError: (e) => toast.error(lendingErrorMessage(e, "The reissue was refused")),
   });
 
+  /**
+   * Lifecycle exception: cancel a loan that was created but never disbursed
+   * (for example after a wrong application, or after reversing a disbursement
+   * made in error). The server refuses if anything financial has happened.
+   */
+  const cancelPendingLoan = useMutation({
+    mutationFn: async (input: { loanId: string; reason: string }) => {
+      const { data, error } = await supabase.rpc("mf_cancel_pending_loan", {
+        p_loan_id: input.loanId,
+        p_reason: input.reason,
+      });
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      invalidate();
+      toast.success("Loan cancelled — its application is closed as cancelled");
+    },
+    onError: (e) => toast.error(lendingErrorMessage(e, "The cancellation was refused")),
+  });
+
   return {
     loans: query.data ?? [],
     isLoading: query.isLoading,
@@ -364,6 +385,7 @@ export function useMfLoans(options?: { status?: MfLoanStatus | "all"; clientId?:
     writeOff,
     closeLoan,
     reissueLoan,
+    cancelPendingLoan,
     businessId,
   };
 }
