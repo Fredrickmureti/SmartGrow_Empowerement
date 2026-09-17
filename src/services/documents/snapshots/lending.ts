@@ -358,6 +358,7 @@ export async function fetchAndBuildRepaymentScheduleSnapshot(
     document_number: number,
     issue_date: date,
     ...commonHead(ctx),
+    ...borrowerSummary(ctx, rows, totals),
     schedule: rows,
     schedule_totals: totals,
     next_due_date: str(ctx.balances?.["next_due_date"]),
