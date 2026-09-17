@@ -1,0 +1,1 @@
+ALTER VIEW public.mf_loan_balances SET (security_invoker = on);

@@ -20792,12 +20792,14 @@ export type Database = {
           loan_id: string | null
           loan_number: string | null
           loan_officer_id: string | null
+          net_principal_outstanding: number | null
           next_due_date: string | null
           principal: number | null
           principal_outstanding: number | null
           status: string | null
           total_contractual: number | null
           total_outstanding: number | null
+          unearned_interest: number | null
         }
         Relationships: [
           {
