@@ -108,12 +108,13 @@ export function LoanLifecycleDialog({
   const isWriteOff = action === "write_off";
   const isClose = action === "close";
   const isReissue = action === "top_up" || action === "restructure";
+  const isCancel = action === "cancel";
   const isReversal = action === "reverse_disbursement";
   const reasonRequired = !isClose;
 
   const canSubmit =
     !!loan &&
-    (isReversal || !!date) &&
+    (isReversal || isCancel || !!date) &&
     (!reasonRequired || reason.trim().length > 0) &&
     (!isReissue || !!term);
 
@@ -121,7 +122,9 @@ export function LoanLifecycleDialog({
     if (!loan || !canSubmit) return;
     setSaving(true);
     try {
-      if (isReversal) {
+      if (isCancel) {
+        await onCancelLoan?.({ loanId: loan.id, reason: reason.trim() });
+      } else if (isReversal) {
         await onReverseDisbursement({ loanId: loan.id, reason: reason.trim() });
       } else if (isWriteOff) {
         await onWriteOff({ loanId: loan.id, writtenOffOn: date, reason: reason.trim() });
@@ -156,7 +159,7 @@ export function LoanLifecycleDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {!isReversal && (
+          {!isReversal && !isCancel && (
           <div className="space-y-1.5">
             <Label htmlFor="lifecycle-date">
               {isWriteOff
