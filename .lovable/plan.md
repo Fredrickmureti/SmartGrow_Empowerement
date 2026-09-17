@@ -110,6 +110,14 @@ Verified as genuinely done (checked against the live database, not the notes): n
 
 Done now: the loan balances figures behind the Portfolio report gained two server-calculated amounts — unearned interest and net principal outstanding. For LN-000005 that reads 15,000 owed less 3,000 unearned = 12,000 net; LN-000006 reads 10,000 less 2,000 = 8,000 net. The same view was also tightened to respect each signed-in user's own access rules, matching every other lending view.
 
-Unfinished: the Portfolio report screen itself still shows only the gross "Principal o/s" — the two new columns are available but not yet displayed, so the report still overstates what clients effectively owe. Also outstanding: the Unearned Loan Interest account is currently filed under "notes payable" rather than unearned revenue, which mis-groups it slightly on the balance sheet, and no test disbursement was run (deliberately, to keep the real books clean).
+Done now (2026-09-17): the Portfolio report screen shows the two amounts —
+"Unearned interest" and "Net principal o/s" — as columns and in the portfolio
+total row, and they carry through to the export. The Unearned Loan Interest
+account (2440) was re-filed from "notes payable" to unearned revenue (operating
+for cash flow), so it now groups correctly as a current liability on the balance
+sheet. Typecheck clean, build OK. No balances, journals, loans or products were
+touched.
 
-Credits ran out before I could finish those items; continuing needs available credits.
+Remaining: no test disbursement was run (deliberate — the books hold real
+production data); the open business decisions in section 15 still need the
+client's answers before any further behaviour change.
