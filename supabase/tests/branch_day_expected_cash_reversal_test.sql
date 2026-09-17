@@ -31,14 +31,16 @@ BEGIN
   END IF;
 
   -- The canonical set must keep reversed originals visible.
-  IF NOT ('reversed' = ANY (
-        (SELECT p.prosrc FROM pg_proc p
-          JOIN pg_namespace n ON n.oid = p.pronamespace
-         WHERE n.nspname = 'public'
-           AND p.proname = 'ledger_visible_journal_statuses')::text::text[]
-        )) THEN
-    NULL; -- textual shape varies; the definitional check below is authoritative
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public'
+       AND p.proname = 'ledger_visible_journal_statuses'
+       AND p.prosrc LIKE '%reversed%'
+  ) THEN
+    RAISE EXCEPTION 'ledger_visible_journal_statuses no longer includes reversed originals';
   END IF;
+
+
 
   -- Every overload of the ledger totals engine must agree.
   IF EXISTS (
