@@ -28,7 +28,8 @@ export type LoanLifecycleAction =
   | "close"
   | "top_up"
   | "restructure"
-  | "reverse_disbursement";
+  | "reverse_disbursement"
+  | "cancel";
 
 interface Props {
   open: boolean;
@@ -48,6 +49,7 @@ interface Props {
     reason: string;
   }) => Promise<void>;
   onReverseDisbursement: (input: { loanId: string; reason: string }) => Promise<void>;
+  onCancelLoan?: (input: { loanId: string; reason: string }) => Promise<void>;
 }
 
 const TITLES: Record<LoanLifecycleAction, string> = {
@@ -56,6 +58,7 @@ const TITLES: Record<LoanLifecycleAction, string> = {
   top_up: "Top up loan",
   restructure: "Restructure loan",
   reverse_disbursement: "Reverse disbursement",
+  cancel: "Cancel loan",
 };
 
 const DESCRIPTIONS: Record<LoanLifecycleAction, string> = {
@@ -69,6 +72,8 @@ const DESCRIPTIONS: Record<LoanLifecycleAction, string> = {
     "A successor loan is created on revised terms carrying forward this loan's outstanding principal. No additional principal may be added, and this loan's history is preserved.",
   reverse_disbursement:
     "Use this only when the disbursement itself was made in error. The server reverses the original ledger entry, returns the loan to pending disbursement and restores the contractual schedule. It is refused once any receipt has been recorded.",
+  cancel:
+    "Use this when the loan should never have been created — a wrong amount, term or client. The loan is marked cancelled and its application is closed as cancelled; nothing is deleted. It is refused if money has moved. Book a fresh application with the correct details.",
 };
 
 export function LoanLifecycleDialog({
@@ -80,6 +85,7 @@ export function LoanLifecycleDialog({
   onClose,
   onReissue,
   onReverseDisbursement,
+  onCancelLoan,
 }: Props) {
   const [date, setDate] = useState("");
   const [reason, setReason] = useState("");
