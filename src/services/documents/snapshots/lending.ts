@@ -87,6 +87,7 @@ async function loadLoanContext(
     balRes,
     schedRes,
     disbRes,
+    penaltyRes,
   ] = await Promise.all([
       l["client_id"]
         ? db.from("mf_clients").select("*").eq("id", l["client_id"] as string).maybeSingle()
@@ -126,6 +127,10 @@ async function loadLoanContext(
         .eq("loan_id", loanId)
         .is("reversed_at", null)
         .maybeSingle(),
+      db
+        .from("mf_loan_penalty_status")
+        .select("installment_no, penalty_charged, penalty_paid, penalty_outstanding")
+        .eq("loan_id", loanId),
     ]);
 
   const officer = (officerRes?.data ?? null) as Row | null;
@@ -140,6 +145,7 @@ async function loadLoanContext(
     balances: (balRes?.data ?? null) as Row | null,
     schedule: ((schedRes?.data ?? []) as Row[]),
     disbursement: (disbRes?.data ?? null) as Row | null,
+    penalties: ((penaltyRes?.data ?? []) as Row[]),
   };
 }
 
