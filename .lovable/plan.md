@@ -104,20 +104,8 @@ Schedule totals for 10,000/2,000/12w; payout equals 8,000; disbursement journal 
 ======================IMPLEMENTATION STATUS/PROGRESS AND WHERE THINGS STAND==================
 
 
-Here's where things stand.
+roved this session (in a self-cancelling test, nothing saved): recording all twelve weekly repayments on LN-000006 earned exactly KSh 2,000 into Interest income in twelve once-only weekly slices, drew Unearned interest down to zero for that loan, cleared the loan receivable, closed the loan at nil outstanding, and every journal balanced. The client's model reconciles end to end in the live system.
 
-Verified as genuinely done (checked against the live database, not the notes): new payouts park withheld interest in Unearned Loan Interest (2440); the weekly earning step runs when a receipt is recorded and unwinds when a receipt is reversed; the two real loans' correction entries (KSh 3,000 on LN-000005, KSh 2,000 on LN-000006) are in place with interest income back to nil. The borrower schedule split is also already correct — LN-000006 now shows 666.66 principal + 166.67 interest per week with 166.63 on the last row, and that split flows through to the printed schedule and statement. The previous note about it being unfinished was out of date.
+Not yet tested: reversing a receipt (to confirm that week's interest is un-earned again), early settlement, and write-off behaviour — plus the open business questions in section 15 of the plan still need the client's answers.
 
-Done now: the loan balances figures behind the Portfolio report gained two server-calculated amounts — unearned interest and net principal outstanding. For LN-000005 that reads 15,000 owed less 3,000 unearned = 12,000 net; LN-000006 reads 10,000 less 2,000 = 8,000 net. The same view was also tightened to respect each signed-in user's own access rules, matching every other lending view.
-
-Done now (2026-09-17): the Portfolio report screen shows the two amounts —
-"Unearned interest" and "Net principal o/s" — as columns and in the portfolio
-total row, and they carry through to the export. The Unearned Loan Interest
-account (2440) was re-filed from "notes payable" to unearned revenue (operating
-for cash flow), so it now groups correctly as a current liability on the balance
-sheet. Typecheck clean, build OK. No balances, journals, loans or products were
-touched.
-
-Remaining: no test disbursement was run (deliberate — the books hold real
-production data); the open business decisions in section 15 still need the
-client's answers before any further behaviour change.   (APPROVED)
+Credits ran out here, so finishing the reversal and settlement checks needs available credits.
