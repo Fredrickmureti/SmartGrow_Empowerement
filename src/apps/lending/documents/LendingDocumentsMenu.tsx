@@ -76,13 +76,14 @@ export function LendingDocumentsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button size="sm" variant="outline">
-          {busy ? (
+          {busy || printing ? (
             <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
           ) : (
             <FileText className="mr-1.5 h-3.5 w-3.5" />
           )}
           {label}
         </Button>
+
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Preview</DropdownMenuLabel>
