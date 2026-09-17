@@ -292,6 +292,7 @@ export function LoansPage() {
                             documentId: loan.id,
                             title: `Repayment schedule ${loan.loan_number}`,
                             filename: `repayment-schedule-${loan.loan_number}`,
+                            spreadsheet: true,
                           },
                           {
                             documentType: "loan_statement",
