@@ -77,18 +77,25 @@ No financial transaction or ledger posting is touched by document generation.
 Closes part of the open "M10 — Microfinance document gaps" item; remaining M10 items stay open.
 
 ==========================IMPLEMENTYATION PROGRESS AND WHETRE THI8NGS STAND=============
-I'll audit the existing lending schedule and document machinery before proposing anything.
 
-I've paused mid-implementation — your workspace ran out of credits.
 
-Done so far
-- Audit complete (documented in the approved plan): the schedule, its upfront-interest split, assessed penalties, the document engine and branch-level access controls all already exist and are sound.
-- The borrower schedule document now carries the extra summary facts (maturity date, number of installments, net cash disbursed, interest withheld at disbursement, total scheduled repayment) and actually-assessed penalty amounts per installment.
-- The printed schedule now shows a penalty column only when a penalty was genuinely assessed.
+I'll find the previous run's progress note and verify what's actually in place.
 
-Not yet done / untested
-- The fuller borrower summary block and the plain-language note explaining interest withheld at disbursement on the printed page.
-- The Print action for lending paperwork, and the download/print/spreadsheet actions on the schedule screen itself.
-- All testing, including the upfront-interest, penalty, multi-page and cross-branch access checks.
+I've had to stop mid-implementation — your workspace ran out of credits.
 
-Nothing existing was removed or changed in how interest is calculated. To finish the remaining items, credits need to be available again — tell me when they are and I'll pick up exactly where this stopped.
+Verified from the previous run (claims checked against the actual code, not taken on trust):
+- The borrower schedule document already carries the extra summary facts (maturity date, number of installments, net cash disbursed, interest withheld at disbursement, fees deducted, total scheduled repayment) and the actually-assessed penalty per installment.
+- The printed schedule already shows a penalty column only when a penalty was genuinely assessed.
+- The rest of the previous run's "not yet done" list was indeed not done.
+
+Completed in this run:
+- The printed borrower schedule now shows the full loan facts block (net cash disbursed, interest withheld, fees deducted, repayment frequency, installments, first installment, maturity date, total scheduled repayment) plus a plain-language note explaining interest deducted at disbursement.
+- Added a Print path for lending paperwork that reuses the same frozen document as Preview and Download — no separate generation route.
+- The Documents menu on the loans list now offers Preview, Download, Print, and an internal spreadsheet extract where enabled.
+
+Unfinished and untested:
+- The download/print buttons on the schedule screen itself (`LoanScheduleDialog` still has no header actions).
+- All testing: upfront-interest, penalty, multi-page, currency rounding, and cross-branch access checks; nothing has been type-checked or run since these edits, so the new menu and print path are unverified.
+- Roadmap/plan note not yet updated.
+
+No interest calculation, loan product capability, historical loan term, or ledger posting was altered. Tell me when credits are available and I'll finish the schedule-screen actions and run the tests.
