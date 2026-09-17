@@ -20,6 +20,10 @@ export interface MfPortfolioRow {
   currency_code: string | null;
   principal: number;
   principal_outstanding: number;
+  /** Withheld interest not yet earned (upfront-interest loans). Server-derived. */
+  unearned_interest: number;
+  /** Principal outstanding less unearned interest — what the client effectively owes. */
+  net_principal_outstanding: number;
   interest_outstanding: number;
   fees_outstanding: number;
   total_outstanding: number;
@@ -85,6 +89,8 @@ export function useMfPortfolioReport(status?: string) {
         currency_code: (r.currency_code as string) ?? null,
         principal: Number(r.principal ?? 0),
         principal_outstanding: Number(r.principal_outstanding ?? 0),
+        unearned_interest: Number(r.unearned_interest ?? 0),
+        net_principal_outstanding: Number(r.net_principal_outstanding ?? 0),
         interest_outstanding: Number(r.interest_outstanding ?? 0),
         fees_outstanding: Number(r.fees_outstanding ?? 0),
         total_outstanding: Number(r.total_outstanding ?? 0),
