@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { LoadingState, EmptyState } from "@/design-system";
 import { useMfLoanSchedule, type MfLoan } from "@/hooks/useMfLoans";
+import { LendingDocumentsMenu } from "../documents/LendingDocumentsMenu";
 import { DisbursementPhotoPanel } from "./DisbursementPhotoPanel";
 
 interface Props {
