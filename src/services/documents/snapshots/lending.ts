@@ -56,6 +56,8 @@ interface LoanContext {
   balances: Row | null;
   schedule: Row[];
   disbursement: Row | null;
+  /** Actually assessed penalties per installment (`mf_loan_penalty_status`). */
+  penalties: Row[];
 }
 
 async function loadLoanContext(
