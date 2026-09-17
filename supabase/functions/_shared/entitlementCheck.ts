@@ -53,23 +53,13 @@ function classifySubscription(org: OrgRow): EntitlementResult | null {
       orgStatus: "suspended",
     };
   }
-  const now = new Date();
-  const isActive =
-    org.subscription_status === null ||
-    (org.subscription_status === "active" &&
-      (!org.subscription_ends_at || new Date(org.subscription_ends_at) > now)) ||
-    (org.subscription_status === "trial" &&
-      (!org.trial_ends_at || new Date(org.trial_ends_at) > now));
-  if (!isActive) {
-    return {
-      allowed: false,
-      code: "SUBSCRIPTION_INACTIVE",
-      reason: "Subscription is not active",
-      orgStatus: org.subscription_status ?? undefined,
-    };
-  }
+  // Subscription/trial gating is legacy multi-tenant SaaS behaviour inherited
+  // from the previous ERP platform. This deployment is a single-business
+  // microfinance system with no billing lifecycle, so an org that exists and
+  // is not suspended is always considered active. Suspension remains enforced.
   return null;
 }
+
 
 /**
  * Check whether the organization's plan grants this APP (e.g. "hr", "banking", "etims").
