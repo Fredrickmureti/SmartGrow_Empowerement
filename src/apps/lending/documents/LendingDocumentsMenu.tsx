@@ -8,7 +8,8 @@
  * PDF is drawn from. No second renderer, no bespoke PDF path.
  */
 import { useState } from "react";
-import { Download, FileSearch, FileText, Loader2 } from "lucide-react";
+import { Download, FileSearch, FileSpreadsheet, FileText, Loader2, Printer } from "lucide-react";
+
 
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +23,7 @@ import {
 import { toast } from "sonner";
 import { useDocumentPreview } from "@/components/documents/DocumentPreviewProvider";
 import { downloadExport } from "@/services/exports/documentExport";
+import { useLendingDocumentPrint } from "./useLendingDocumentPrint";
 
 export interface LendingDocumentTarget {
   /** Registered source document type, e.g. `loan_agreement`. */
@@ -30,12 +32,18 @@ export interface LendingDocumentTarget {
   title: string;
   /** Filename offered to the browser; extension is appended by the exporter. */
   filename: string;
+  /**
+   * Offer an internal spreadsheet extract of the SAME frozen snapshot.
+   * Staff-only convenience — never part of the borrower's paperwork.
+   */
+  spreadsheet?: boolean;
 }
 
 interface LendingDocumentsMenuProps {
   documents: LendingDocumentTarget[];
   label?: string;
 }
+
 
 export function LendingDocumentsMenu({
   documents,
