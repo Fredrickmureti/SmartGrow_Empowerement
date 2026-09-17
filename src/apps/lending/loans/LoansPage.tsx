@@ -118,6 +118,7 @@ export function LoansPage() {
     writeOff,
     closeLoan,
     reissueLoan,
+    cancelPendingLoan,
   } = useMfLoans({ status });
   const { clients } = useMfClients();
 
