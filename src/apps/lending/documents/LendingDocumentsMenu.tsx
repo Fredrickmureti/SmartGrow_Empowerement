@@ -118,9 +118,44 @@ export function LendingDocumentsMenu({
             {doc.title}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Print</DropdownMenuLabel>
+        {documents.map((doc) => (
+          <DropdownMenuItem
+            key={`print-${doc.documentType}`}
+            disabled={printing === doc.documentType}
+            onSelect={(event) => {
+              event.preventDefault();
+              void print(doc.documentType, doc.documentId, doc.title);
+            }}
+          >
+            <Printer className="mr-2 h-3.5 w-3.5" />
+            {doc.title}
+          </DropdownMenuItem>
+        ))}
+        {spreadsheets.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Spreadsheet (internal)</DropdownMenuLabel>
+            {spreadsheets.map((doc) => (
+              <DropdownMenuItem
+                key={`xlsx-${doc.documentType}`}
+                disabled={busy === doc.documentType}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void download(doc, "xlsx");
+                }}
+              >
+                <FileSpreadsheet className="mr-2 h-3.5 w-3.5" />
+                {doc.title}
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
 
 export default LendingDocumentsMenu;
