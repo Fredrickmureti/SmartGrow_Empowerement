@@ -18,5 +18,5 @@ Authoritative detail lives in `.lovable/plan.md`.
 - [ ] M8 — Linter posture on retained schema.
 - [ ] M9 — Microfinance report gaps.
 - [ ] Resource Center: remove the inert demo-video section (`useDemoVideos` is now a stub; `platform_demo_videos` is dropped).
-- [ ] M10 — Microfinance document gaps.
+- [ ] M10 — Microfinance document gaps (borrower repayment schedule export/print done: richer borrower summary, assessed-penalty column, Print verb, schedule-screen actions, internal XLSX extract, snapshot tests; other M10 documents still open).
 - [x] Invitation branding and links use Smart Grow Empowerment at `https://www.growastepventures.co.ke/` only.
