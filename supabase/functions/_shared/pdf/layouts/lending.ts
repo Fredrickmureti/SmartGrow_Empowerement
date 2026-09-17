@@ -334,6 +334,12 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
 
   const typography = resolveTypography("ledger");
   const hasFees = plan.some((r) => num(r["fees_due"]) !== 0);
+  /**
+   * Penalty is printed ONLY where an amount was actually assessed and is
+   * still outstanding. A penalty rule existing on the product never puts a
+   * column on the borrower's schedule.
+   */
+  const hasPenalty = plan.some((r) => num(r["penalty_due"]) !== 0);
   const totals = (snapshot["schedule_totals"] ?? {}) as Snapshot;
   const currency = str(snapshot["currency"]) ?? undefined;
 
@@ -343,14 +349,17 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
     columns: [
       { key: "no", header: "#", width: 4, align: "right" },
       { key: "due", header: "Due date", width: 12, align: "left" },
-      { key: "opening", header: "Opening", width: 14, format: "currency", align: "right" },
-      { key: "principal", header: "Principal", width: 14, format: "currency", align: "right" },
-      { key: "interest", header: "Interest", width: 14, format: "currency", align: "right" },
+      { key: "opening", header: "Opening", width: 13, format: "currency", align: "right" },
+      { key: "principal", header: "Principal", width: 13, format: "currency", align: "right" },
+      { key: "interest", header: "Interest", width: 13, format: "currency", align: "right" },
       ...(hasFees
-        ? [{ key: "fees", header: "Fees", width: 12, format: "currency", align: "right" as const }]
+        ? [{ key: "fees", header: "Fees", width: 11, format: "currency", align: "right" as const }]
         : []),
-      { key: "total", header: "Installment", width: 15, format: "currency", align: "right" },
-      { key: "closing", header: "Closing", width: 15, format: "currency", align: "right" },
+      ...(hasPenalty
+        ? [{ key: "penalty", header: "Penalty", width: 11, format: "currency", align: "right" as const }]
+        : []),
+      { key: "total", header: "Installment", width: 14, format: "currency", align: "right" },
+      { key: "closing", header: "Closing", width: 14, format: "currency", align: "right" },
     ],
     rows: [
       ...plan.map((r, idx) => ({
@@ -360,6 +369,7 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
         principal: num(r["principal_due"]),
         interest: num(r["interest_due"]),
         fees: num(r["fees_due"]),
+        penalty: num(r["penalty_due"]),
         total: num(r["total_due"]),
         closing: num(r["closing_balance"]),
         ...(r["is_grace"] === true ? { due: `${date(r["due_date"]) ?? ""} (grace)` } : {}),
@@ -371,6 +381,7 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
         principal: num(totals["principal"]),
         interest: num(totals["interest"]),
         fees: num(totals["fees"]),
+        penalty: num(totals["penalty"]),
         total: num(totals["total"]),
         closing: "",
         _isGrandTotal: true,

@@ -56,6 +56,8 @@ interface LoanContext {
   balances: Row | null;
   schedule: Row[];
   disbursement: Row | null;
+  /** Actually assessed penalties per installment (`mf_loan_penalty_status`). */
+  penalties: Row[];
 }
 
 async function loadLoanContext(
@@ -85,6 +87,7 @@ async function loadLoanContext(
     balRes,
     schedRes,
     disbRes,
+    penaltyRes,
   ] = await Promise.all([
       l["client_id"]
         ? db.from("mf_clients").select("*").eq("id", l["client_id"] as string).maybeSingle()
@@ -124,6 +127,10 @@ async function loadLoanContext(
         .eq("loan_id", loanId)
         .is("reversed_at", null)
         .maybeSingle(),
+      db
+        .from("mf_loan_penalty_status")
+        .select("installment_no, penalty_charged, penalty_paid, penalty_outstanding")
+        .eq("loan_id", loanId),
     ]);
 
   const officer = (officerRes?.data ?? null) as Row | null;
@@ -138,6 +145,7 @@ async function loadLoanContext(
     balances: (balRes?.data ?? null) as Row | null,
     schedule: ((schedRes?.data ?? []) as Row[]),
     disbursement: (disbRes?.data ?? null) as Row | null,
+    penalties: ((penaltyRes?.data ?? []) as Row[]),
   };
 }
 
@@ -200,19 +208,33 @@ function termsBlock(ctx: LoanContext): Record<string, unknown> {
  * `interest_component` come from the display view: identical to the stored
  * amounts for ordinary loans, and the re-split of the installment for loans
  * whose interest was deducted upfront.
+ *
+ * `penalty_due` is the amount ACTUALLY assessed and still outstanding on
+ * that installment (`mf_loan_penalty_status`) — never derived from the
+ * existence of a penalty rule. It is zero for every installment that has
+ * not been penalised, which is what keeps the penalty column off an
+ * ordinary schedule.
  */
 function scheduleRows(ctx: LoanContext): Array<Record<string, unknown>> {
-  return ctx.schedule.map((s) => ({
-    installment_no: num(s["installment_no"]),
-    due_date: str(s["due_date"]),
-    opening_balance: num(s["opening_balance"]),
-    principal_due: num(s["principal_component"] ?? s["principal_due"]),
-    interest_due: num(s["interest_component"] ?? s["interest_due"]),
-    fees_due: num(s["fees_due"]),
-    total_due: num(s["total_due"]),
-    closing_balance: num(s["closing_balance"]),
-    is_grace: s["is_grace"] === true,
-  }));
+  const penaltyByInstallment = new Map<number, Row>(
+    ctx.penalties.map((p) => [num(p["installment_no"]), p]),
+  );
+  return ctx.schedule.map((s) => {
+    const installmentNo = num(s["installment_no"]);
+    const penalty = penaltyByInstallment.get(installmentNo);
+    return {
+      installment_no: installmentNo,
+      due_date: str(s["due_date"]),
+      opening_balance: num(s["opening_balance"]),
+      principal_due: num(s["principal_component"] ?? s["principal_due"]),
+      interest_due: num(s["interest_component"] ?? s["interest_due"]),
+      fees_due: num(s["fees_due"]),
+      penalty_due: penalty ? num(penalty["penalty_outstanding"]) : 0,
+      total_due: num(s["total_due"]),
+      closing_balance: num(s["closing_balance"]),
+      is_grace: s["is_grace"] === true,
+    };
+  });
 }
 
 
@@ -221,7 +243,34 @@ function scheduleTotals(rows: Array<Record<string, unknown>>) {
     principal: rows.reduce((a, r) => a + num(r["principal_due"]), 0),
     interest: rows.reduce((a, r) => a + num(r["interest_due"]), 0),
     fees: rows.reduce((a, r) => a + num(r["fees_due"]), 0),
+    penalty: rows.reduce((a, r) => a + num(r["penalty_due"]), 0),
     total: rows.reduce((a, r) => a + num(r["total_due"]), 0),
+  };
+}
+
+/**
+ * Borrower-facing loan summary. Every value is read from a row already
+ * loaded: the schedule (maturity, installment count), the frozen
+ * disbursement (net cash, upfront interest, fees deducted) and the loan's
+ * own frozen terms. Nothing here recomputes interest, and no
+ * accounting-only identifier (journal, GL account, deferred-release id,
+ * posting status) is carried.
+ */
+function borrowerSummary(
+  ctx: LoanContext,
+  rows: Array<Record<string, unknown>>,
+  totals: ReturnType<typeof scheduleTotals>,
+): Record<string, unknown> {
+  const last = rows.length ? rows[rows.length - 1] : null;
+  const d = ctx.disbursement;
+  return {
+    installment_count: rows.length,
+    maturity_date: last ? (last["due_date"] as string | null) : null,
+    gross_contractual_amount: totals.total,
+    total_scheduled_repayment: totals.total,
+    net_cash_disbursed: d ? num(d["net_amount"]) : null,
+    upfront_interest_withheld: d ? num(d["upfront_interest"]) : null,
+    interest_collection: str(ctx.loan["interest_collection"]),
   };
 }
 
@@ -309,6 +358,7 @@ export async function fetchAndBuildRepaymentScheduleSnapshot(
     document_number: number,
     issue_date: date,
     ...commonHead(ctx),
+    ...borrowerSummary(ctx, rows, totals),
     schedule: rows,
     schedule_totals: totals,
     next_due_date: str(ctx.balances?.["next_due_date"]),
