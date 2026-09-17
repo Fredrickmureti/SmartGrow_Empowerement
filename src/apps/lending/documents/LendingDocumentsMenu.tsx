@@ -50,16 +50,19 @@ export function LendingDocumentsMenu({
   label = "Documents",
 }: LendingDocumentsMenuProps) {
   const { preview } = useDocumentPreview();
+  const { print, printing } = useLendingDocumentPrint();
   const [busy, setBusy] = useState<string | null>(null);
 
   if (documents.length === 0) return null;
 
-  const download = async (doc: LendingDocumentTarget) => {
+  const spreadsheets = documents.filter((d) => d.spreadsheet);
+
+  const download = async (doc: LendingDocumentTarget, format: "pdf" | "xlsx" = "pdf") => {
     setBusy(doc.documentType);
     const result = await downloadExport({
       documentType: doc.documentType,
       documentId: doc.documentId,
-      format: "pdf",
+      format,
       filename: doc.filename,
     });
     setBusy(null);
@@ -67,6 +70,7 @@ export function LendingDocumentsMenu({
       toast.error(`Could not generate ${doc.title}`, { description: result.error });
     }
   };
+
 
   return (
     <DropdownMenu>
