@@ -75,3 +75,20 @@ No financial transaction or ledger posting is touched by document generation.
 ## Roadmap effect
 
 Closes part of the open "M10 — Microfinance document gaps" item; remaining M10 items stay open.
+
+==========================IMPLEMENTYATION PROGRESS AND WHETRE THI8NGS STAND=============
+I'll audit the existing lending schedule and document machinery before proposing anything.
+
+I've paused mid-implementation — your workspace ran out of credits.
+
+Done so far
+- Audit complete (documented in the approved plan): the schedule, its upfront-interest split, assessed penalties, the document engine and branch-level access controls all already exist and are sound.
+- The borrower schedule document now carries the extra summary facts (maturity date, number of installments, net cash disbursed, interest withheld at disbursement, total scheduled repayment) and actually-assessed penalty amounts per installment.
+- The printed schedule now shows a penalty column only when a penalty was genuinely assessed.
+
+Not yet done / untested
+- The fuller borrower summary block and the plain-language note explaining interest withheld at disbursement on the printed page.
+- The Print action for lending paperwork, and the download/print/spreadsheet actions on the schedule screen itself.
+- All testing, including the upfront-interest, penalty, multi-page and cross-branch access checks.
+
+Nothing existing was removed or changed in how interest is calculated. To finish the remaining items, credits need to be available again — tell me when they are and I'll pick up exactly where this stopped.
