@@ -352,6 +352,10 @@ function BusinessCard({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditingBranch(branch)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit branch
+                              </DropdownMenuItem>
                               {!branch.is_headquarters && (
                                 <DropdownMenuItem onClick={() => setHeadquarters(branch.id)}>
                                   <Star className="mr-2 h-4 w-4" />
