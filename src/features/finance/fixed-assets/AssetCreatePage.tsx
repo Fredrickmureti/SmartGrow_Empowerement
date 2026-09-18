@@ -47,7 +47,7 @@ export default function AssetCreatePage() {
           serial_number: values.serial_number || null,
           location: values.location || null,
           vendor_id: values.vendor_id || null,
-          invoice_reference: null,
+          invoice_reference: values.supplier_reference.trim() || null,
           branch_id: null,
           assigned_to: null,
           depreciation_start_date: null,
@@ -63,7 +63,10 @@ export default function AssetCreatePage() {
           insurance_expiry: null,
           warranty_expiry: null,
           notes: null,
-        } as any);
+        } as any, {
+          paymentMethod: values.payment_method,
+          settlementAccountId: values.settlement_account_id || null,
+        });
       } catch (err) {
         throw describeAssetCurrencyError(err);
       }
@@ -78,7 +81,11 @@ export default function AssetCreatePage() {
       onSubmit={onSubmit}
       isSubmitting={submit.isSubmitting}
       submitDisabled={
-        !values.name || values.purchase_price <= 0 || !(values.currency || baseCurrency)
+        !values.name ||
+        values.purchase_price <= 0 ||
+        !(values.currency || baseCurrency) ||
+        (values.payment_method === "accounts_payable" &&
+          !values.supplier_reference.trim())
       }
     >
       <AssetFormBody
@@ -87,6 +94,7 @@ export default function AssetCreatePage() {
         categories={categories}
         currencyOptions={currencyCodes}
         baseCurrency={baseCurrency}
+        showSettlement
       />
     </RecordFormShell>
   );
