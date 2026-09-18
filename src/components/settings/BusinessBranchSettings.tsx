@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBusinesses, Business, CreateBusinessInput } from "@/hooks/useBusinesses";
-import { useBranches, Branch } from "@/hooks/useBranches";
+import { useBranches, Branch, CreateBranchInput } from "@/hooks/useBranches";
 import { CreateBranchDialog } from "@/components/organization/CreateBranchDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -217,10 +217,11 @@ function BusinessCard({
   onAddBranch,
   canManage,
 }: BusinessCardProps) {
-  const { branches, isLoading: isLoadingBranches, deleteBranch, setHeadquarters } = useBranches();
+  const { branches, isLoading: isLoadingBranches, deleteBranch, setHeadquarters, updateBranch } = useBranches();
   const [deleteConfirmBranch, setDeleteConfirmBranch] = useState<Branch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [settingsBranch, setSettingsBranch] = useState<Branch | null>(null);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
   const handleDeleteBranch = async () => {
     if (!deleteConfirmBranch) return;
@@ -351,6 +352,10 @@ function BusinessCard({
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setEditingBranch(branch)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit branch
+                              </DropdownMenuItem>
                               {!branch.is_headquarters && (
                                 <DropdownMenuItem onClick={() => setHeadquarters(branch.id)}>
                                   <Star className="mr-2 h-4 w-4" />
@@ -380,6 +385,12 @@ function BusinessCard({
           )}
         </div>
       )}
+
+      <EditBranchDialog
+        branch={editingBranch}
+        onClose={() => setEditingBranch(null)}
+        onSave={updateBranch}
+      />
 
       <Dialog open={!!deleteConfirmBranch} onOpenChange={() => setDeleteConfirmBranch(null)}>
         <DialogContent>
@@ -430,6 +441,178 @@ function BusinessCard({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+interface EditBranchDialogProps {
+  branch: Branch | null;
+  onClose: () => void;
+  onSave: (id: string, updates: Partial<CreateBranchInput>) => Promise<Branch>;
+}
+
+/**
+ * Edit branch — name, code, contact and address. The headquarters branch has
+ * no special lock: its name is editable like any other branch's.
+ */
+function EditBranchDialog({ branch, onClose, onSave }: EditBranchDialogProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState<Partial<CreateBranchInput>>({});
+  const { countries } = useCountries();
+
+  useEffect(() => {
+    if (branch) {
+      setFormData({
+        name: branch.name,
+        code: branch.code || "",
+        email: branch.email || "",
+        phone: branch.phone || "",
+        address: branch.address || "",
+        city: branch.city || "",
+        state: branch.state || "",
+        postal_code: branch.postal_code || "",
+        country: branch.country || "",
+      });
+    }
+  }, [branch]);
+
+  const updateField = (field: keyof CreateBranchInput, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!branch) return;
+    if (!formData.name?.trim()) {
+      toast.error("Branch name is required");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await onSave(branch.id, { ...formData, name: formData.name.trim() });
+      onClose();
+    } catch (error) {
+      console.error("Error updating branch:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!branch) return null;
+
+  return (
+    <Dialog open={!!branch} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Branch</DialogTitle>
+          <DialogDescription>
+            Rename this branch and update its contact and address details.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="branch-name">Branch name *</Label>
+              <Input
+                id="branch-name"
+                value={formData.name || ""}
+                onChange={(e) => updateField("name", e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-code">Code</Label>
+              <Input
+                id="branch-code"
+                value={formData.code || ""}
+                onChange={(e) => updateField("code", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-email">Email</Label>
+              <Input
+                id="branch-email"
+                type="email"
+                value={formData.email || ""}
+                onChange={(e) => updateField("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-phone">Phone</Label>
+              <Input
+                id="branch-phone"
+                value={formData.phone || ""}
+                onChange={(e) => updateField("phone", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="branch-address">Address</Label>
+            <Textarea
+              id="branch-address"
+              value={formData.address || ""}
+              onChange={(e) => updateField("address", e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="branch-city">City</Label>
+              <Input
+                id="branch-city"
+                value={formData.city || ""}
+                onChange={(e) => updateField("city", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-state">State / County</Label>
+              <Input
+                id="branch-state"
+                value={formData.state || ""}
+                onChange={(e) => updateField("state", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-postal">Postal code</Label>
+              <Input
+                id="branch-postal"
+                value={formData.postal_code || ""}
+                onChange={(e) => updateField("postal_code", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="branch-country">Country</Label>
+              <Select
+                value={formData.country || ""}
+                onValueChange={(value) => updateField("country", value)}
+              >
+                <SelectTrigger id="branch-country">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {countries.map((c) => (
+                    <SelectItem key={c.code} value={c.name}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
