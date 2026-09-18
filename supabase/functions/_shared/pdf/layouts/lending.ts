@@ -328,7 +328,11 @@ function termFacts(snapshot: Snapshot): Array<[string, string | null]> {
  * schedule, statement) so the borrower can never be handed two differently
  * shaped versions of the same plan.
  */
-function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
+function drawScheduleTable(
+  builder: PdfBuilder,
+  snapshot: Snapshot,
+  options: { hideComponents?: boolean } = {},
+): void {
   const plan = rows(snapshot, "schedule");
   if (plan.length === 0) return;
 
@@ -340,6 +344,7 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
    * column on the borrower's schedule.
    */
   const hasPenalty = plan.some((r) => num(r["penalty_due"]) !== 0);
+  const showComponents = options.hideComponents !== true;
   const totals = (snapshot["schedule_totals"] ?? {}) as Snapshot;
   const currency = str(snapshot["currency"]) ?? undefined;
 
@@ -350,8 +355,12 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
       { key: "no", header: "#", width: 4, align: "right" },
       { key: "due", header: "Due date", width: 12, align: "left" },
       { key: "opening", header: "Opening", width: 13, format: "currency", align: "right" },
-      { key: "principal", header: "Principal", width: 13, format: "currency", align: "right" },
-      { key: "interest", header: "Interest", width: 13, format: "currency", align: "right" },
+      ...(showComponents
+        ? [
+            { key: "principal", header: "Principal", width: 13, format: "currency", align: "right" as const },
+            { key: "interest", header: "Interest", width: 13, format: "currency", align: "right" as const },
+          ]
+        : []),
       ...(hasFees
         ? [{ key: "fees", header: "Fees", width: 11, format: "currency", align: "right" as const }]
         : []),
@@ -359,7 +368,13 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
         ? [{ key: "penalty", header: "Penalty", width: 11, format: "currency", align: "right" as const }]
         : []),
       { key: "total", header: "Installment", width: 14, format: "currency", align: "right" },
-      { key: "closing", header: "Closing", width: 14, format: "currency", align: "right" },
+      {
+        key: "closing",
+        header: showComponents ? "Closing" : "Balance",
+        width: 14,
+        format: "currency",
+        align: "right",
+      },
     ],
     rows: [
       ...plan.map((r, idx) => ({
@@ -390,6 +405,7 @@ function drawScheduleTable(builder: PdfBuilder, snapshot: Snapshot): void {
   });
   builder.y -= 8;
 }
+
 
 /* ------------------------------------------------------------------ */
 /* lending.loan_agreement                                              */
@@ -512,7 +528,7 @@ export async function generateRepaymentSchedulePdf(
   ]);
 
   drawSectionLabel(builder, "Installments");
-  drawScheduleTable(builder, snapshot);
+  drawScheduleTable(builder, snapshot, { hideComponents: true });
 
   drawSummaryBlock(builder, builder.page, [
     { label: "Next due date", value: date(snapshot["next_due_date"]) ?? "—" },
