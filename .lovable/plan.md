@@ -101,14 +101,14 @@ silently posting it.
 - Confirm existing assets, clients and groups are unchanged.
 
 ============WHERE THINGS STAND NOTE/IMPLEMENTATION PROGRESS========
-Here's an honest status.
 
-Verified from the previous session's note (true): the database side of both fixes is genuinely in place — admins and owners can be a client's loan officer for any branch, and recording a fixed asset accepts how it was actually paid (a specific bank/cash/mobile-money account, or "not yet paid — owed to the supplier"), with a future purchase date refused.
 
-Done this session: I extended the asset routine so an unpaid purchase can name the supplier in writing, since this system has no supplier register — that was the one thing blocking the "owed to the supplier" option from being usable on screen.
+Here's where things stand.
 
-Not finished (screens still unchanged): the loan officer pickers still hide admins, and the asset form still sends "bank" silently with no "How was this paid for?" choice. Also, there is a pre-existing build error unrelated to these two concerns (an asset category screen referencing a field that no longer exists on the accounts list) that still needs fixing.
+Verified as genuinely done (backend): owners and admins are accepted as a loan officer for any branch, and recording a fixed asset already accepts how it was actually paid — a bank account, cash, mobile money, or "not yet paid, owed to the supplier" (which requires the supplier to be named) — with a future purchase date refused. The earlier build error is also gone.
 
-Nothing existing was altered: no client, group, asset or journal entry was touched.
+Done this session (screens): the loan officer pickers on client registration, client reassignment and the loan application form now list every active team member, so admins and owners appear; for them any branch is available, while other staff still need a branch assignment.
 
-Credits ran out mid-way, so continuing needs available credits; I'll resume exactly at the screen changes plus that build error, without redoing any of the above.
+Unfinished: the asset form's "How was this paid for?" choice is half-built — the form's fields are defined but the question is not yet on screen, and the create page still sends "bank". Nothing is broken, but that part is not usable or tested yet.
+
+Credits ran out mid-way; continuing needs available credits, and I'll resume exactly at the asset form without redoing the rest.
