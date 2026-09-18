@@ -88,8 +88,12 @@ export function ClientAssignmentDialog({ field, client, onOpenChange, onUpdate }
   if (!field || !client) return null;
 
   const allowedBranches = branches.filter((b) => branchScope.canAccessBranch(b.id));
-  const officerOptions = officers.filter((o) =>
-    o.branchIds.some((id) => allowedBranches.some((b) => b.id === id)),
+  // Owners and administrators may own clients in any branch; everyone else
+  // needs an assignment in a branch this user can operate in.
+  const officerOptions = officers.filter(
+    (o) =>
+      o.orgWide ||
+      o.branchIds.some((id) => allowedBranches.some((b) => b.id === id)),
   );
   // An own-portfolio officer may only ever own their own clients.
   const ownPortfolio = branchScope.isOwnPortfolioOnly && !!user?.id;
