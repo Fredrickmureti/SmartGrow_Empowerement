@@ -109,6 +109,8 @@ Verified as genuinely done (backend): owners and admins are accepted as a loan o
 
 Done this session (screens): the loan officer pickers on client registration, client reassignment and the loan application form now list every active team member, so admins and owners appear; for them any branch is available, while other staff still need a branch assignment.
 
-Unfinished: the asset form's "How was this paid for?" choice is half-built — the form's fields are defined but the question is not yet on screen, and the create page still sends "bank". Nothing is broken, but that part is not usable or tested yet.
-
-Credits ran out mid-way; continuing needs available credits, and I'll resume exactly at the asset form without redoing the rest.
+Completed (this session): the asset form now asks "How was this paid for?" on the
+record-asset page — bank, cash, mobile money, or not yet paid (which requires the
+supplier to be named) — and the chosen method is sent through to the posting
+routine instead of the hardcoded "bank". Editing an asset does not re-post, so the
+question is only asked on creation. Typecheck and build are clean.
