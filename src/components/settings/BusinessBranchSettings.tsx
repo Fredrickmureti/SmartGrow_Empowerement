@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useBusinesses, Business, CreateBusinessInput } from "@/hooks/useBusinesses";
-import { useBranches, Branch } from "@/hooks/useBranches";
+import { useBranches, Branch, CreateBranchInput } from "@/hooks/useBranches";
 import { CreateBranchDialog } from "@/components/organization/CreateBranchDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
