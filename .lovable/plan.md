@@ -1,116 +1,56 @@
-# Two fixes: who can be a loan officer, and how an asset purchase is paid
+# Bank balance vs bank report: the 37,000 difference — verdict and fix
 
-Both concerns were checked against the live system before writing this plan.
+## What is actually happening
 
-## 1. Admins don't appear in the loan officer list
+The two screens count reversed entries differently. Both numbers come from the same rows; one of them counts half of a reversal.
 
-**What I found (verified).** The list is not filtered by job title at all — it is
-filtered by branch assignment. Only people who have a row in the branch
-assignment table are offered. In your live data:
+When an entry is reversed, the system does not delete it. It marks the original as "reversed" and posts an opposite entry. Both must be counted together so they cancel out.
 
-| Person | Role | Branches assigned |
-| --- | --- | --- |
-| Fredrick Mureti | owner | 1 |
-| Rose Mwende | loan officer | 1 |
-| William Mutisya | admin | 0 |
-| Kwali | admin | 0 |
-| Mercyline Nduku | admin | 0 |
+- The bank report counts the original and its reversal. Correct.
+- The chart of accounts balance counts only entries marked "posted", which skips the reversed original but still counts the reversal. That leaves one lonely 37,000 line, so the balance comes out 37,000 too high.
 
-The three admins have no branch assignment, so they are invisible in the picker.
-Being named the loan officer of a group does not create a branch assignment, which
-is why "I provisioned myself" did not help.
+## The 37,000 in question (verified in the data)
 
-There is a second, deeper reason: the registration routine in the database also
-refuses a loan officer who is not assigned to the client's branch. So simply
-listing everybody in the form would produce a refusal on save. Both layers must
-change together.
+| Entry | Date | Bank effect | State |
+|---|---|---|---|
+| JE-00041 Fixed asset acquisition: Core Banking System | 17 Sep | out 37,000 | reversed |
+| JE-00042 Reversal of JE-00041 "Posted wrongly" | 17 Sep | in 37,000 | posted |
+| JE-00067 Fixed asset acquisition: Core Banking System (corrected) | 18 Sep | out 37,000 | posted |
 
-**The fix.**
+Net real effect on the bank: 37,000 out, once. The report's 561,878.95 reflects that. The chart of accounts figure of 598,878.95 silently drops JE-00041's outgoing 37,000.
 
-- The picker lists every active internal team member, regardless of role, with a
-  quiet note next to anyone not yet attached to the chosen branch.
-- Owners and admins are accepted as loan officers for any branch of the
-  institution — their role already gives them authority over all branches.
-- A non-admin team member still has to be assigned to the branch; the existing
-  sentence ("This loan officer is not assigned to the selected branch.") stays for
-  that case only.
-- The same picker is used when registering a client, when creating or editing a
-  group, and on the loan application form, so all three benefit.
+## Verdict
 
-Nothing about existing clients, groups or their officers changes.
+- The report is right. The bank book balance is **KSh 561,878.95**.
+- The chart of accounts figure of 598,878.95 is overstated by exactly the reversed amount. It is a display/calculation defect, not missing entries.
+- Nothing is lost or corrupted in the ledger. Every line is present and every entry is balanced.
+- One business question for you: if your real bank statement genuinely reads 598,878.95, then the 37,000 asset payment has not actually left the bank yet, and the corrected entry JE-00067 is dated ahead of the real payment. That is a data question, separate from this defect.
 
-## 2. A new fixed asset always says it was paid from the bank
+## Same defect elsewhere (all accounts touched by a reversal)
 
-**What I found (verified).** Your instinct is right — this is a defect, not a
-design choice. The asset screen sends the payment method as the fixed word
-"bank", and the database routine credits the mapped bank account. The form never
-asks. So an asset bought in cash, by M-Pesa, or on credit from a supplier still
-shows money leaving the bank, and your bank reconciliation will never find that
-withdrawal. Auditors would be right to query it.
+| Account | Chart of accounts shows | Correct balance | Overstated / understated by |
+|---|---|---|---|
+| 1111 Petty Cash | 11,369.00 | 119.00 | +11,250 |
+| 1112 Bank - Main Account | 598,878.95 | 561,878.95 | +37,000 |
+| 1214 Computer Equipment | 35,000.00 | 72,000.00 | −37,000 |
+| 1370 Loan Principal Receivable | 55,000.00 | 70,000.00 | −15,000 |
+| 2440 Unearned Loan Interest | −11,000.00 | −14,000.00 | −3,000 |
+| 4320 Loan Fee Income | −9,750.00 | −10,500.00 | −750 |
 
-**What accounting expects.** The purchase debits the asset; the credit must be
-whatever actually settled it:
+This also explains the earlier ledger-versus-portfolio mismatch on loan receivable: same root cause, not a lending bug.
 
-- paid from a bank account → credit that bank account;
-- paid in cash → credit cash;
-- paid by mobile money → credit the mobile money account;
-- not paid yet, invoiced by a supplier → credit Accounts Payable, and the later
-  payment clears it. This is the most common case in practice and the one your
-  system cannot express today.
+## Fix (one change, no data edits)
 
-The date is a separate matter: the acquisition posts on the purchase date you
-type, so a future date puts a future-dated entry in the ledger. That is normally
-not wanted, so the form will flag a purchase date in the future instead of
-silently posting it.
+Make the balance calculation use the same entry states as the ledger and the reports.
 
-**The fix.**
+1. `get_account_balances` — replace `je.status = 'posted'` with `je.status = ANY (public.ledger_visible_journal_statuses())`, which is the shared definition already used by `get_general_ledger` (`posted` + `reversed`).
+2. `get_account_balance_at_date` — same replacement.
+3. Sweep the remaining balance readers for a hard-coded `status = 'posted'` filter over journal lines (trial balance, account register, dashboard cash tiles) and route them through the same helper, so one definition governs every balance on screen.
+4. Grant execute on `ledger_visible_journal_statuses` so it is callable from the same roles that read balances.
+5. Add a regression test asserting that for every account, the chart-of-accounts balance equals the general-ledger closing balance — the check that would have caught this on day one.
 
-- The asset form gains a required "How was this paid for?" choice: a specific bank
-  account, cash, mobile money, or "Not paid yet — owed to the supplier".
-- Choosing "owed to the supplier" requires a supplier to be named and credits
-  Accounts Payable, leaving a normal payable to settle later.
-- A future purchase date is refused with a plain sentence.
-- Existing assets and their posted entries are untouched. Nothing is
-  recalculated or reversed. If you want the already-posted asset corrected, that
-  is a separate, deliberate correction we can do after this.
+No journal entries are created, edited or deleted. The balances simply start including both halves of each reversal.
 
-## Technical notes
+## After the fix
 
-- `mf_register_client` (both overloads): accept the officer when they are assigned
-  to the branch **or** hold owner/admin in the organisation, via the existing
-  `has_role` helper. No other logic touched.
-- `useBranchOfficers`: return all active internal members of the institution,
-  keeping `branchIds` so the form can mark who is unassigned; add a flag for
-  organisation-wide authority. Callers keep their current shape.
-- `fa_create_asset`: extend the settlement resolution to accept `accounts_payable`
-  alongside the existing `bank`/`cash`/`mobile_money` keys, require a vendor for
-  the payable case, and reject a purchase date after today. The default stays
-  `bank` for backward compatibility but the UI always sends an explicit value.
-- `useFixedAssets`: stop hardcoding `_payment_method: "bank"`; pass the chosen
-  method through from `AssetFormBody` / `AssetCreatePage`.
-- No data migration, no recalculation, no destructive SQL.
-
-## Verification
-
-- Register a client choosing an admin as loan officer — it saves.
-- Register a client choosing an unassigned non-admin — the existing refusal shows.
-- Create an asset paid in cash and one owed to a supplier; open each journal entry
-  and confirm the credit is cash and Accounts Payable respectively, and that the
-  bank is untouched.
-- Attempt a future purchase date and confirm it is refused.
-- Confirm existing assets, clients and groups are unchanged.
-
-============WHERE THINGS STAND NOTE/IMPLEMENTATION PROGRESS========
-
-
-Here's where things stand.
-
-Verified as genuinely done (backend): owners and admins are accepted as a loan officer for any branch, and recording a fixed asset already accepts how it was actually paid — a bank account, cash, mobile money, or "not yet paid, owed to the supplier" (which requires the supplier to be named) — with a future purchase date refused. The earlier build error is also gone.
-
-Done this session (screens): the loan officer pickers on client registration, client reassignment and the loan application form now list every active team member, so admins and owners appear; for them any branch is available, while other staff still need a branch assignment.
-
-Completed (this session): the asset form now asks "How was this paid for?" on the
-record-asset page — bank, cash, mobile money, or not yet paid (which requires the
-supplier to be named) — and the chosen method is sent through to the posting
-routine instead of the hardcoded "bank". Editing an asset does not re-post, so the
-question is only asked on creation. Typecheck and build are clean.
+Re-run the bank report and the chart of accounts and confirm both read 561,878.95, and that the six accounts above agree with their ledger closing balances.
