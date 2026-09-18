@@ -212,6 +212,7 @@ export function useFixedAssets() {
       | "disposal_exchange_rate"
       | "base_disposal_price"
     > & { currency?: string },
+    options?: { paymentMethod?: string; settlementAccountId?: string | null },
   ) => {
     if (!can("manageFinancials")) { toast.error("You don't have permission to create assets"); throw new Error("Permission denied"); }
     if (!currentOrg || !user) throw new Error("No organization selected");
