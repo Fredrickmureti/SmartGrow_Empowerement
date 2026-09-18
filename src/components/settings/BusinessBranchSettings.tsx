@@ -386,6 +386,12 @@ function BusinessCard({
         </div>
       )}
 
+      <EditBranchDialog
+        branch={editingBranch}
+        onClose={() => setEditingBranch(null)}
+        onSave={updateBranch}
+      />
+
       <Dialog open={!!deleteConfirmBranch} onOpenChange={() => setDeleteConfirmBranch(null)}>
         <DialogContent>
           <DialogHeader>
