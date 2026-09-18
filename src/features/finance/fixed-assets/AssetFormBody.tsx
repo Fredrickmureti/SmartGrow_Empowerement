@@ -107,6 +107,8 @@ export function AssetFormBody({
   baseCurrency,
   acquisitionLocked = false,
   acquisitionLockReason,
+  showSettlement = false,
+  settlementAccounts,
 }: Props) {
   const set = <K extends keyof AssetFormValues>(k: K, v: AssetFormValues[K]) =>
     onChange({ ...values, [k]: v });
