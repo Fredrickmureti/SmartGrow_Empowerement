@@ -18,6 +18,20 @@ import {
 } from "@/components/ui/select";
 import type { AssetCategory } from "@/hooks/useFixedAssets";
 
+/** How the purchase was settled. Decides what the acquisition entry credits. */
+export type AssetPaymentMethod =
+  | "bank"
+  | "cash"
+  | "mobile_money"
+  | "accounts_payable";
+
+export const ASSET_PAYMENT_METHODS: { value: AssetPaymentMethod; label: string }[] = [
+  { value: "bank", label: "Paid from a bank account" },
+  { value: "cash", label: "Paid in cash" },
+  { value: "mobile_money", label: "Paid by mobile money" },
+  { value: "accounts_payable", label: "Not paid yet — owed to the supplier" },
+];
+
 export interface AssetFormValues {
   name: string;
   description: string;
@@ -36,6 +50,12 @@ export interface AssetFormValues {
   serial_number: string;
   location: string;
   vendor_id: string;
+  /** How the purchase was settled; the credit side of the acquisition entry. */
+  payment_method: AssetPaymentMethod;
+  /** Specific ledger account money left, when the default is not wanted. */
+  settlement_account_id: string;
+  /** Who the purchase is owed to, when it has not been paid yet. */
+  supplier_reference: string;
 }
 
 export const emptyAssetForm = (): AssetFormValues => ({
@@ -51,6 +71,9 @@ export const emptyAssetForm = (): AssetFormValues => ({
   serial_number: "",
   location: "",
   vendor_id: "",
+  payment_method: "bank",
+  settlement_account_id: "",
+  supplier_reference: "",
 });
 
 interface Props {
@@ -67,6 +90,13 @@ interface Props {
    */
   acquisitionLocked?: boolean;
   acquisitionLockReason?: string;
+  /**
+   * Settlement is asked once, when the asset is first recorded — that is when
+   * the acquisition entry is posted. Editing an asset never re-posts it.
+   */
+  showSettlement?: boolean;
+  /** Ledger accounts that may receive the payment, when one is chosen. */
+  settlementAccounts?: { id: string; label: string }[];
 }
 
 export function AssetFormBody({
