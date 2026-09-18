@@ -24663,7 +24663,12 @@ export type Database = {
         Returns: number
       }
       fa_create_asset: {
-        Args: { _asset: Json; _business_id: string; _payment_method?: string }
+        Args: {
+          _asset: Json
+          _business_id: string
+          _payment_method?: string
+          _settlement_account_id?: string
+        }
         Returns: Json
       }
       fa_depreciation_plan: {
