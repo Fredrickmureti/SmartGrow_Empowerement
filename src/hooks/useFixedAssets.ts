@@ -231,7 +231,8 @@ export function useFixedAssets() {
         ...asset,
         branch_id: stampedBranchId,
       },
-      _payment_method: "bank",
+      _payment_method: options?.paymentMethod ?? "bank",
+      _settlement_account_id: options?.settlementAccountId || null,
     } as any);
 
     if (error) throw new Error(normalizeError(error).message);
