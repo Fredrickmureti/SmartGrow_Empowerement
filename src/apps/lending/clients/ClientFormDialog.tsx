@@ -202,9 +202,10 @@ export function ClientFormDialog({
   const chooseOfficer = (value: string) => {
     setForm((prev) => {
       const officer = value === UNASSIGNED ? null : officers.find((o) => o.user_id === value);
-      const usable = officer
-        ? allowedBranches.filter((b) => officer.branchIds.includes(b.id))
-        : allowedBranches;
+      const usable =
+        officer && !officer.orgWide
+          ? allowedBranches.filter((b) => officer.branchIds.includes(b.id))
+          : allowedBranches;
       const branch_id =
         officer && usable.length === 1
           ? usable[0]!.id
@@ -637,7 +638,12 @@ export function ClientFormDialog({
                 </Select>
                 {officerOptions.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    No staff are assigned to a branch yet.
+                    No active team members were found for this institution.
+                  </p>
+                )}
+                {selectedOfficer?.orgWide && selectedOfficer.branchIds.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Not attached to a branch, but their role covers every branch.
                   </p>
                 )}
               </div>
