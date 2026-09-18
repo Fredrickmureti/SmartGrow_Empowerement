@@ -101,16 +101,14 @@ silently posting it.
 - Confirm existing assets, clients and groups are unchanged.
 
 ============WHERE THINGS STAND NOTE/IMPLEMENTATION PROGRESS========
-Here's where things stand.
+Here's an honest status.
 
-Done (database side, already live and safe):
+Verified from the previous session's note (true): the database side of both fixes is genuinely in place — admins and owners can be a client's loan officer for any branch, and recording a fixed asset accepts how it was actually paid (a specific bank/cash/mobile-money account, or "not yet paid — owed to the supplier"), with a future purchase date refused.
 
-Admins and owners can now be chosen as a client's loan officer for any branch, even without a branch assignment. Ordinary team members still need to be assigned to the branch, with the same plain refusal message as before.
-Recording a fixed asset now accepts how it was actually paid for — one of your specific bank accounts (so reconciliation finds it), cash, mobile money, or "not yet paid, owed to the supplier" which records a normal supplier payable instead of pretending money left the bank. Naming the supplier is required in that case.
-A purchase date in the future is now refused, since an asset is capitalised when it is acquired.
-No existing asset, journal entry, client or group was changed.
-Not finished — credits ran out:
+Done this session: I extended the asset routine so an unpaid purchase can name the supplier in writing, since this system has no supplier register — that was the one thing blocking the "owed to the supplier" option from being usable on screen.
 
-The screens have not been updated yet, so in the app the loan officer list still hides the admins and the asset form still sends "bank" silently. Until those edits are made, the fixes above are not visible to your team.
-Remaining work: show all active team members in the loan officer pickers (client, group, application forms), add the "How was this paid for?" choice plus the supplier picker to the asset form, stop the hardcoded "bank", then run the build and the verification checks.
-Your existing asset that showed a bank payment is untouched; correcting that one entry is a separate, deliberate step we can do afterwards. Continuing needs available credits — top up and I'll pick up exactly at the screen changes without redoing any of the above.
+Not finished (screens still unchanged): the loan officer pickers still hide admins, and the asset form still sends "bank" silently with no "How was this paid for?" choice. Also, there is a pre-existing build error unrelated to these two concerns (an asset category screen referencing a field that no longer exists on the accounts list) that still needs fixing.
+
+Nothing existing was altered: no client, group, asset or journal entry was touched.
+
+Credits ran out mid-way, so continuing needs available credits; I'll resume exactly at the screen changes plus that build error, without redoing any of the above.
