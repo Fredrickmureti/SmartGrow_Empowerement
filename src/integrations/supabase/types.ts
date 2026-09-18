@@ -26429,6 +26429,10 @@ export type Database = {
         Returns: string
       }
       mf_officer_in_scope: { Args: { p_officer_id: string }; Returns: boolean }
+      mf_officer_may_own_branch: {
+        Args: { p_branch: string; p_business_id: string; p_user: string }
+        Returns: boolean
+      }
       mf_open_group_meeting: {
         Args: {
           p_group_id: string
