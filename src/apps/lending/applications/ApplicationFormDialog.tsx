@@ -137,11 +137,14 @@ export function ApplicationFormDialog({
     [branches, form.branch_id],
   );
 
-  /** Only staff actually assigned to the client's branch may own the case. */
+  /**
+   * Staff assigned to the client's branch, plus owners and administrators,
+   * whose role already carries authority over every branch.
+   */
   const branchOfficers = useMemo(
     () =>
       form.branch_id
-        ? officers.filter((o) => o.branchIds.includes(form.branch_id))
+        ? officers.filter((o) => o.orgWide || o.branchIds.includes(form.branch_id))
         : [],
     [officers, form.branch_id],
   );

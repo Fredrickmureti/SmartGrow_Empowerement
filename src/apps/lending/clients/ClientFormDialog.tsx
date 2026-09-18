@@ -155,12 +155,15 @@ export function ClientFormDialog({
   // fixed to themselves and not editable.
   const officerLocked = branchScope.isOwnPortfolioOnly && !!user?.id;
 
-  // Only staff with a branch assignment inside a branch this user may operate
-  // in; `mf_register_client` refuses anything else.
+  // Every active team member is offered. Owners and administrators may own a
+  // client in any branch; everyone else needs an assignment in a branch this
+  // user may operate in — exactly what `mf_register_client` enforces.
   const officerOptions = useMemo(
     () =>
-      officers.filter((o) =>
-        o.branchIds.some((id) => allowedBranches.some((b) => b.id === id)),
+      officers.filter(
+        (o) =>
+          o.orgWide ||
+          o.branchIds.some((id) => allowedBranches.some((b) => b.id === id)),
       ),
     [officers, allowedBranches],
   );
@@ -173,9 +176,10 @@ export function ClientFormDialog({
     [officers, form.loan_officer_id],
   );
 
-  // With an officer chosen, only their branches are offered.
+  // With an officer chosen, only their branches are offered — unless their role
+  // covers the whole institution, in which case every branch is available.
   const branchOptions = useMemo(() => {
-    if (!selectedOfficer) return allowedBranches;
+    if (!selectedOfficer || selectedOfficer.orgWide) return allowedBranches;
     return allowedBranches.filter((b) => selectedOfficer.branchIds.includes(b.id));
   }, [allowedBranches, selectedOfficer]);
 
