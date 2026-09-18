@@ -217,10 +217,11 @@ function BusinessCard({
   onAddBranch,
   canManage,
 }: BusinessCardProps) {
-  const { branches, isLoading: isLoadingBranches, deleteBranch, setHeadquarters } = useBranches();
+  const { branches, isLoading: isLoadingBranches, deleteBranch, setHeadquarters, updateBranch } = useBranches();
   const [deleteConfirmBranch, setDeleteConfirmBranch] = useState<Branch | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [settingsBranch, setSettingsBranch] = useState<Branch | null>(null);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
 
   const handleDeleteBranch = async () => {
     if (!deleteConfirmBranch) return;
