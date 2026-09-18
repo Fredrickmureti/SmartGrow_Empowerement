@@ -47,6 +47,11 @@ export default function AssetEditPage() {
       serial_number: asset.serial_number || "",
       location: asset.location || "",
       vendor_id: asset.vendor_id || "",
+      // Settlement is only asked when the asset is first recorded; editing
+      // never re-posts the acquisition entry.
+      payment_method: "bank",
+      settlement_account_id: "",
+      supplier_reference: asset.invoice_reference || "",
     });
     setHydrated(true);
   }, [asset, hydrated, baseCurrency]);
