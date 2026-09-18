@@ -278,6 +278,74 @@ export function AssetFormBody({
           </div>
         </div>
       </Section>
+
+      {showSettlement && (
+        <Section
+          title="How was this paid for?"
+          description="This decides what the acquisition entry credits. Choose how the money actually left, or record it as still owed to the supplier."
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="a-pay">Payment method *</Label>
+              <Select
+                value={values.payment_method}
+                onValueChange={(v) =>
+                  set("payment_method", v as AssetPaymentMethod)
+                }
+              >
+                <SelectTrigger id="a-pay">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ASSET_PAYMENT_METHODS.map((m) => (
+                    <SelectItem key={m.value} value={m.value}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {settlementAccounts && settlementAccounts.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="a-settle-acct">Account money left from</Label>
+                <Select
+                  value={values.settlement_account_id}
+                  onValueChange={(v) => set("settlement_account_id", v)}
+                >
+                  <SelectTrigger id="a-settle-acct">
+                    <SelectValue placeholder="Use the default account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {settlementAccounts.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {values.payment_method === "accounts_payable" && (
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="a-supplier">Owed to (supplier) *</Label>
+                <Input
+                  id="a-supplier"
+                  value={values.supplier_reference}
+                  onChange={(e) => set("supplier_reference", e.target.value)}
+                  placeholder="Supplier name or invoice reference"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  The purchase is recorded as owed to this supplier and settled
+                  later.
+                </p>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
     </>
   );
 }
