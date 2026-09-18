@@ -528,7 +528,7 @@ export async function generateRepaymentSchedulePdf(
   ]);
 
   drawSectionLabel(builder, "Installments");
-  drawScheduleTable(builder, snapshot);
+  drawScheduleTable(builder, snapshot, { hideComponents: true });
 
   drawSummaryBlock(builder, builder.page, [
     { label: "Next due date", value: date(snapshot["next_due_date"]) ?? "—" },
